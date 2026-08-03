@@ -45,37 +45,6 @@ export default {
     frameScale: 'Scala modello',
     frameYaw: 'Rotazione modello',
     templeWidth: 'Larghezza aste',
-    prototypeBadge: 'Prototipo',
-    modal: {
-      title: 'Prova virtuale',
-      close: 'Chiudi',
-      privacy: {
-        title: 'La tua privacy è importante',
-        body: 'La prova virtuale usa la fotocamera o una foto. La tua immagine viene elaborata interamente sul tuo dispositivo e non viene mai caricata, condivisa o salvata.',
-        cta: 'Continua con la prova virtuale',
-        policy: {
-          before: 'Leggi la nostra',
-          link: 'Informativa sulla privacy',
-          after: 'per maggiori dettagli.'
-        },
-        noStorage: {
-          title: 'Nessuna registrazione viene salvata',
-          body: 'Non salviamo mai foto, video o dati del viso.'
-        },
-        localProcessing: {
-          title: 'Elaborata sul tuo dispositivo',
-          body: 'Il tracking del viso avviene localmente nel browser.'
-        },
-        noAccount: {
-          title: 'Nessun account richiesto',
-          body: 'Prova i modelli senza registrazione o login.'
-        },
-        youControl: {
-          title: 'Hai il controllo della fotocamera',
-          body: 'Ferma la fotocamera quando vuoi.'
-        }
-      }
-    },
     suggestions: {
       ariaLabel: 'Suggerimenti modelli',
       title: 'Prova un altro look'

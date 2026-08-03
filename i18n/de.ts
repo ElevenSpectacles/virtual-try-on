@@ -45,37 +45,6 @@ export default {
     frameScale: 'Modell-Skala',
     frameYaw: 'Modell-Drehung',
     templeWidth: 'Bügelbreite',
-    prototypeBadge: 'Prototyp',
-    modal: {
-      title: 'Virtual Try-On',
-      close: 'Schließen',
-      privacy: {
-        title: 'Deine Privatsphäre zählt',
-        body: 'Virtual Try-On nutzt deine Kamera oder ein Foto. Dein Bild wird ganz auf deinem Gerät verarbeitet – ohne Upload, Teilen oder Speichern.',
-        cta: 'Weiter zum Virtual Try-On',
-        policy: {
-          before: 'Lies unsere',
-          link: 'Datenschutzerklärung',
-          after: 'für Details.'
-        },
-        noStorage: {
-          title: 'Keine Aufnahmen gespeichert',
-          body: 'Wir speichern keine Fotos, Videos oder Gesichtsdaten.'
-        },
-        localProcessing: {
-          title: 'Lokal auf deinem Gerät verarbeitet',
-          body: 'Gesichtserkennung läuft lokal in deinem Browser.'
-        },
-        noAccount: {
-          title: 'Kein Account nötig',
-          body: 'Probiere Modelle ohne Registrierung oder Login an.'
-        },
-        youControl: {
-          title: 'Du hast die Kontrolle',
-          body: 'Stoppe die Kamera jederzeit.'
-        }
-      }
-    },
     suggestions: {
       ariaLabel: 'Modellvorschläge',
       title: 'Einen anderen Look probieren'

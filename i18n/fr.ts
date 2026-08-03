@@ -46,37 +46,6 @@ export default {
     frameScale: 'Échelle du modèle',
     frameYaw: 'Rotation du modèle',
     templeWidth: 'Largeur des branches',
-    prototypeBadge: 'Prototype',
-    modal: {
-      title: 'Essai virtuel',
-      close: 'Fermer',
-      privacy: {
-        title: 'Ta vie privée compte',
-        body: 'L’essai virtuel utilise ta caméra ou une photo. Ton image est traitée entièrement sur ton appareil. Elle n’est jamais téléchargée, partagée ni stockée.',
-        cta: 'Continuer vers l’essai virtuel',
-        policy: {
-          before: 'Consulte notre',
-          link: 'Politique de confidentialité',
-          after: 'pour en savoir plus.'
-        },
-        noStorage: {
-          title: 'Aucun enregistrement stocké',
-          body: 'Nous ne conservons jamais de photos, vidéos ou données faciales.'
-        },
-        localProcessing: {
-          title: 'Traité sur ton appareil',
-          body: 'Le suivi facial fonctionne localement dans ton navigateur.'
-        },
-        noAccount: {
-          title: 'Aucun compte requis',
-          body: 'Essaye les montures sans inscription ni connexion.'
-        },
-        youControl: {
-          title: 'Tu contrôles la caméra',
-          body: 'Arrête la caméra à tout moment.'
-        }
-      }
-    },
     suggestions: {
       ariaLabel: 'Suggestions de montures',
       title: 'Essayer un autre look'

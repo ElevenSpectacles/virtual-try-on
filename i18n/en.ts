@@ -45,37 +45,6 @@ export default {
     frameScale: 'Frame scale',
     frameYaw: 'Frame yaw',
     templeWidth: 'Temple width',
-    prototypeBadge: 'Prototype',
-    modal: {
-      title: 'Virtual Try-On',
-      close: 'Close',
-      privacy: {
-        title: 'Your privacy matters',
-        body: 'Virtual Try-On uses your camera or a photo. Your image is processed entirely on your device. It is never uploaded, shared, or stored.',
-        cta: 'Continue to Virtual Try-On',
-        policy: {
-          before: 'Read our',
-          link: 'Privacy Policy',
-          after: 'for more details.'
-        },
-        noStorage: {
-          title: 'No recordings stored',
-          body: 'We never save photos, videos, or face data.'
-        },
-        localProcessing: {
-          title: 'Processed on your device',
-          body: 'Face tracking runs locally in your browser.'
-        },
-        noAccount: {
-          title: 'No account required',
-          body: 'Try on frames without registration or login.'
-        },
-        youControl: {
-          title: 'You control the camera',
-          body: 'Stop the camera at any time.'
-        }
-      }
-    },
     suggestions: {
       ariaLabel: 'Frame suggestions',
       title: 'Try a different look'
