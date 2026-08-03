@@ -20,7 +20,7 @@ import {
   IRIS_CENTER_LEFT,
   ASSUMED_IPD_METERS,
   TRYON_CAMERA
-} from '../../utils/tryon'
+} from '../../../utils/tryon'
 
 describe('try-on compositing helpers', () => {
   describe('mirrorNormalizedX', () => {

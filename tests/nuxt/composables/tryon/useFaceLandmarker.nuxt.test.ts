@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ref, type Ref } from 'vue'
-import { useFaceLandmarker } from '../../composables/tryon/useFaceLandmarker'
+import { useFaceLandmarker } from '../../../../composables/tryon/useFaceLandmarker'
 import type {
   FaceLandmarkerWorkerRequest,
   FaceLandmarkerWorkerResponse
-} from '../../workers/face-landmarker.worker.types'
+} from '../../../../workers/face-landmarker.worker.types'
 
 /**
  * Detection now runs in a Worker, so the tests fake the worker side: a

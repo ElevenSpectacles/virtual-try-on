@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { getCalibrationFromManifest } from '../../composables/tryon/useFrameCalibration'
-import type { TryOnCalibrationFile } from '../../types/tryon-calibration'
+import { getCalibrationFromManifest } from '../../../../composables/tryon/useFrameCalibration'
+import type { TryOnCalibrationFile } from '../../../../types/tryon-calibration'
 
 const manifest: TryOnCalibrationFile = {
   schemaVersion: '1.0.0',

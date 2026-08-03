@@ -22,20 +22,20 @@ const { t } = useI18n()
 const isMobile = useMediaQuery('(max-width: 1023px)')
 
 const step = ref<'privacy' | 'tryon'>('privacy')
-const selectedModel = ref(
+const defaultModel =
   getTryOnModel(props.models, props.productModel)?.file ?? props.models[0]?.file
-)
 
-if (!selectedModel.value) {
+if (!defaultModel) {
   throw new Error('VirtualTryOnModal requires at least one model')
 }
+
+const selectedModel = ref<string>(defaultModel)
 
 watch(open, (value) => {
   if (value) {
     step.value = 'privacy'
     selectedModel.value =
-      getTryOnModel(props.models, props.productModel)?.file ??
-      props.models[0]?.file
+      getTryOnModel(props.models, props.productModel)?.file ?? defaultModel
   }
 })
 

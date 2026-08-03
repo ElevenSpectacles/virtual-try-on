@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   matrixToFacePose,
   faceEulerToThree
-} from '../../utils/tryon-pose'
+} from '../../../utils/tryon-pose'
 
 describe('try-on pose helpers', () => {
   describe('matrixToFacePose', () => {
