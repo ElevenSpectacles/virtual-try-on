@@ -1,5 +1,4 @@
 import { computed, ref, shallowRef, watch, type Ref } from 'vue'
-import { useRafFn } from '@vueuse/core'
 import { getFaceWidth, type NormalizedLandmark } from '../../utils/tryon'
 import { matrixToFacePose, type FacePose } from '../../utils/tryon-pose'
 import type {
@@ -81,8 +80,8 @@ export function useFaceLandmarker(
     return list[anchorIndex] ?? list[0] ?? null
   })
 
-  // In-flight request bookkeeping: one outstanding detect/detectImage call
-  // at a time, keyed by id so a stale response can never clobber a newer one.
+  // In-flight request bookkeeping: one outstanding detect call at a time,
+  // keyed by id so a stale response can never clobber a newer one.
   let nextRequestId = 0
   let pendingRequestId: number | null = null
   let readyResolve: (() => void) | null = null
@@ -214,6 +213,25 @@ export function useFaceLandmarker(
 
   let lastTimestamp = -1
 
+  // Detection input is downscaled before it crosses to the worker: the face
+  // landmarker resizes every frame to its internal ~192px input anyway, so
+  // shipping a full 1280×720 bitmap per detection only buys transfer and
+  // preprocessing overhead. Landmarks come back normalized, so precision is
+  // unaffected. The visible preview stays full-resolution.
+  const DETECT_MAX_WIDTH = 640
+
+  function captureFrame(video: HTMLVideoElement): Promise<ImageBitmap> {
+    if (video.videoWidth > DETECT_MAX_WIDTH) {
+      const scale = DETECT_MAX_WIDTH / video.videoWidth
+      return createImageBitmap(video, {
+        resizeWidth: DETECT_MAX_WIDTH,
+        resizeHeight: Math.round(video.videoHeight * scale),
+        resizeQuality: 'medium'
+      })
+    }
+    return createImageBitmap(video)
+  }
+
   function detect(timestamp: number) {
     if (!import.meta.client) return
     const video = videoRef.value
@@ -229,7 +247,7 @@ export function useFaceLandmarker(
     pendingRequestId = id
     const detectTimestamp = performance.now()
 
-    createImageBitmap(video)
+    captureFrame(video)
       .then((bitmap) => {
         // The face-landmarker may have been torn down while the bitmap was
         // being created (e.g. component unmount mid-frame).
@@ -249,52 +267,75 @@ export function useFaceLandmarker(
       })
   }
 
-  /**
-   * Run detection once on a static image. This is the fallback path for users
-   * who cannot or do not want to use the live camera.
-   */
-  function detectOnImage(image: HTMLImageElement | HTMLCanvasElement) {
-    if (!import.meta.client) return
-    if (!worker.value || !isReady.value) return
-
-    const id = ++nextRequestId
-    pendingRequestId = id
-
-    createImageBitmap(image)
-      .then((bitmap) => {
-        if (!worker.value || pendingRequestId !== id) {
-          bitmap.close()
-          return
-        }
-        post({ type: 'detectImage', id, bitmap }, [bitmap])
-      })
-      .catch((err) => {
-        if (pendingRequestId !== id) return
-        pendingRequestId = null
-        error.value = 'runtime_failed'
-        logger.error('[useFaceLandmarker] Image detection failed', { err })
-      })
+  // Detect-loop scheduling: prefer requestVideoFrameCallback so detection
+  // runs once per *produced video frame* (camera usually delivers 30fps)
+  // instead of once per rAF (60–120Hz). Halving or quartering the detect rate
+  // costs nothing — MediaPipe + smoothing interpolate fine at 30fps — while
+  // freeing the render thread. The callback timestamp is deliberately NOT
+  // used as the MediaPipe timestamp: a camera stop/start resets mediaTime,
+  // and MediaPipe throws on non-monotonic timestamps, so detect() always
+  // stamps frames with performance.now().
+  //
+  // rVFC isn't in every TS lib.dom yet and is unsupported in older Safari,
+  // so access it via a structural type and fall back to rAF.
+  type VideoFrameCallbackElement = HTMLVideoElement & {
+    requestVideoFrameCallback?: (cb: () => void) => number
+    cancelVideoFrameCallback?: (handle: number) => void
   }
 
-  const { pause: pauseLoop, resume: resumeLoop } = useRafFn(
-    ({ timestamp }) => detect(timestamp),
-    { immediate: false }
-  )
+  let loopActive = false
+  let cancelFrame: (() => void) | null = null
+
+  function scheduleLoop() {
+    if (!loopActive) return
+    const video = videoRef.value as VideoFrameCallbackElement | null
+    if (!video) {
+      loopActive = false
+      return
+    }
+    if (typeof video.requestVideoFrameCallback === 'function') {
+      const handle = video.requestVideoFrameCallback(() => {
+        cancelFrame = null
+        detect(performance.now())
+        scheduleLoop()
+      })
+      cancelFrame = () => video.cancelVideoFrameCallback?.(handle)
+    } else {
+      const handle = requestAnimationFrame(() => {
+        cancelFrame = null
+        detect(performance.now())
+        scheduleLoop()
+      })
+      cancelFrame = () => cancelAnimationFrame(handle)
+    }
+  }
+
+  function startLoop() {
+    if (loopActive) return
+    loopActive = true
+    scheduleLoop()
+  }
+
+  function stopLoop() {
+    loopActive = false
+    cancelFrame?.()
+    cancelFrame = null
+  }
 
   watch(
     [() => videoRef.value, isReady],
     ([video, ready]) => {
       if (video && ready) {
-        resumeLoop()
+        startLoop()
       } else {
-        pauseLoop()
+        stopLoop()
       }
     },
     { immediate: true }
   )
 
   onBeforeUnmount(() => {
-    pauseLoop()
+    stopLoop()
     destroy()
   })
 
@@ -312,7 +353,6 @@ export function useFaceLandmarker(
     anchor,
     init,
     detect,
-    detectOnImage,
     destroy
   }
 }

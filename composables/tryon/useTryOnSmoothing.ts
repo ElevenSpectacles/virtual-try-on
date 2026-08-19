@@ -20,8 +20,15 @@ import {
 // changes (the user visibly walking toward or away from the camera) should
 // read as immediate, while position/rotation jitter at rest is the more
 // distracting artifact to suppress.
-const POSE_FILTER = { minCutoff: 0.8, beta: 0.7 }
-const ROTATION_FILTER = { minCutoff: 0.6, beta: 0.6, dCutoff: 1 }
+//
+// beta on position/rotation is deliberately aggressive: it only raises the
+// cutoff *in proportion to measured signal speed*, so a still head keeps the
+// heavy minCutoff smoothing (no jitter) while any real motion — turning to
+// show a friend, leaning in — is tracked with almost no lag. This is the
+// "feels glued to the face" knob; too low and the frame swims behind the
+// head during motion, which reads as fake.
+const POSE_FILTER = { minCutoff: 0.8, beta: 1.4 }
+const ROTATION_FILTER = { minCutoff: 0.6, beta: 1.0, dCutoff: 1 }
 const SCALE_FILTER = { minCutoff: 0.6, beta: 1.2 }
 
 export function useTryOnSmoothing(options: {
@@ -29,6 +36,12 @@ export function useTryOnSmoothing(options: {
   targetEuler: ComputedRef<{ x: number; y: number; z: number }>
   targetScale: ComputedRef<number>
   isTracking: ComputedRef<boolean>
+  /**
+   * While true (e.g. mid-blink, when iris landmarks are unreliable), the
+   * scale filter is not fed new measurements — the frame keeps its last
+   * smoothed size instead of jumping with the garbage signal.
+   */
+  holdScale?: ComputedRef<boolean>
 }) {
   const smoothedAnchor = ref<NormalizedLandmark>({
     ...options.targetAnchor.value
@@ -85,12 +98,16 @@ export function useTryOnSmoothing(options: {
         dtSeconds,
         POSE_FILTER
       )
-      scaleState = oneEuroFilter(
-        scaleState,
-        targetScale,
-        dtSeconds,
-        SCALE_FILTER
-      )
+      // Blinks corrupt the iris-driven scale signal for a few frames; hold
+      // the last smoothed value rather than filtering the garbage in.
+      if (!options.holdScale?.value) {
+        scaleState = oneEuroFilter(
+          scaleState,
+          targetScale,
+          dtSeconds,
+          SCALE_FILTER
+        )
+      }
 
       targetEulerObj.set(targetEuler.x, targetEuler.y, targetEuler.z)
       targetQuat.setFromEuler(targetEulerObj)
@@ -112,7 +129,9 @@ export function useTryOnSmoothing(options: {
       smoothedAnchor.value = { x: anchorXState.value, y: anchorYState.value }
       const outEuler = new Euler().setFromQuaternion(smoothedQuaternion)
       smoothedEuler.value = { x: outEuler.x, y: outEuler.y, z: outEuler.z }
-      smoothedScale.value = scaleState.value
+      // scaleState stays null until the first non-held frame — keep the
+      // initial value in that window instead of crashing on the read.
+      if (scaleState) smoothedScale.value = scaleState.value
     },
     { immediate: true }
   )

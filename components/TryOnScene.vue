@@ -1,7 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Vector3, Euler, Box3, Box3Helper, Color, Matrix4, Mesh } from 'three'
-import { useGLTF } from '@tresjs/cientos'
+import { computed, watch } from 'vue'
+import {
+  Vector3,
+  Euler,
+  Box3,
+  Box3Helper,
+  Color,
+  Matrix4,
+  Mesh,
+  type Material,
+  type MeshStandardMaterial
+} from 'three'
+// NOTE: `Environment` is imported explicitly (like `useGLTF`) rather than
+// relying on @tresjs/nuxt's auto-registration — that scan only reads the
+// consuming app's dependencies/devDependencies, so an app that provides
+// cientos solely via peerDependencies (e.g. the playground via this repo's
+// package.json) would silently lose every cientos component.
+import { Environment, useGLTF } from '@tresjs/cientos'
 import {
   TRYON_CAMERA,
   type EnvPreset,
@@ -78,6 +93,47 @@ const props = withDefaults(
 // frame download never stalls the whole scene graph.
 const src = computed(() => props.src)
 const { state: model } = useGLTF(src)
+
+// The catalog's lens materials are authored as metalness ≈ 0.7 with
+// alpha-blend transparency — physically wrong for a dielectric: metalness
+// tints and darkens instead of transmitting, and the metallic Fresnel kills
+// the see-through read against the face. Normalize lenses to a true
+// dielectric (metalness 0) and stop them writing depth, so frame geometry
+// behind the lens is not clipped by the lens surface. Name-scoped — every
+// catalog GLB names its lens material "glass".
+//
+// Two further touches sell "real sunglass glass" in the composite:
+// - roughness ≈ 0: lenses are polished; any roughness blurs the reflections
+//   into a plastic-looking haze.
+// - envMapIntensity above 1: a real lens is a curved mirror — it catches
+//   bright, sharp speculars from the room. Boosting the IBL contribution on
+//   lenses only (frame acetate keeps its authored response) gives that glint
+//   that reads as glass over a video feed.
+const LENS_MATERIAL_NAME = /glass|lens/i
+
+watch(
+  model,
+  (gltf) => {
+    const seen = new Set<Material>()
+    gltf?.scene.traverse((obj) => {
+      if (!(obj instanceof Mesh)) return
+      const materials = Array.isArray(obj.material)
+        ? obj.material
+        : [obj.material]
+      for (const material of materials) {
+        if (seen.has(material) || !LENS_MATERIAL_NAME.test(material.name))
+          continue
+        seen.add(material)
+        const lens = material as MeshStandardMaterial
+        lens.metalness = 0
+        lens.roughness = 0.05
+        lens.envMapIntensity = 1.6
+        material.depthWrite = false
+      }
+    })
+  },
+  { immediate: true }
+)
 
 // Debug helper: the GLB's local-space bounding box. Calibration translation
 // is authored as `-bboxCenter`, so this box shows exactly what the calibration

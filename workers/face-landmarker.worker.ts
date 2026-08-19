@@ -1,9 +1,9 @@
 /**
  * Dedicated worker running MediaPipe FaceLandmarker's synchronous
- * `detectForVideo`/`detect` calls off the main thread. The main thread grabs
- * each video frame as a transferable `ImageBitmap` and posts it here; only
- * the small landmark/matrix result comes back, so the worker never touches
- * the DOM.
+ * `detectForVideo` calls off the main thread. The main thread grabs each
+ * video frame as a transferable `ImageBitmap` and posts it here; only the
+ * small landmark/matrix result comes back, so the worker never touches the
+ * DOM.
  */
 
 // Classic (non-module) worker: this file must contain zero static
@@ -16,7 +16,6 @@
 type FaceLandmarkerWorkerRequest =
   | { type: 'init' }
   | { type: 'detect'; id: number; bitmap: ImageBitmap; timestamp: number }
-  | { type: 'detectImage'; id: number; bitmap: ImageBitmap }
   | { type: 'destroy' }
 
 type FaceLandmarkerWorkerResponse =
@@ -31,10 +30,6 @@ type FaceLandmarkerWorkerResponse =
   | { type: 'detect_failed'; id: number; message: string }
 
 interface FaceLandmarkerInstance {
-  detect(image: ImageBitmap): {
-    faceLandmarks?: { x: number; y: number; z: number }[][]
-    facialTransformationMatrixes?: { data: Float32Array }[]
-  }
   detectForVideo(
     image: ImageBitmap,
     timestamp: number
@@ -42,16 +37,12 @@ interface FaceLandmarkerInstance {
     faceLandmarks?: { x: number; y: number; z: number }[][]
     facialTransformationMatrixes?: { data: Float32Array }[]
   }
-  setOptions(options: { runningMode: 'IMAGE' | 'VIDEO' }): Promise<void>
   close?(): void
 }
 
+// The landmarker is created in VIDEO mode and never leaves it — the camera
+// is the only input source.
 let faceLandmarker: FaceLandmarkerInstance | null = null
-// FaceLandmarker is a single stateful task bound to one runningMode; the
-// component supports both a live-video loop and a static photo-upload
-// fallback, so the mode is switched on demand via `setOptions()` rather than
-// keeping two instances loaded.
-let runningMode: 'IMAGE' | 'VIDEO' = 'VIDEO'
 
 function post(message: FaceLandmarkerWorkerResponse) {
   self.postMessage(message)
@@ -95,7 +86,6 @@ async function init() {
       )) as unknown as FaceLandmarkerInstance
     }
 
-    runningMode = 'VIDEO'
     post({ type: 'ready' })
   } catch (err) {
     post({
@@ -155,49 +145,19 @@ self.addEventListener(
 
       case 'detect': {
         const { id, bitmap, timestamp } = message
-        void (async () => {
-          try {
-            if (!faceLandmarker) throw new Error('FaceLandmarker not ready')
-            if (runningMode !== 'VIDEO') {
-              await faceLandmarker.setOptions({ runningMode: 'VIDEO' })
-              runningMode = 'VIDEO'
-            }
-            const raw = faceLandmarker.detectForVideo(bitmap, timestamp)
-            post(toResult(id, raw))
-          } catch (err) {
-            post({
-              type: 'detect_failed',
-              id,
-              message: err instanceof Error ? err.message : String(err)
-            })
-          } finally {
-            bitmap.close()
-          }
-        })()
-        break
-      }
-
-      case 'detectImage': {
-        const { id, bitmap } = message
-        void (async () => {
-          try {
-            if (!faceLandmarker) throw new Error('FaceLandmarker not ready')
-            if (runningMode !== 'IMAGE') {
-              await faceLandmarker.setOptions({ runningMode: 'IMAGE' })
-              runningMode = 'IMAGE'
-            }
-            const raw = faceLandmarker.detect(bitmap)
-            post(toResult(id, raw))
-          } catch (err) {
-            post({
-              type: 'detect_failed',
-              id,
-              message: err instanceof Error ? err.message : String(err)
-            })
-          } finally {
-            bitmap.close()
-          }
-        })()
+        try {
+          if (!faceLandmarker) throw new Error('FaceLandmarker not ready')
+          const raw = faceLandmarker.detectForVideo(bitmap, timestamp)
+          post(toResult(id, raw))
+        } catch (err) {
+          post({
+            type: 'detect_failed',
+            id,
+            message: err instanceof Error ? err.message : String(err)
+          })
+        } finally {
+          bitmap.close()
+        }
         break
       }
 

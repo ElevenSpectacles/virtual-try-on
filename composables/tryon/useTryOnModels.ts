@@ -4,6 +4,7 @@ export interface TryOnModel {
   family: string
   color: string
   colorClass: string
+  thumbnailUrl?: string
 }
 
 export function getTryOnModel(

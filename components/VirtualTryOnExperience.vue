@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ACESFilmicToneMapping, Euler, Vector3 } from 'three'
+import { NeutralToneMapping, Euler, Vector3 } from 'three'
 import {
   useElementSize,
   usePreferredReducedMotion,
@@ -17,6 +17,7 @@ import {
   mapLandmarkToObjectCover,
   getFaceWidth,
   getEarWidth,
+  isBlinking,
   ASSUMED_FRAME_HALF_DEPTH_METERS,
   ASSUMED_FACE_WIDTH_METERS,
   ASSUMED_IPD_METERS,
@@ -65,28 +66,21 @@ if (!initialModel) {
 }
 
 const hasConsented = ref(false)
-const mode = ref<'camera' | 'image' | null>(null)
-const uploadedImage = ref<HTMLImageElement | null>(null)
-const imageObjectUrl = ref<string | null>(null)
-const fileInputRef = ref<HTMLInputElement | null>(null)
 const hasReportedFaceDetected = ref(false)
 
 const { videoRef, isActive, isStarting, error, start, stop } = useWebcamStream()
 const prefersReducedMotion = usePreferredReducedMotion()
 
 const stageRef = ref<HTMLElement | null>(null)
-const imageRef = ref<HTMLImageElement | null>(null)
 const { width: stageWidth, height: stageHeight } = useElementSize(stageRef)
 
-const viewfinderLocked = computed(
-  () => isActive.value || (mode.value === 'image' && !!uploadedImage.value)
-)
+const viewfinderLocked = isActive
 
 const aspect = computed(() =>
   stageHeight.value > 0 ? stageWidth.value / stageHeight.value : 3 / 4
 )
 
-// MediaPipe runs on the raw media frame, but the video/photo is displayed
+// MediaPipe runs on the raw media frame, but the video is displayed
 // with object-fit: cover inside the fixed-aspect stage. Remap landmarks into
 // the visible cropped window so positioning matches what the user sees.
 const mediaAspect = ref(0)
@@ -189,10 +183,16 @@ const calibratedScale = computed(
     fineTuneScale.value
 )
 
+// The occluder must stay skull-sized when the head turns: the cheek-to-cheek
+// measure foreshortens by cos(yaw)·cos(pitch), so compensate it the same way
+// the scale path does — otherwise the ellipsoid shrinks at yaw and the far
+// temple arm escapes it, rendering on top of the face.
 const faceWorldHalfWidth = computed(
   () =>
     (worldPlaneWidth(aspect.value) *
-      (correctedFaceWidth.value || referenceFaceWidth.value)) /
+      (correctedFaceWidth.value
+        ? poseCompensated(correctedFaceWidth.value)
+        : referenceFaceWidth.value)) /
     2
 )
 
@@ -227,8 +227,7 @@ const occluderPosition = computed(() => {
 })
 
 const faceRotation = computed(() => {
-  if ((!useFaceTracking.value && mode.value !== 'image') || !facePose.value)
-    return null
+  if (!useFaceTracking.value || !facePose.value) return null
   const euler = faceEulerToThree(facePose.value.euler)
   return {
     x: euler.x + calibration.value.rotation.x,
@@ -252,8 +251,7 @@ const {
   landmarks: faceLandmarks,
   pose: facePose,
   anchor: faceAnchor,
-  init: initFaceLandmarker,
-  detectOnImage
+  init: initFaceLandmarker
 } = useFaceLandmarker(videoRef)
 
 // MediaPipe's transformation matrix scale is solved (Procrustes-style) over
@@ -337,11 +335,7 @@ useRafFn(
 )
 
 const effectiveLandmark = computed<NormalizedLandmark>(() => {
-  if (
-    (useFaceTracking.value || mode.value === 'image') &&
-    hasFace.value &&
-    correctedFaceAnchor.value
-  ) {
+  if (useFaceTracking.value && hasFace.value && correctedFaceAnchor.value) {
     return correctedFaceAnchor.value
   }
   if (pointerActive.value) return landmark.value
@@ -355,9 +349,9 @@ const effectiveLandmark = computed<NormalizedLandmark>(() => {
 // Hide the frame while camera tracking has momentarily lost the face (head
 // turned past the tracker's yaw range, face out of frame). Without this the
 // glasses freeze mid-air or drift on the idle animation over a live video of
-// a face they no longer follow. Pointer mode and photo mode are unaffected.
+// a face they no longer follow. Pointer mode is unaffected.
 const frameVisible = computed(() => {
-  if (useFaceTracking.value && mode.value === 'camera') return hasFace.value
+  if (useFaceTracking.value && isActive.value) return hasFace.value
   return true
 })
 
@@ -365,7 +359,12 @@ const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
   targetAnchor: effectiveLandmark,
   targetEuler: computed(() => faceRotation.value ?? manualRotation.value),
   targetScale: calibratedScale,
-  isTracking: computed(() => useFaceTracking.value && hasFace.value)
+  isTracking: computed(() => useFaceTracking.value && hasFace.value),
+  // Iris landmarks drift while the eyelid covers the iris — freeze scale
+  // for the blink instead of letting the frame visibly change size.
+  holdScale: computed(() =>
+    isBlinking(faceLandmarks.value, mediaAspect.value || 1)
+  )
 })
 
 // The calibration recentring translation is NOT applied here — it is passed
@@ -436,7 +435,6 @@ function trackTryOn(
     | 'TRY_ON_OPENED'
     | 'TRY_ON_CAMERA_GRANTED'
     | 'TRY_ON_CAMERA_DENIED'
-    | 'TRY_ON_UPLOAD_USED'
     | 'TRY_ON_FACE_DETECTED'
     | 'TRY_ON_FRAME_CHANGED'
     | 'TRY_ON_ERROR',
@@ -446,7 +444,6 @@ function trackTryOn(
     contentType: 'product',
     contentName: model.value,
     customData: {
-      mode: mode.value,
       model: model.value,
       ...extra
     }
@@ -455,71 +452,13 @@ function trackTryOn(
 
 async function onConsent() {
   hasConsented.value = true
-  mode.value = 'camera'
   hasReportedFaceDetected.value = false
   trackTryOn('TRY_ON_OPENED', { entryPoint: 'camera_consent' })
   await start()
 }
 
-function onUploadClick() {
-  fileInputRef.value?.click()
-}
-
-function resetImage() {
-  if (imageObjectUrl.value) {
-    URL.revokeObjectURL(imageObjectUrl.value)
-  }
-  uploadedImage.value = null
-  imageObjectUrl.value = null
-  mode.value = null
-  hasConsented.value = false
-  mediaAspect.value = 0
-}
-
-async function onFileSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  stop()
-  resetImage()
-
-  const url = URL.createObjectURL(file)
-  imageObjectUrl.value = url
-  mode.value = 'image'
-  hasConsented.value = true
-  hasReportedFaceDetected.value = false
-  trackTryOn('TRY_ON_UPLOAD_USED')
-
-  const img = new Image()
-  img.src = url
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve()
-    img.onerror = () => reject(new Error('Failed to load uploaded image'))
-  })
-  uploadedImage.value = img
-  mediaAspect.value = img.naturalWidth / img.naturalHeight
-
-  await initFaceLandmarker()
-  detectOnImage(img)
-}
-
-async function switchToCamera() {
-  resetImage()
-  mode.value = 'camera'
-  hasConsented.value = true
-  hasReportedFaceDetected.value = false
-  await start()
-}
-
-onBeforeUnmount(() => {
-  if (imageObjectUrl.value) {
-    URL.revokeObjectURL(imageObjectUrl.value)
-  }
-})
-
 watch(isActive, (active) => {
-  if (active && mode.value === 'camera') {
+  if (active) {
     trackTryOn('TRY_ON_CAMERA_GRANTED')
     useFaceTracking.value = true
     initFaceLandmarker().catch(() => {
@@ -546,7 +485,6 @@ watch(hasFace, (detected) => {
   if (detected && !hasReportedFaceDetected.value) {
     hasReportedFaceDetected.value = true
     trackTryOn('TRY_ON_FACE_DETECTED', {
-      mode: mode.value,
       confidence: confidence.value
     })
   }
@@ -561,7 +499,7 @@ watch(noFace, (value) => {
 })
 
 watch(model, (value) => {
-  if (mode.value) {
+  if (hasConsented.value) {
     trackTryOn('TRY_ON_FRAME_CHANGED', { model: value })
   }
 })
@@ -577,8 +515,9 @@ watch(model, (value) => {
         @pointermove="onPointerMove"
         @pointerleave="onPointerLeave"
       >
+        <!-- Always mounted so the webcam stream has an element to attach to;
+             hidden until the stream is active. -->
         <video
-          v-if="mode === 'camera'"
           ref="videoRef"
           class="absolute inset-0 z-0 h-full w-full object-cover transition-opacity duration-500"
           :class="isActive ? 'opacity-100' : 'opacity-0'"
@@ -589,24 +528,20 @@ watch(model, (value) => {
           aria-hidden="true"
           @loadedmetadata="onVideoLoadedMetadata"
         />
-        <img
-          v-else-if="mode === 'image' && imageObjectUrl"
-          ref="imageRef"
-          :src="imageObjectUrl"
-          class="absolute inset-0 z-0 h-full w-full object-cover"
-          style="transform: scaleX(-1)"
-          alt=""
-          aria-hidden="true"
-        />
 
         <ClientOnly>
           <div class="absolute inset-0 z-10 h-full w-full">
+            <!-- Neutral tone mapping (Khronos PBR Neutral), not ACES: the
+                 camera feed behind the canvas is untone-mapped sRGB, and
+                 ACES' filmic curve would desaturate frame colors against it.
+                 Neutral is near-identity in the SDR range — exactly what
+                 e-commerce frame colors need. -->
             <TresCanvas
               :alpha="true"
               :clear-alpha="0"
               :antialias="true"
               :dpr="[1, 2]"
-              :tone-mapping="ACESFilmicToneMapping"
+              :tone-mapping="NeutralToneMapping"
               :tone-mapping-exposure="exposure"
               power-preference="high-performance"
               render-mode="always"
@@ -669,7 +604,7 @@ watch(model, (value) => {
 
         <!-- Consent / idle / error states -->
         <div
-          v-if="!isActive && mode !== 'image'"
+          v-if="!isActive"
           class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-black/50 px-6 text-center backdrop-blur-sm"
         >
           <template v-if="!hasConsented && !error">
@@ -705,25 +640,15 @@ watch(model, (value) => {
                 {{ t('virtualTryOn.consent.localProcessing') }}
               </li>
             </ul>
-            <div class="flex flex-col gap-2">
-              <UButton
-                :loading="isStarting"
-                color="neutral"
-                variant="solid"
-                size="sm"
-                @click="onConsent"
-              >
-                {{ t('virtualTryOn.consent.cta') }}
-              </UButton>
-              <UButton
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                @click="onUploadClick"
-              >
-                {{ t('virtualTryOn.consent.uploadFallback') }}
-              </UButton>
-            </div>
+            <UButton
+              :loading="isStarting"
+              color="neutral"
+              variant="solid"
+              size="sm"
+              @click="onConsent"
+            >
+              {{ t('virtualTryOn.consent.cta') }}
+            </UButton>
           </template>
 
           <template v-else>
@@ -751,12 +676,7 @@ watch(model, (value) => {
         </div>
 
         <div
-          v-if="
-            (isActive || mode === 'image') &&
-            (useFaceTracking || mode === 'image') &&
-            isFaceReady &&
-            showNoFaceMessage
-          "
+          v-if="isActive && useFaceTracking && isFaceReady && showNoFaceMessage"
           class="absolute inset-x-3 top-3 z-20"
         >
           <UBadge
@@ -770,10 +690,7 @@ watch(model, (value) => {
         </div>
 
         <div
-          v-if="
-            mode !== 'image' &&
-            (faceErrorMessage || (useFaceTracking && isFaceReady))
-          "
+          v-if="faceErrorMessage || (useFaceTracking && isFaceReady)"
           class="absolute inset-x-3 bottom-3 z-20"
         >
           <UAlert
@@ -805,14 +722,6 @@ watch(model, (value) => {
           </p>
         </div>
 
-        <input
-          ref="fileInputRef"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          class="hidden"
-          @change="onFileSelected"
-        />
-
         <UButton
           v-if="isActive"
           icon="i-heroicons-stop-circle"
@@ -828,31 +737,10 @@ watch(model, (value) => {
 
       <!-- Controls -->
       <div
-        v-if="mode === 'image' || !simplifiedControls"
+        v-if="!simplifiedControls"
         class="flex w-full flex-col gap-5 lg:w-56 lg:shrink-0"
       >
-        <div v-if="mode === 'image'" class="flex justify-between gap-2">
-          <UButton
-            icon="i-heroicons-arrow-path"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="onUploadClick"
-          >
-            {{ t('virtualTryOn.upload.changePhoto') }}
-          </UButton>
-          <UButton
-            icon="i-heroicons-video-camera"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            @click="switchToCamera"
-          >
-            {{ t('virtualTryOn.upload.useCamera') }}
-          </UButton>
-        </div>
-
-        <div v-if="!simplifiedControls" class="flex flex-col gap-5">
+        <div class="flex flex-col gap-5">
           <UFormField
             :label="`${t('virtualTryOn.exposure')} · ${exposure.toFixed(2)}`"
             size="xs"

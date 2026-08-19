@@ -9,8 +9,7 @@ export default {
       localProcessing:
         'Le suivi facial fonctionne localement dans ton navigateur',
       cta: 'Autoriser la caméra',
-      whyWeAsk: 'Pourquoi nous demandons l’accès à la caméra',
-      uploadFallback: 'Ou importer une photo'
+      whyWeAsk: 'Pourquoi nous demandons l’accès à la caméra'
     },
     denied: {
       title: 'Accès caméra refusé',
@@ -21,20 +20,13 @@ export default {
       title: 'Aucune caméra disponible',
       body: 'Cet appareil n’a pas de caméra utilisable, ou ton navigateur bloque l’accès.'
     },
-    upload: {
-      title: 'Importer une photo',
-      body: 'Choisis une photo de face bien éclairée et nous placerons le modèle par-dessus. Ta photo ne quitte jamais ton appareil.',
-      cta: 'Choisir une photo',
-      acceptedFormats: 'JPG, PNG, WEBP',
-      changePhoto: 'Changer de photo',
-      useCamera: 'Utiliser la caméra'
-    },
     guide: {
       noFace: 'Placez votre visage à l’intérieur du contour',
       tooFar: 'Rapprochez-vous',
       tooClose: 'Reculez un peu'
     },
     noFace: 'Aucun visage détecté – dirige la caméra vers ton visage',
+    tryOnProduct: 'Essayer {product} virtuellement',
     trackingConfidence: 'Détection du visage...',
     faceDetected: 'Visage détecté',
     stopCamera: 'Arrêter la caméra',
@@ -46,6 +38,37 @@ export default {
     frameScale: 'Échelle du modèle',
     frameYaw: 'Rotation du modèle',
     templeWidth: 'Largeur des branches',
+    prototypeBadge: 'Prototype',
+    modal: {
+      title: 'Essai virtuel',
+      close: 'Fermer',
+      privacy: {
+        title: 'Ta vie privée compte',
+        body: 'L’essai virtuel utilise ta caméra. Ta vidéo est traitée entièrement sur ton appareil. Elle n’est jamais téléchargée, partagée ni stockée.',
+        cta: 'Continuer vers l’essai virtuel',
+        policy: {
+          before: 'Consulte notre',
+          link: 'Politique de confidentialité',
+          after: 'pour en savoir plus.'
+        },
+        noStorage: {
+          title: 'Aucun enregistrement stocké',
+          body: 'Nous ne conservons jamais de photos, vidéos ou données faciales.'
+        },
+        localProcessing: {
+          title: 'Traité sur ton appareil',
+          body: 'Le suivi facial fonctionne localement dans ton navigateur.'
+        },
+        noAccount: {
+          title: 'Aucun compte requis',
+          body: 'Essaye les montures sans inscription ni connexion.'
+        },
+        youControl: {
+          title: 'Tu contrôles la caméra',
+          body: 'Arrête la caméra à tout moment.'
+        }
+      }
+    },
     suggestions: {
       ariaLabel: 'Suggestions de montures',
       title: 'Essayer un autre look'

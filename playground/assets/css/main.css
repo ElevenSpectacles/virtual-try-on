@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+/* Tailwind v4 auto-detection only scans the playground root — the module's
+   components live one level up, so register them explicitly or their
+   utilities (stage sizing, guide overlay, …) silently never generate. */
+@source '../../../components';

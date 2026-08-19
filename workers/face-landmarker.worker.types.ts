@@ -10,7 +10,6 @@
 export type FaceLandmarkerWorkerRequest =
   | { type: 'init' }
   | { type: 'detect'; id: number; bitmap: ImageBitmap; timestamp: number }
-  | { type: 'detectImage'; id: number; bitmap: ImageBitmap }
   | { type: 'destroy' }
 
 export type FaceLandmarkerWorkerResponse =

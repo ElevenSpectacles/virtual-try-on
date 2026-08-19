@@ -9,8 +9,7 @@ export default {
       localProcessing:
         'El seguimiento facial se procesa localmente en el navegador',
       cta: 'Permitir acceso a la cámara',
-      whyWeAsk: 'Por qué pedimos acceso a la cámara',
-      uploadFallback: 'O sube una foto'
+      whyWeAsk: 'Por qué pedimos acceso a la cámara'
     },
     denied: {
       title: 'Acceso a la cámara denegado',
@@ -21,20 +20,13 @@ export default {
       title: 'No hay cámara disponible',
       body: 'Este dispositivo no tiene una cámara utilizable, o tu navegador bloquea el acceso.'
     },
-    upload: {
-      title: 'Subir una foto',
-      body: 'Elige una foto frontal bien iluminada y colocaremos el modelo encima. Tu foto nunca sale de tu dispositivo.',
-      cta: 'Elegir foto',
-      acceptedFormats: 'JPG, PNG, WEBP',
-      changePhoto: 'Cambiar foto',
-      useCamera: 'Usar la cámara'
-    },
     guide: {
       noFace: 'Coloca tu rostro dentro del contorno',
       tooFar: 'Acércate',
       tooClose: 'Aléjate un poco'
     },
     noFace: 'No se detecta ningún rostro — apunta la cámara a tu cara',
+    tryOnProduct: 'Probar {product} virtualmente',
     trackingConfidence: 'Detectando rostro...',
     faceDetected: 'Rostro detectado',
     stopCamera: 'Detener cámara',
@@ -46,6 +38,37 @@ export default {
     frameScale: 'Escala del modelo',
     frameYaw: 'Rotación del modelo',
     templeWidth: 'Ancho de las patillas',
+    prototypeBadge: 'Prototipo',
+    modal: {
+      title: 'Prueba virtual',
+      close: 'Cerrar',
+      privacy: {
+        title: 'Tu privacidad importa',
+        body: 'La prueba virtual usa tu cámara. Tu vídeo se procesa completamente en tu dispositivo. Nunca se sube, comparte ni almacena.',
+        cta: 'Continuar con la prueba virtual',
+        policy: {
+          before: 'Lee nuestra',
+          link: 'Política de privacidad',
+          after: 'para más detalles.'
+        },
+        noStorage: {
+          title: 'No se guardan grabaciones',
+          body: 'Nunca guardamos fotos, vídeos o datos faciales.'
+        },
+        localProcessing: {
+          title: 'Procesado en tu dispositivo',
+          body: 'El seguimiento facial funciona localmente en tu navegador.'
+        },
+        noAccount: {
+          title: 'No necesitas cuenta',
+          body: 'Prueba modelos sin registrarte ni iniciar sesión.'
+        },
+        youControl: {
+          title: 'Tú controlas la cámara',
+          body: 'Puedes detener la cámara en cualquier momento.'
+        }
+      }
+    },
     suggestions: {
       ariaLabel: 'Sugerencias de modelos',
       title: 'Prueba otro look'

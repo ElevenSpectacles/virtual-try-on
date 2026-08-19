@@ -278,6 +278,74 @@ export function getInterPupillaryDistance(
 }
 
 /**
+ * Eyelid landmarks for eye-aspect-ratio blink detection: top/bottom lid over
+ * the pupil plus the inner/outer canthus of each eye. Chosen over the iris
+ * landmarks precisely because they stay put when the eyelid closes.
+ */
+export const EYE_RIGHT_TOP = 159
+export const EYE_RIGHT_BOTTOM = 145
+export const EYE_RIGHT_OUTER = 33
+export const EYE_RIGHT_INNER = 133
+export const EYE_LEFT_TOP = 386
+export const EYE_LEFT_BOTTOM = 374
+export const EYE_LEFT_OUTER = 263
+export const EYE_LEFT_INNER = 362
+
+/**
+ * Below this (aspect-corrected) ratio an eye counts as closed. Measured on
+ * real detections: open eyes ≈ 0.23, a full blink ≈ 0.13. 0.17 sits between
+ * with margin on both sides — a squint freezing the scale for a moment is
+ * harmless, a missed blink lets the frame size jump.
+ */
+export const BLINK_EYE_ASPECT_RATIO = 0.17
+
+/**
+ * Eye aspect ratio (Soukupová-style, single vertical pair per eye): lid
+ * opening divided by eye width, averaged over both eyes. Returns 0 when the
+ * eye landmarks are absent, so callers can treat "no data" as "not a blink".
+ *
+ * `aspect` (media width/height) corrects the per-axis normalization:
+ * landmark y is normalized by image height, x by width, so the raw ratio is
+ * inflated by W/H — without the correction the blink threshold would shift
+ * ~1.6× between a portrait photo and a landscape webcam.
+ */
+export function getEyeAspectRatio(
+  landmarks: NormalizedLandmark[],
+  aspect: number = 1
+): number {
+  const pairs: ReadonlyArray<readonly [number, number, number, number]> = [
+    [EYE_RIGHT_TOP, EYE_RIGHT_BOTTOM, EYE_RIGHT_OUTER, EYE_RIGHT_INNER],
+    [EYE_LEFT_TOP, EYE_LEFT_BOTTOM, EYE_LEFT_OUTER, EYE_LEFT_INNER]
+  ]
+  let sum = 0
+  for (const [top, bottom, outer, inner] of pairs) {
+    const t = landmarks[top]
+    const b = landmarks[bottom]
+    const o = landmarks[outer]
+    const i = landmarks[inner]
+    if (!t || !b || !o || !i) return 0
+    const width = landmarkDistance(o, i)
+    if (width <= 0 || aspect <= 0) return 0
+    sum += landmarkDistance(t, b) / aspect / width
+  }
+  return sum / pairs.length
+}
+
+/**
+ * Whether the current frame shows a blink. Iris-center landmarks (the scale
+ * source via `getInterPupillaryDistance`) drift to garbage while the eyelid
+ * covers the iris — callers should freeze scale updates while this is true.
+ */
+export function isBlinking(
+  landmarks: NormalizedLandmark[],
+  aspect: number = 1,
+  threshold: number = BLINK_EYE_ASPECT_RATIO
+): boolean {
+  const ratio = getEyeAspectRatio(landmarks, aspect)
+  return ratio > 0 && ratio < threshold
+}
+
+/**
  * Undo the perspective foreshortening of a projected horizontal facial
  * measure (IPD, face width) when the head is rotated. The projected width of
  * a rigid horizontal segment shrinks by ~cos(yaw)·cos(roll is irrelevant,
