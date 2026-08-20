@@ -46,7 +46,7 @@ Key facts:
   face-pose decomposition).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
-- `i18n/` — default translations (`bg`, `de`, `en`, `es`, `fr`, `it`) under
+- `i18n/` — default translations (`bg`, `de`, `en`, `es`, `fr`, `it`, `nl`) under
   the `virtualTryOn.*` key; the host merges them into its locale files.
 - `playground/` — standalone dev-only Nuxt app (`npm run playground`, port
   4000) that mounts `VirtualTryOnPrototype` with the full frame catalog for
