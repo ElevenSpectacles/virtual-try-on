@@ -68,6 +68,9 @@ export default {
         }
       }
     },
+    experience: {
+      fallback: 'Loading the experience…'
+    },
     suggestions: {
       ariaLabel: 'Frame suggestions',
       title: 'Try a different look'

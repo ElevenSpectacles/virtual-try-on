@@ -77,7 +77,6 @@ const privacyItems = computed(() => [
     dismissible
     overlay
     :fullscreen="isMobile"
-    :modal="isMobile"
     :ui="{
       content:
         'w-full lg:max-w-3xl rounded-xs overflow-hidden flex flex-col max-h-[95dvh] lg:max-h-[90dvh]'
@@ -115,7 +114,7 @@ const privacyItems = computed(() => [
               class="mx-auto h-10 w-10 text-stone-950"
             />
             <h3
-              class="mt-4 text-lg font-bold uppercase tracking-wide text-stone-950"
+              class="mt-4 text-lg font-medium uppercase tracking-wide text-stone-950"
             >
               {{ t('virtualTryOn.modal.privacy.title') }}
             </h3>
@@ -134,7 +133,7 @@ const privacyItems = computed(() => [
                   class="mt-0.5 h-5 w-5 shrink-0 text-stone-950"
                 />
                 <div>
-                  <h4 class="text-xs font-semibold text-stone-950">
+                  <h4 class="text-xs font-medium text-stone-950">
                     {{ item.title }}
                   </h4>
                   <p class="text-xs font-light text-stone-500">

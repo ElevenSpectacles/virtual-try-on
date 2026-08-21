@@ -36,7 +36,12 @@ export function useWebcamStream() {
         video: {
           facingMode: 'user',
           width: { ideal: 720 },
-          height: { ideal: 1280 }
+          height: { ideal: 1280 },
+          // Tracking latency is bounded below by the camera frame interval —
+          // at the default 30fps every pose update is up to 33ms stale before
+          // detection even starts. `ideal` (not `exact`) so devices without a
+          // 60fps front-camera mode silently keep their native rate.
+          frameRate: { ideal: 60 }
         },
         audio: false
       })

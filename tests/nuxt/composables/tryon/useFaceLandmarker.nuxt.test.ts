@@ -157,17 +157,20 @@ describe('useFaceLandmarker', () => {
       transformationMatrix: Array.from(new Float32Array(16))
     })
 
-    // Default anchor index is 6.
-    expect(anchor.value).toEqual({ x: 0.3, y: 0.4, z: 0.5 })
+    // Default anchor is the centroid of TRYON_ANCHOR_INDICES — of those,
+    // only 5 and 6 exist in this short sample: ({0.8,0.9,1.0} + {0.3,0.4,0.5})/2.
+    expect(anchor.value?.x).toBeCloseTo(0.55)
+    expect(anchor.value?.y).toBeCloseTo(0.65)
+    expect(anchor.value?.z).toBeCloseTo(0.75)
     expect(pose.value).not.toBeNull()
     expect(pose.value?.position).toBeDefined()
     expect(pose.value?.euler).toBeDefined()
   })
 
-  it('falls back to the first landmark when anchor index is out of range', async () => {
+  it('falls back to the first landmark when no anchor index is in range', async () => {
     const videoRef = ref<HTMLVideoElement | null>(null)
-    // recreate with a custom, out-of-range anchorIndex.
-    const landmarker = useFaceLandmarker(videoRef, { anchorIndex: 99 })
+    // recreate with a custom, out-of-range anchorIndices.
+    const landmarker = useFaceLandmarker(videoRef, { anchorIndices: [99] })
     const initPromise = landmarker.init()
     await Promise.resolve()
     latestWorker().emit({ type: 'ready' })

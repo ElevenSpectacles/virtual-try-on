@@ -1,5 +1,10 @@
 import { computed, ref, shallowRef, watch, type Ref } from 'vue'
-import { getFaceWidth, type NormalizedLandmark } from '../../utils/tryon'
+import {
+  computeAnchorCentroid,
+  getFaceWidth,
+  TRYON_ANCHOR_INDICES,
+  type NormalizedLandmark
+} from '../../utils/tryon'
 import { matrixToFacePose, type FacePose } from '../../utils/tryon-pose'
 import type {
   FaceLandmarkerWorkerRequest,
@@ -13,11 +18,11 @@ export type FaceLandmarkerError =
 
 export interface UseFaceLandmarkerOptions {
   /**
-   * Landmark index to use as the anchor for placing the frame. MediaPipe
-   * indices: 1 = nose tip, 6 = between eyes, 168 = between eyebrows.
-   * Defaults to 6 (glabella / between eyes).
+   * Landmark indices averaged into the anchor point used to position the
+   * frame. Defaults to `TRYON_ANCHOR_INDICES` (nose-bridge ridge + iris
+   * centres — see utils/tryon for why that set).
    */
-  anchorIndex?: number
+  anchorIndices?: readonly number[]
 }
 
 /**
@@ -48,7 +53,7 @@ export function useFaceLandmarker(
   videoRef: Ref<HTMLVideoElement | null>,
   options: UseFaceLandmarkerOptions = {}
 ) {
-  const anchorIndex = options.anchorIndex ?? 6
+  const anchorIndices = options.anchorIndices ?? TRYON_ANCHOR_INDICES
   const isLoading = ref(false)
   const isReady = ref(false)
   const error: Ref<FaceLandmarkerError | null> = ref(null)
@@ -73,19 +78,40 @@ export function useFaceLandmarker(
     return detected / history.length
   })
 
-  /** The anchor landmark (between eyes by default) used to position the frame. */
+  /**
+   * The anchor point used to position the frame — a centroid of the
+   * configured indices (nose-bridge ridge + iris centres by default),
+   * falling back to the first landmark if none of them are present.
+   */
   const anchor = computed<NormalizedLandmark | null>(() => {
     if (!hasFace.value) return null
     const list = landmarks.value
-    return list[anchorIndex] ?? list[0] ?? null
+    return computeAnchorCentroid(list, anchorIndices) ?? list[0] ?? null
   })
 
   // In-flight request bookkeeping: one outstanding detect call at a time,
   // keyed by id so a stale response can never clobber a newer one.
   let nextRequestId = 0
   let pendingRequestId: number | null = null
+  let pendingSentAt = 0
   let readyResolve: (() => void) | null = null
   let readyReject: ((err: Error) => void) | null = null
+
+  // Measured camera→result round-trip latency (EMA), exposed so the smoothing
+  // layer can extrapolate the pose forward by roughly this much and cancel the
+  // pipeline delay instead of rendering where the head *was*. EMA alpha is
+  // deliberately low — a single GC pause or background-tab hiccup shouldn't
+  // swing the prediction horizon.
+  const LATENCY_EMA_ALPHA = 0.2
+  const latencyMs = ref(0)
+
+  function recordLatency(sentAt: number) {
+    const sample = performance.now() - sentAt
+    latencyMs.value =
+      latencyMs.value > 0
+        ? latencyMs.value + LATENCY_EMA_ALPHA * (sample - latencyMs.value)
+        : sample
+  }
 
   function applyResult(
     landmarksResult: NormalizedLandmark[],
@@ -129,6 +155,7 @@ export function useFaceLandmarker(
       case 'result':
         if (message.id !== pendingRequestId) return
         pendingRequestId = null
+        recordLatency(pendingSentAt)
         applyResult(message.landmarks, message.transformationMatrix)
         break
 
@@ -209,6 +236,8 @@ export function useFaceLandmarker(
     pose.value = null
     detectionHistory.value = []
     pendingRequestId = null
+    pendingSentAt = 0
+    latencyMs.value = 0
   }
 
   let lastTimestamp = -1
@@ -217,8 +246,11 @@ export function useFaceLandmarker(
   // landmarker resizes every frame to its internal ~192px input anyway, so
   // shipping a full 1280×720 bitmap per detection only buys transfer and
   // preprocessing overhead. Landmarks come back normalized, so precision is
-  // unaffected. The visible preview stays full-resolution.
-  const DETECT_MAX_WIDTH = 640
+  // unaffected. The visible preview stays full-resolution. 480px and
+  // 'low'-quality (box) resize keep the capture+detect cycle short enough to
+  // sustain the camera's 30fps cadence — a slower cycle is felt directly as
+  // tracking delay.
+  const DETECT_MAX_WIDTH = 480
 
   function captureFrame(video: HTMLVideoElement): Promise<ImageBitmap> {
     if (video.videoWidth > DETECT_MAX_WIDTH) {
@@ -226,7 +258,7 @@ export function useFaceLandmarker(
       return createImageBitmap(video, {
         resizeWidth: DETECT_MAX_WIDTH,
         resizeHeight: Math.round(video.videoHeight * scale),
-        resizeQuality: 'medium'
+        resizeQuality: 'low'
       })
     }
     return createImageBitmap(video)
@@ -246,6 +278,7 @@ export function useFaceLandmarker(
     const id = ++nextRequestId
     pendingRequestId = id
     const detectTimestamp = performance.now()
+    pendingSentAt = detectTimestamp
 
     captureFrame(video)
       .then((bitmap) => {
@@ -268,7 +301,7 @@ export function useFaceLandmarker(
   }
 
   // Detect-loop scheduling: prefer requestVideoFrameCallback so detection
-  // runs once per *produced video frame* (camera usually delivers 30fps)
+  // runs once per *produced video frame* (30–60fps depending on the camera)
   // instead of once per rAF (60–120Hz). Halving or quartering the detect rate
   // costs nothing — MediaPipe + smoothing interpolate fine at 30fps — while
   // freeing the render thread. The callback timestamp is deliberately NOT
@@ -351,6 +384,7 @@ export function useFaceLandmarker(
     transformationMatrixes,
     pose,
     anchor,
+    latencyMs,
     init,
     detect,
     destroy

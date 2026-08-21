@@ -68,6 +68,9 @@ export default {
         }
       }
     },
+    experience: {
+      fallback: 'Зареждане…'
+    },
     suggestions: {
       ariaLabel: 'Предложения за модели',
       title: 'Пробвай различен вид'

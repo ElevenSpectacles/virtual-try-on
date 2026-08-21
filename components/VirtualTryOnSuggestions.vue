@@ -23,7 +23,7 @@ function selectModel(model: TryOnModel) {
     role="region"
     :aria-label="$t('virtualTryOn.suggestions.ariaLabel')"
   >
-    <h3 class="text-xs font-semibold uppercase tracking-wide text-stone-950">
+    <h3 class="text-xs font-medium uppercase tracking-wide text-stone-950">
       {{ $t('virtualTryOn.suggestions.title') }}
     </h3>
 

@@ -68,6 +68,9 @@ export default {
         }
       }
     },
+    experience: {
+      fallback: 'Try-On wird geladen…'
+    },
     suggestions: {
       ariaLabel: 'Modellvorschläge',
       title: 'Einen anderen Look probieren'

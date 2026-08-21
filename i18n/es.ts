@@ -69,6 +69,9 @@ export default {
         }
       }
     },
+    experience: {
+      fallback: 'Cargando…'
+    },
     suggestions: {
       ariaLabel: 'Sugerencias de modelos',
       title: 'Prueba otro look'

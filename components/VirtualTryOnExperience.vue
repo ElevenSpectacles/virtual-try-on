@@ -20,11 +20,13 @@ import {
   isBlinking,
   ASSUMED_FRAME_HALF_DEPTH_METERS,
   ASSUMED_FACE_WIDTH_METERS,
-  ASSUMED_IPD_METERS,
   ASSUMED_EAR_WIDTH_METERS,
+  ASSUMED_IPD_METERS,
+  FRAME_FIT_SCALE_BOOST,
   type NormalizedLandmark
 } from '../utils/tryon'
 import { faceEulerToThree } from '../utils/tryon-pose'
+import { buildHeadOccluderPositions } from '../utils/tryon-occluder'
 import { useWebcamStream } from '../composables/tryon/useWebcamStream'
 import { useFaceLandmarker } from '../composables/tryon/useFaceLandmarker'
 import { useFrameCalibration } from '../composables/tryon/useFrameCalibration'
@@ -68,13 +70,11 @@ if (!initialModel) {
 const hasConsented = ref(false)
 const hasReportedFaceDetected = ref(false)
 
-const { videoRef, isActive, isStarting, error, start, stop } = useWebcamStream()
+const { videoRef, isActive, isStarting, error, start } = useWebcamStream()
 const prefersReducedMotion = usePreferredReducedMotion()
 
 const stageRef = ref<HTMLElement | null>(null)
 const { width: stageWidth, height: stageHeight } = useElementSize(stageRef)
-
-const viewfinderLocked = isActive
 
 const aspect = computed(() =>
   stageHeight.value > 0 ? stageWidth.value / stageHeight.value : 3 / 4
@@ -116,14 +116,20 @@ const rotationDeg = ref(0)
 const rotationY = computed(() => (rotationDeg.value * Math.PI) / 180)
 const mirrorLandmarks = true
 const useFaceTracking = ref(true)
-const noFaceDetectedAt = ref<number | null>(null)
 const occluderEnabled = ref(true)
 
-// Normalized inter-pupillary distance from the iris landmarks — IPD varies
-// far less between people than cheek-to-cheek width, which is why eyewear
-// sizing is built on it.
+// Normalized inter-pupillary distance from the iris landmarks — varies far
+// less between people than cheek-to-cheek width, so it stays the fallback
+// when face width isn't trackable.
 const correctedIpd = computed(() =>
   getInterPupillaryDistance(correctedFaceLandmarks.value)
+)
+
+// Normalized ear-to-ear width (face-oval points at temple height) — the
+// measure a real frame is sized from: the temple arms must span it. Drives
+// the metric scale when trackable.
+const correctedEarWidth = computed(() =>
+  getEarWidth(correctedFaceLandmarks.value)
 )
 
 // Undo the cos(yaw)·cos(pitch) foreshortening of an on-screen measure so the
@@ -137,42 +143,33 @@ function poseCompensated(measure: number): number {
   )
 }
 
-const heuristicScaleSource = computed<'ear' | 'ipd' | 'width' | 'manual'>(
-  () => {
-    if (!hasFace.value) return 'manual'
-    if (correctedEarWidth.value > 0) return 'ear'
-    return correctedIpd.value > 0 ? 'ipd' : 'width'
-  }
-)
-
 // GLBs are authored in metres — derive scale metrically from the tracked
-// ear-width (preferred: the best available proxy for temple reach), falling
-// back to IPD, then cheek-to-cheek width, and to the static reference width
-// in pointer/idle mode. This heuristic chain is also the fallback used
-// whenever the matrix-derived pose scale below isn't available yet.
-const heuristicMetricScale = computed(() => {
-  if (heuristicScaleSource.value === 'ear') {
-    return computeMetricScaleFromMeasure(
-      aspect.value,
-      poseCompensated(correctedEarWidth.value),
-      ASSUMED_EAR_WIDTH_METERS
-    )
+// ear-to-ear width (what a frame's temple arms actually span), falling back
+// to cheek width, to IPD, and to the static reference width in pointer/idle
+// mode. Same chain as VirtualTryOnPrototype, so playground tuning transfers
+// 1:1.
+const scaleSource = computed<'ear' | 'width' | 'ipd' | 'manual'>(() => {
+  if (!hasFace.value) return 'manual'
+  if (correctedEarWidth.value > 0) return 'ear'
+  return correctedFaceWidth.value > 0 ? 'width' : 'ipd'
+})
+
+const autoMetricScale = computed(() => {
+  if (scaleSource.value === 'manual') {
+    return computeMetricBaseScale(aspect.value, referenceFaceWidth.value)
   }
-  if (heuristicScaleSource.value === 'ipd') {
-    return computeMetricScaleFromMeasure(
-      aspect.value,
-      poseCompensated(correctedIpd.value),
-      ASSUMED_IPD_METERS
-    )
-  }
-  if (heuristicScaleSource.value === 'width' && correctedFaceWidth.value > 0) {
-    return computeMetricScaleFromMeasure(
-      aspect.value,
-      poseCompensated(correctedFaceWidth.value),
-      ASSUMED_FACE_WIDTH_METERS
-    )
-  }
-  return computeMetricBaseScale(aspect.value, referenceFaceWidth.value)
+  const measure =
+    scaleSource.value === 'ear'
+      ? ([correctedEarWidth.value, ASSUMED_EAR_WIDTH_METERS] as const)
+      : scaleSource.value === 'width'
+        ? ([correctedFaceWidth.value, ASSUMED_FACE_WIDTH_METERS] as const)
+        : ([correctedIpd.value, ASSUMED_IPD_METERS] as const)
+  // Tracked sources get the fit boost on top — a real frame is worn
+  // slightly wider than the skull (see FRAME_FIT_SCALE_BOOST).
+  return (
+    computeMetricScaleFromMeasure(aspect.value, poseCompensated(measure[0]), measure[1]) *
+    FRAME_FIT_SCALE_BOOST
+  )
 })
 
 const calibratedScale = computed(
@@ -243,63 +240,15 @@ const manualRotation = computed(() => ({
 }))
 
 const {
-  isReady: isFaceReady,
   error: faceError,
   hasFace,
-  noFace,
   confidence,
   landmarks: faceLandmarks,
   pose: facePose,
   anchor: faceAnchor,
+  latencyMs: faceLatencyMs,
   init: initFaceLandmarker
 } = useFaceLandmarker(videoRef)
-
-// MediaPipe's transformation matrix scale is solved (Procrustes-style) over
-// the entire canonical face shape rather than a single 2D landmark pair, and
-// is already pose-aware by construction — no separate foreshortening
-// correction needed. Rather than reverse-engineering MediaPipe's internal
-// metric-space convention, calibrate its scale once against the app's own
-// already-validated heuristic scale on the first confidently-tracked frame,
-// then trust the matrix's frame-to-frame relative changes afterward. The
-// ratio is frozen (not recomputed on tracking reacquisition) since it
-// reflects this face's proportions relative to MediaPipe's canonical model,
-// not something that should drift session to session.
-const poseScaleCalibrationRatio = ref<number | null>(null)
-
-watch(
-  [hasFace, facePose, heuristicMetricScale],
-  ([faceDetected, pose, heuristicScale]) => {
-    if (
-      poseScaleCalibrationRatio.value !== null ||
-      !faceDetected ||
-      !pose ||
-      pose.scale <= 0 ||
-      heuristicScale <= 0
-    )
-      return
-    poseScaleCalibrationRatio.value = heuristicScale / pose.scale
-  }
-)
-
-const scaleSource = computed<'pose' | 'ear' | 'ipd' | 'width' | 'manual'>(
-  () => {
-    if (!hasFace.value) return 'manual'
-    if (facePose.value && poseScaleCalibrationRatio.value !== null)
-      return 'pose'
-    return heuristicScaleSource.value
-  }
-)
-
-const autoMetricScale = computed(() => {
-  if (
-    scaleSource.value === 'pose' &&
-    facePose.value &&
-    poseScaleCalibrationRatio.value !== null
-  ) {
-    return facePose.value.scale * poseScaleCalibrationRatio.value
-  }
-  return heuristicMetricScale.value
-})
 
 const correctedFaceLandmarks = computed(() =>
   faceLandmarks.value.map((lm) =>
@@ -313,9 +262,6 @@ const correctedFaceAnchor = computed(() =>
 )
 const correctedFaceWidth = computed(() =>
   getFaceWidth(correctedFaceLandmarks.value)
-)
-const correctedEarWidth = computed(() =>
-  getEarWidth(correctedFaceLandmarks.value)
 )
 
 const templeScaleBoost = computed(
@@ -360,11 +306,40 @@ const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
   targetEuler: computed(() => faceRotation.value ?? manualRotation.value),
   targetScale: calibratedScale,
   isTracking: computed(() => useFaceTracking.value && hasFace.value),
+  latencyMs: faceLatencyMs,
   // Iris landmarks drift while the eyelid covers the iris — freeze scale
   // for the blink instead of letting the frame visibly change size.
   holdScale: computed(() =>
     isBlinking(faceLandmarks.value, mediaAspect.value || 1)
   )
+})
+
+// Head-shell occluder vertices, rebuilt per detection. Shape comes from the
+// RAW landmarks/pose (so the shell hugs the real face silhouette); placement
+// comes from the SMOOTHED anchor/euler/scale the glasses render with — the
+// shell and frame move as one rigid body and occluder edges never shimmer
+// against the glasses. Null when no face is tracked → the scene falls back
+// to the ellipsoid proxy (pointer/idle mode).
+const occluderPositions = computed(() => {
+  if (
+    !useFaceTracking.value ||
+    !hasFace.value ||
+    !facePose.value ||
+    !faceRotation.value ||
+    !correctedFaceAnchor.value
+  ) {
+    return null
+  }
+  return buildHeadOccluderPositions({
+    landmarks: correctedFaceLandmarks.value,
+    aspect: aspect.value,
+    mirror: mirrorLandmarks,
+    rawAnchor: correctedFaceAnchor.value,
+    rawEuler: faceRotation.value,
+    smoothedAnchor: smoothedAnchor.value,
+    smoothedEuler: smoothedEuler.value,
+    scale: smoothedScale.value
+  })
 })
 
 // The calibration recentring translation is NOT applied here — it is passed
@@ -382,9 +357,40 @@ const framePosition = computed(() => {
   }
 })
 
-const showNoFaceMessage = computed(() => {
-  if (!noFace.value || noFaceDetectedAt.value === null) return false
-  return performance.now() - noFaceDetectedAt.value > 2500
+// Positioning guide (Blackfin/Fittingbox-style): corner-bracket rectangle
+// with a blurred/dimmed surround while no face is found; the whole overlay
+// fades out shortly after a face is tracked. Ported from
+// VirtualTryOnPrototype, minus the distance hints (too far / too close) —
+// the metric scale already adapts the frame to any workable distance.
+const showGuideOverlay = computed(
+  () => isActive.value && useFaceTracking.value
+)
+
+type GuideHint = 'noFace' | 'aligned'
+
+const guideHint = computed<GuideHint>(() =>
+  !hasFace.value || !correctedFaceAnchor.value ? 'noFace' : 'aligned'
+)
+
+const guideHintText = computed(() =>
+  guideHint.value === 'noFace' ? t('virtualTryOn.guide.noFace') : null
+)
+
+const guideVisible = ref(true)
+let guideFadeTimer: ReturnType<typeof setTimeout> | null = null
+watch(guideHint, (hint) => {
+  if (hint === 'aligned') {
+    if (guideFadeTimer) clearTimeout(guideFadeTimer)
+    guideFadeTimer = setTimeout(() => {
+      guideVisible.value = false
+    }, 600)
+    return
+  }
+  if (guideFadeTimer) {
+    clearTimeout(guideFadeTimer)
+    guideFadeTimer = null
+  }
+  guideVisible.value = true
 })
 
 const errorMessage = computed(() => {
@@ -490,14 +496,6 @@ watch(hasFace, (detected) => {
   }
 })
 
-watch(noFace, (value) => {
-  if (value && noFaceDetectedAt.value === null) {
-    noFaceDetectedAt.value = performance.now()
-  } else if (!value) {
-    noFaceDetectedAt.value = null
-  }
-})
-
 watch(model, (value) => {
   if (hasConsented.value) {
     trackTryOn('TRY_ON_FRAME_CHANGED', { model: value })
@@ -556,6 +554,7 @@ watch(model, (value) => {
                 :scale-x-boost="templeScaleBoost"
                 :rotation="smoothedEuler"
                 :occluder-enabled="occluderEnabled"
+                :occluder-positions="occluderPositions"
                 :occluder-position="occluderPosition"
                 :occluder-radius="occluderGeometry"
                 :occluder-rotation="smoothedEuler"
@@ -564,43 +563,45 @@ watch(model, (value) => {
           </div>
         </ClientOnly>
 
-        <!-- Viewfinder focus-lock brackets -->
+        <!-- Positioning guide (Blackfin/Fittingbox-style): corner-bracket
+             rectangle; everything outside it is blurred + dimmed until a face
+             is found, then the whole overlay fades once aligned. -->
         <div
-          class="pointer-events-none absolute z-10 h-4 w-4 border-white/90 transition-all duration-500 ease-out motion-reduce:transition-none"
-          :class="
-            viewfinderLocked
-              ? 'top-2 left-2 border-t border-l opacity-90'
-              : 'top-6 left-6 border-t border-l opacity-40'
-          "
-          aria-hidden="true"
-        />
-        <div
-          class="pointer-events-none absolute z-10 h-4 w-4 border-white/90 transition-all duration-500 ease-out motion-reduce:transition-none"
-          :class="
-            viewfinderLocked
-              ? 'top-2 right-2 border-t border-r opacity-90'
-              : 'top-6 right-6 border-t border-r opacity-40'
-          "
-          aria-hidden="true"
-        />
-        <div
-          class="pointer-events-none absolute z-10 h-4 w-4 border-white/90 transition-all duration-500 ease-out motion-reduce:transition-none"
-          :class="
-            viewfinderLocked
-              ? 'bottom-2 left-2 border-b border-l opacity-90'
-              : 'bottom-6 left-6 border-b border-l opacity-40'
-          "
-          aria-hidden="true"
-        />
-        <div
-          class="pointer-events-none absolute z-10 h-4 w-4 border-white/90 transition-all duration-500 ease-out motion-reduce:transition-none"
-          :class="
-            viewfinderLocked
-              ? 'bottom-2 right-2 border-b border-r opacity-90'
-              : 'bottom-6 right-6 border-b border-r opacity-40'
-          "
-          aria-hidden="true"
-        />
+          v-if="showGuideOverlay"
+          class="pointer-events-none absolute inset-0 z-20 transition-opacity duration-500"
+          :class="guideVisible ? 'opacity-100' : 'opacity-0'"
+        >
+          <!-- Blurred/dimmed surround, cut out around the guide rect. Shown
+               only while no face is found (hint states keep the feed clear). -->
+          <div
+            class="absolute inset-0 transition-opacity duration-500"
+            :class="guideHint === 'noFace' ? 'opacity-100' : 'opacity-0'"
+          >
+            <div class="absolute inset-x-0 top-0 h-[14%] bg-black/40 backdrop-blur-md" />
+            <div class="absolute inset-x-0 bottom-0 h-[14%] bg-black/40 backdrop-blur-md" />
+            <div class="absolute left-0 top-[14%] bottom-[14%] w-[22%] bg-black/40 backdrop-blur-md" />
+            <div class="absolute right-0 top-[14%] bottom-[14%] w-[22%] bg-black/40 backdrop-blur-md" />
+          </div>
+
+          <!-- Corner brackets (borders, not SVG strokes, so thickness stays
+               uniform under the stage's non-uniform aspect). -->
+          <div
+            class="absolute left-[22%] right-[22%] top-[14%] bottom-[14%] drop-shadow-md transition-opacity duration-300"
+            :class="guideHint === 'aligned' ? 'opacity-95' : 'opacity-70'"
+          >
+            <span class="absolute left-0 top-0 h-10 w-10 rounded-tl-xl border-l-4 border-t-4 border-white" />
+            <span class="absolute right-0 top-0 h-10 w-10 rounded-tr-xl border-r-4 border-t-4 border-white" />
+            <span class="absolute bottom-0 left-0 h-10 w-10 rounded-bl-xl border-b-4 border-l-4 border-white" />
+            <span class="absolute bottom-0 right-0 h-10 w-10 rounded-br-xl border-b-4 border-r-4 border-white" />
+          </div>
+
+          <p
+            v-if="guideHintText"
+            class="absolute inset-x-3 bottom-[4%] text-center text-xs font-light tracking-wide text-white drop-shadow"
+          >
+            {{ guideHintText }}
+          </p>
+        </div>
 
         <!-- Consent / idle / error states -->
         <div
@@ -614,7 +615,7 @@ watch(model, (value) => {
             />
             <div class="space-y-2">
               <h3
-                class="text-sm font-semibold uppercase tracking-wide text-white"
+                class="text-sm font-medium uppercase tracking-wide text-white"
               >
                 {{ t('virtualTryOn.consent.title') }}
               </h3>
@@ -676,63 +677,17 @@ watch(model, (value) => {
         </div>
 
         <div
-          v-if="isActive && useFaceTracking && isFaceReady && showNoFaceMessage"
-          class="absolute inset-x-3 top-3 z-20"
-        >
-          <UBadge
-            color="warning"
-            variant="solid"
-            size="sm"
-            class="w-full justify-center"
-          >
-            {{ t('virtualTryOn.noFace') }}
-          </UBadge>
-        </div>
-
-        <div
-          v-if="faceErrorMessage || (useFaceTracking && isFaceReady)"
+          v-if="faceErrorMessage"
           class="absolute inset-x-3 bottom-3 z-20"
         >
           <UAlert
-            v-if="faceErrorMessage"
             icon="i-heroicons-exclamation-triangle"
             color="error"
             variant="solid"
             :description="faceErrorMessage"
             :ui="{ description: 'text-xs' }"
           />
-          <UBadge
-            v-else-if="!hasFace"
-            color="warning"
-            variant="solid"
-            size="sm"
-            class="w-full justify-center"
-          >
-            {{ t('virtualTryOn.noFace') }}
-          </UBadge>
-          <p
-            v-else
-            class="w-full rounded-sm bg-black/40 px-2 py-1 text-center text-xs font-light text-white/90 backdrop-blur-sm"
-          >
-            {{
-              confidence >= 0.6
-                ? t('virtualTryOn.faceDetected')
-                : t('virtualTryOn.trackingConfidence')
-            }}
-          </p>
         </div>
-
-        <UButton
-          v-if="isActive"
-          icon="i-heroicons-stop-circle"
-          color="neutral"
-          variant="solid"
-          size="md"
-          square
-          class="absolute top-4 right-4 z-20 rounded-full shadow-lg"
-          :aria-label="t('virtualTryOn.stopCamera')"
-          @click="stop"
-        />
       </div>
 
       <!-- Controls -->

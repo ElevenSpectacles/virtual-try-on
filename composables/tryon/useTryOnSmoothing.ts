@@ -1,10 +1,12 @@
 import { ref } from 'vue'
-import type { ComputedRef } from 'vue'
+import type { ComputedRef, Ref } from 'vue'
 import { useRafFn } from '@vueuse/core'
 import { Euler, Quaternion } from 'three'
 import {
   oneEuroFilter,
   oneEuroAlpha,
+  predictOneEuro,
+  ONE_EURO_MAX_PREDICTION_SECONDS,
   type NormalizedLandmark,
   type OneEuroState
 } from '../../utils/tryon'
@@ -27,9 +29,9 @@ import {
 // show a friend, leaning in — is tracked with almost no lag. This is the
 // "feels glued to the face" knob; too low and the frame swims behind the
 // head during motion, which reads as fake.
-const POSE_FILTER = { minCutoff: 0.8, beta: 1.4 }
-const ROTATION_FILTER = { minCutoff: 0.6, beta: 1.0, dCutoff: 1 }
-const SCALE_FILTER = { minCutoff: 0.6, beta: 1.2 }
+const POSE_FILTER = { minCutoff: 1.2, beta: 2.4 }
+const ROTATION_FILTER = { minCutoff: 1.0, beta: 2.0, dCutoff: 1 }
+const SCALE_FILTER = { minCutoff: 0.9, beta: 1.8 }
 
 export function useTryOnSmoothing(options: {
   targetAnchor: ComputedRef<NormalizedLandmark>
@@ -42,6 +44,17 @@ export function useTryOnSmoothing(options: {
    * smoothed size instead of jumping with the garbage signal.
    */
   holdScale?: ComputedRef<boolean>
+  /**
+   * Measured camera→landmarks pipeline latency in milliseconds (EMA from
+   * `useFaceLandmarker`). While tracking, the filtered pose is extrapolated
+   * forward by this much along its own velocity estimates, so the rendered
+   * frame matches where the head is *now* instead of where it was when the
+   * camera frame was captured. Prediction is velocity-proportional — a still
+   * head predicts ~zero, keeping the heavy at-rest smoothing — and is applied
+   * display-only: the filter state is never advanced by it, so extrapolation
+   * error cannot feed back into the filter. Omit/0 disables prediction.
+   */
+  latencyMs?: Ref<number> | ComputedRef<number>
 }) {
   const smoothedAnchor = ref<NormalizedLandmark>({
     ...options.targetAnchor.value
@@ -65,6 +78,9 @@ export function useTryOnSmoothing(options: {
   let angularSpeedState = 0
   const targetEulerObj = new Euler()
   const targetQuat = new Quaternion()
+  // Display-only rotation: filter state quaternion + latency prediction.
+  // Kept separate so the prediction never feeds back into the slerp state.
+  const displayQuat = new Quaternion()
 
   useRafFn(
     ({ delta }) => {
@@ -126,12 +142,45 @@ export function useTryOnSmoothing(options: {
         smoothedQuaternion.slerp(targetQuat, alpha)
       }
 
-      smoothedAnchor.value = { x: anchorXState.value, y: anchorYState.value }
-      const outEuler = new Euler().setFromQuaternion(smoothedQuaternion)
+      // Latency compensation: the pose targets describe where the head was
+      // when the camera frame was captured (~latencyMs ago). Extrapolate the
+      // filtered signals forward along their own velocity estimates so the
+      // rendered frame matches where the head is *now*. Applied to the
+      // outputs only — filter state is never advanced by the prediction.
+      const predSeconds = options.isTracking.value
+        ? Math.min(
+            Math.max((options.latencyMs?.value ?? 0) / 1000, 0),
+            ONE_EURO_MAX_PREDICTION_SECONDS
+          )
+        : 0
+
+      smoothedAnchor.value = {
+        x: predictOneEuro(anchorXState, targetAnchor.x, predSeconds),
+        y: predictOneEuro(anchorYState, targetAnchor.y, predSeconds)
+      }
+
+      // Rotation prediction: continue past the filtered quaternion along the
+      // measured angular velocity, overshooting the latest measured rotation
+      // by at most half the remaining angle (t ≤ 1.5).
+      displayQuat.copy(smoothedQuaternion)
+      if (predSeconds > 0) {
+        const remaining = displayQuat.angleTo(targetQuat)
+        if (remaining > 1e-4) {
+          const extra = Math.min(angularSpeedState * predSeconds, remaining * 0.5)
+          displayQuat.slerp(targetQuat, 1 + extra / remaining)
+        }
+      }
+      const outEuler = new Euler().setFromQuaternion(displayQuat)
       smoothedEuler.value = { x: outEuler.x, y: outEuler.y, z: outEuler.z }
       // scaleState stays null until the first non-held frame — keep the
       // initial value in that window instead of crashing on the read.
-      if (scaleState) smoothedScale.value = scaleState.value
+      if (scaleState) {
+        smoothedScale.value = predictOneEuro(
+          scaleState,
+          targetScale,
+          predSeconds
+        )
+      }
     },
     { immediate: true }
   )

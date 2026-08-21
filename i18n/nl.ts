@@ -68,6 +68,9 @@ export default {
         }
       }
     },
+    experience: {
+      fallback: 'Laden…'
+    },
     suggestions: {
       ariaLabel: 'Monteursuggesties',
       title: 'Probeer een andere look'

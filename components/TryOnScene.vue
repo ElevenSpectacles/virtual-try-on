@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import {
   Vector3,
   Euler,
   Box3,
   Box3Helper,
+  BufferAttribute,
+  BufferGeometry,
   Color,
+  DoubleSide,
   Matrix4,
   Mesh,
   type Material,
@@ -22,6 +25,7 @@ import {
   type EnvPreset,
   type HeadOccluderGeometry
 } from '../utils/tryon'
+import { HEAD_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 
 const props = withDefaults(
   defineProps<{
@@ -48,6 +52,13 @@ const props = withDefaults(
     useEnvironment?: boolean
     /** Depth-only head proxy that hides geometry behind it (temple arms). */
     occluderEnabled?: boolean
+    /**
+     * Per-frame world-space vertices of the landmark-built head shell (see
+     * `buildHeadOccluderPositions`). When present this replaces the ellipsoid
+     * proxy — the shell hugs the tracked face silhouette, so temple arms are
+     * occluded exactly where the real head would occlude them.
+     */
+    occluderPositions?: Float32Array | null
     occluderPosition?: { x: number; y: number; z?: number }
     occluderRadius?: HeadOccluderGeometry
     occluderRotation?: { x: number; y: number; z: number }
@@ -79,6 +90,7 @@ const props = withDefaults(
     envIntensity: 0.35,
     useEnvironment: true,
     occluderEnabled: false,
+    occluderPositions: null,
     occluderPosition: () => ({ x: 0, y: 0, z: 0 }),
     occluderRadius: () => ({ radiusX: 0.1, radiusY: 0.13, radiusZ: 0.12 }),
     occluderRotation: () => ({ x: 0, y: 0, z: 0 }),
@@ -193,6 +205,37 @@ const occluderPositionVec = computed(
       props.occluderPosition.z ?? 0
     )
 )
+
+// Head-shell occluder: one persistent BufferGeometry whose positions are
+// re-uploaded per frame from `occluderPositions`. Fixed layout (front ring +
+// back ring, HEAD_OCCLUDER_INDEX triangles) so no re-allocation happens per
+// detection. Frustum culling is disabled — recomputing a bounding sphere
+// every frame costs more than the 140-triangle draw it would save.
+const occluderShellGeometry = shallowRef<BufferGeometry | null>(null)
+
+watch(
+  () => props.occluderPositions,
+  (positions) => {
+    if (!positions) {
+      occluderShellGeometry.value = null
+      return
+    }
+    let geometry = occluderShellGeometry.value
+    if (!geometry) {
+      geometry = new BufferGeometry()
+      geometry.setAttribute(
+        'position',
+        new BufferAttribute(new Float32Array(positions.length), 3)
+      )
+      geometry.setIndex(new BufferAttribute(HEAD_OCCLUDER_INDEX, 1))
+      occluderShellGeometry.value = geometry
+    }
+    const attribute = geometry.getAttribute('position') as BufferAttribute
+    ;(attribute.array as Float32Array).set(positions)
+    attribute.needsUpdate = true
+  },
+  { immediate: true }
+)
 const occluderScaleVec = computed(
   () =>
     new Vector3(
@@ -239,9 +282,28 @@ const occluderRotationVec = computed(
   <!-- Depth-only head proxy: writes depth but not color, so geometry behind
        it (temple arms tucking behind the ear) is hidden by the depth test
        without needing named anchor nodes in the GLBs. Must render before the
-       glasses group so its depth is already in the buffer when they draw. -->
+       glasses group so its depth is already in the buffer when they draw.
+
+       The landmark-built shell (tracked face silhouette extruded to a skull
+       depth) is the accurate occluder; the ellipsoid is the fallback for
+       pointer/idle mode where no face is tracked. -->
   <TresMesh
-    v-if="occluderEnabled && visible"
+    v-if="occluderEnabled && visible && occluderShellGeometry"
+    :geometry="occluderShellGeometry"
+    :frustum-culled="false"
+    :render-order="-1"
+  >
+    <TresMeshBasicMaterial
+      :color="occluderDebugVisible ? 'red' : 'black'"
+      :color-write="occluderDebugVisible"
+      :depth-write="true"
+      :transparent="occluderDebugVisible"
+      :opacity="occluderDebugVisible ? 0.3 : 1"
+      :side="DoubleSide"
+    />
+  </TresMesh>
+  <TresMesh
+    v-else-if="occluderEnabled && visible"
     :position="occluderPositionVec"
     :rotation="occluderRotationVec"
     :scale="occluderScaleVec"

@@ -42,8 +42,10 @@ Key facts:
   by the main thread.
 - `utils/` — pure, unit-testable math: `tryon.ts` (landmark→NDC/world
   remapping, metric/IPD scaling, occluder geometry, One-Euro filter,
-  `TRYON_CAMERA` constants) and `tryon-pose.ts` (transformation matrix →
-  face-pose decomposition).
+  `TRYON_CAMERA` constants), `tryon-occluder.ts` (per-frame landmark-built
+  head-shell occluder: face-oval silhouette extruded along the head axis —
+  hides temple arms frontally and the far temple at profile) and
+  `tryon-pose.ts` (transformation matrix → face-pose decomposition).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
 - `i18n/` — default translations (`bg`, `de`, `en`, `es`, `fr`, `it`, `nl`) under

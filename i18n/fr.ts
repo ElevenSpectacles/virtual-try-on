@@ -69,6 +69,9 @@ export default {
         }
       }
     },
+    experience: {
+      fallback: 'Chargement en cours…'
+    },
     suggestions: {
       ariaLabel: 'Suggestions de montures',
       title: 'Essayer un autre look'

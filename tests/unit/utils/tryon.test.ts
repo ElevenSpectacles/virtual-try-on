@@ -18,6 +18,11 @@ import {
   compensateMeasureForPose,
   computeMetricScaleFromMeasure,
   oneEuroFilter,
+  predictOneEuro,
+  computeAnchorCentroid,
+  TRYON_ANCHOR_INDICES,
+  type NormalizedLandmark,
+  type OneEuroState,
   IRIS_CENTER_RIGHT,
   IRIS_CENTER_LEFT,
   EYE_RIGHT_TOP,
@@ -317,6 +322,84 @@ describe('try-on compositing helpers', () => {
       const lowBetaLag = ramp({ minCutoff: 1, beta: 0 })
       const highBetaLag = ramp({ minCutoff: 1, beta: 2 })
       expect(highBetaLag).toBeLessThan(lowBetaLag)
+    })
+  })
+
+  describe('computeAnchorCentroid', () => {
+    const landmarks = (points: Record<number, NormalizedLandmark>) => {
+      const list: NormalizedLandmark[] = []
+      for (const [index, point] of Object.entries(points)) {
+        list[Number(index)] = point
+      }
+      return list
+    }
+
+    it('averages the given indices into a single point', () => {
+      const list = landmarks({
+        6: { x: 0.5, y: 0.4, z: 0.1 },
+        468: { x: 0.4, y: 0.5, z: 0.2 }
+      })
+      const centroid = computeAnchorCentroid(list, [6, 468])
+      expect(centroid?.x).toBeCloseTo(0.45)
+      expect(centroid?.y).toBeCloseTo(0.45)
+      expect(centroid?.z).toBeCloseTo(0.15)
+    })
+
+    it('skips indices that are absent (e.g. iris centres on a 468-point model)', () => {
+      const list = landmarks({
+        6: { x: 0.5, y: 0.4 },
+        197: { x: 0.5, y: 0.6 }
+      })
+      // 468/473 from TRYON_ANCHOR_INDICES are missing — centroid of the rest.
+      expect(computeAnchorCentroid(list, TRYON_ANCHOR_INDICES)).toEqual({
+        x: 0.5,
+        y: 0.5,
+        z: 0
+      })
+    })
+
+    it('returns null when none of the indices are present', () => {
+      const list = landmarks({ 0: { x: 0.1, y: 0.1 } })
+      expect(computeAnchorCentroid(list, [6, 468])).toBeNull()
+    })
+  })
+
+  describe('predictOneEuro', () => {
+    it('returns the filtered value unchanged when dt is non-positive', () => {
+      const state: OneEuroState = { value: 1, derivative: 5 }
+      expect(predictOneEuro(state, 1.5, 0)).toBe(1)
+      expect(predictOneEuro(state, 1.5, -0.01)).toBe(1)
+    })
+
+    it('extrapolates along the velocity estimate within the measurement gap', () => {
+      // Filtered value 1, measurement 2 (gap +1), velocity +4/s, 50ms ahead:
+      // raw prediction 1.2 — still short of the measurement, passes through.
+      const state: OneEuroState = { value: 1, derivative: 4 }
+      expect(predictOneEuro(state, 2, 0.05)).toBeCloseTo(1.2)
+    })
+
+    it('clamps overshoot beyond the latest measurement', () => {
+      // Value 1, measurement 2 (gap +1), velocity +40/s, 50ms: raw prediction
+      // 3 — 1.0 beyond the measurement, clamped to gap * (maxOvershoot - 1)
+      // = 0.5 beyond it.
+      const state: OneEuroState = { value: 1, derivative: 40 }
+      expect(predictOneEuro(state, 2, 0.05)).toBeCloseTo(2.5)
+    })
+
+    it('clamps overshoot symmetrically in the negative direction', () => {
+      const state: OneEuroState = { value: 2, derivative: -40 }
+      expect(predictOneEuro(state, 1, 0.05)).toBeCloseTo(0.5)
+    })
+
+    it('honours a custom maxOvershoot', () => {
+      const state: OneEuroState = { value: 1, derivative: 40 }
+      expect(predictOneEuro(state, 2, 0.05, 1.2)).toBeCloseTo(2.2)
+    })
+
+    it('caps the lookahead horizon so wild latency spikes cannot fling the value', () => {
+      // dt of 5s must be treated as the 100ms cap, not 5s of extrapolation.
+      const state: OneEuroState = { value: 0, derivative: 1 }
+      expect(predictOneEuro(state, 100, 5)).toBeCloseTo(0.1)
     })
   })
 

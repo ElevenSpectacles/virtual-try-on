@@ -17,14 +17,18 @@ import {
   objectCoverWindow,
   mapLandmarkToObjectCover,
   getFaceWidth,
+  getEarWidth,
   isBlinking,
   getEyeAspectRatio,
   ASSUMED_FRAME_HALF_DEPTH_METERS,
   ASSUMED_FACE_WIDTH_METERS,
+  ASSUMED_EAR_WIDTH_METERS,
   ASSUMED_IPD_METERS,
+  FRAME_FIT_SCALE_BOOST,
   type NormalizedLandmark
 } from '../utils/tryon'
 import { faceEulerToThree } from '../utils/tryon-pose'
+import { buildHeadOccluderPositions } from '../utils/tryon-occluder'
 import { useWebcamStream } from '../composables/tryon/useWebcamStream'
 import { useFaceLandmarker } from '../composables/tryon/useFaceLandmarker'
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
@@ -106,6 +110,10 @@ const correctedIpd = computed(() =>
   getInterPupillaryDistance(correctedFaceLandmarks.value)
 )
 
+const correctedEarWidth = computed(() =>
+  getEarWidth(correctedFaceLandmarks.value)
+)
+
 function poseCompensated(measure: number): number {
   if (!facePose.value) return measure
   return compensateMeasureForPose(
@@ -115,27 +123,31 @@ function poseCompensated(measure: number): number {
   )
 }
 
-const scaleSource = computed<'ipd' | 'width' | 'manual'>(() => {
+// Same chain as VirtualTryOnExperience: ear-to-ear width first (what a
+// frame's temple arms actually span), then cheek width, then IPD — so
+// values tuned here transfer 1:1 to production.
+const scaleSource = computed<'ear' | 'width' | 'ipd' | 'manual'>(() => {
   if (!enableAutoScale.value || !hasFace.value) return 'manual'
-  return correctedIpd.value > 0 ? 'ipd' : 'width'
+  if (correctedEarWidth.value > 0) return 'ear'
+  return correctedFaceWidth.value > 0 ? 'width' : 'ipd'
 })
 
 const autoMetricScale = computed(() => {
-  if (scaleSource.value === 'ipd') {
-    return computeMetricScaleFromMeasure(
-      aspect.value,
-      poseCompensated(correctedIpd.value),
-      ASSUMED_IPD_METERS
-    )
+  if (scaleSource.value === 'manual') {
+    return computeMetricBaseScale(aspect.value, referenceFaceWidth.value)
   }
-  if (scaleSource.value === 'width' && correctedFaceWidth.value > 0) {
-    return computeMetricScaleFromMeasure(
-      aspect.value,
-      poseCompensated(correctedFaceWidth.value),
-      ASSUMED_FACE_WIDTH_METERS
-    )
-  }
-  return computeMetricBaseScale(aspect.value, referenceFaceWidth.value)
+  const measure =
+    scaleSource.value === 'ear'
+      ? ([correctedEarWidth.value, ASSUMED_EAR_WIDTH_METERS] as const)
+      : scaleSource.value === 'width'
+        ? ([correctedFaceWidth.value, ASSUMED_FACE_WIDTH_METERS] as const)
+        : ([correctedIpd.value, ASSUMED_IPD_METERS] as const)
+  // Tracked sources get the fit boost on top — a real frame is worn
+  // slightly wider than the skull (see FRAME_FIT_SCALE_BOOST).
+  return (
+    computeMetricScaleFromMeasure(aspect.value, poseCompensated(measure[0]), measure[1]) *
+    FRAME_FIT_SCALE_BOOST
+  )
 })
 
 const calibratedScale = computed(
@@ -152,6 +164,11 @@ const showModelBoundingBox = ref(false)
 const occluderWidthRatio = ref(1.3)
 const occluderHeightRatio = ref(1.3)
 const occluderDepthRatio = ref(1.4)
+// Landmark-shell occluder (the production path) with its tuning knobs; the
+// width/height/depth ratios above only steer the ellipsoid fallback.
+const occluderShellEnabled = ref(true)
+const occluderShellDepth = ref(0.11)
+const occluderShellInflate = ref(1.04)
 
 // The occluder must stay skull-sized when the head turns: the cheek-to-cheek
 // measure foreshortens by cos(yaw)·cos(pitch), so compensate it the same way
@@ -224,6 +241,7 @@ const {
   landmarks: faceLandmarks,
   pose: facePose,
   anchor: faceAnchor,
+  latencyMs: faceLatencyMs,
   init: initFaceLandmarker
 } = useFaceLandmarker(videoRef)
 
@@ -241,44 +259,23 @@ const correctedFaceWidth = computed(() =>
   getFaceWidth(correctedFaceLandmarks.value)
 )
 
-const GUIDE_IPD_MIN = 0.11
-const GUIDE_IPD_MAX = 0.19
-const FACE_WIDTH_TO_IPD_RATIO = ASSUMED_FACE_WIDTH_METERS / ASSUMED_IPD_METERS
-
-type GuideHint = 'noFace' | 'tooFar' | 'tooClose' | 'aligned'
-
-const guideMeasure = computed(() => {
-  if (scaleSource.value === 'ipd') return poseCompensated(correctedIpd.value)
-  if (scaleSource.value === 'width' && correctedFaceWidth.value > 0) {
-    return poseCompensated(correctedFaceWidth.value) / FACE_WIDTH_TO_IPD_RATIO
-  }
-  return 0
-})
-
+// Same guide behavior as VirtualTryOnExperience: blurred surround +
+// corner-bracket rectangle while no face is found, fading out once a face is
+// tracked. No distance hints — the metric scale adapts to any workable
+// distance.
 const showGuideOverlay = computed(
   () => isActive.value && useFaceTracking.value
 )
 
-const guideHint = computed<GuideHint>(() => {
-  if (!hasFace.value || !correctedFaceAnchor.value) return 'noFace'
-  const measure = guideMeasure.value
-  if (measure > 0 && measure < GUIDE_IPD_MIN) return 'tooFar'
-  if (measure > 0 && measure > GUIDE_IPD_MAX) return 'tooClose'
-  return 'aligned'
-})
+type GuideHint = 'noFace' | 'aligned'
 
-const guideHintText = computed(() => {
-  switch (guideHint.value) {
-    case 'noFace':
-      return t('virtualTryOn.guide.noFace')
-    case 'tooFar':
-      return t('virtualTryOn.guide.tooFar')
-    case 'tooClose':
-      return t('virtualTryOn.guide.tooClose')
-    default:
-      return null
-  }
-})
+const guideHint = computed<GuideHint>(() =>
+  !hasFace.value || !correctedFaceAnchor.value ? 'noFace' : 'aligned'
+)
+
+const guideHintText = computed(() =>
+  guideHint.value === 'noFace' ? t('virtualTryOn.guide.noFace') : null
+)
 
 const guideVisible = ref(true)
 let guideFadeTimer: ReturnType<typeof setTimeout> | null = null
@@ -335,6 +332,7 @@ const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
   targetEuler: computed(() => faceRotation.value ?? manualRotation.value),
   targetScale: calibratedScale,
   isTracking: computed(() => useFaceTracking.value && hasFace.value),
+  latencyMs: faceLatencyMs,
   holdScale: computed(() => isBlinking(faceLandmarks.value, mediaAspect.value || 1))
 })
 
@@ -347,6 +345,32 @@ const framePosition = computed(() => {
     y: position.y + DEFAULT_ANCHOR_Y_OFFSET + debugYOffset.value,
     z: debugZOffset.value
   }
+})
+
+// Same shell-occluder wiring as VirtualTryOnExperience: shape from raw
+// landmarks, placement from the smoothed transform. Null → ellipsoid.
+const occluderShellPositions = computed(() => {
+  if (
+    !useFaceTracking.value ||
+    !hasFace.value ||
+    !facePose.value ||
+    !faceRotation.value ||
+    !correctedFaceAnchor.value
+  ) {
+    return null
+  }
+  return buildHeadOccluderPositions({
+    landmarks: correctedFaceLandmarks.value,
+    aspect: aspect.value,
+    mirror: mirrorLandmarks,
+    rawAnchor: correctedFaceAnchor.value,
+    rawEuler: faceRotation.value,
+    smoothedAnchor: smoothedAnchor.value,
+    smoothedEuler: smoothedEuler.value,
+    scale: smoothedScale.value,
+    depthMeters: occluderShellDepth.value,
+    inflate: occluderShellInflate.value
+  })
 })
 
 useRafFn(
@@ -574,6 +598,9 @@ watch(selectedModel, (model) => {
               :scale="smoothedScale"
               :rotation="smoothedEuler"
               :occluder-enabled="occluderEnabled"
+              :occluder-positions="
+                occluderShellEnabled ? occluderShellPositions : null
+              "
               :occluder-position="occluderPosition"
               :occluder-radius="occluderGeometry"
               :occluder-rotation="smoothedEuler"
@@ -875,6 +902,36 @@ watch(selectedModel, (model) => {
           label="Show model bounding box"
           size="sm"
         />
+
+        <USwitch
+          v-model="occluderShellEnabled"
+          label="Landmark shell (falls back to ellipsoid when off)"
+          size="sm"
+        />
+
+        <UFormField
+          :label="`Shell depth · ${(occluderShellDepth * 1000).toFixed(0)}mm`"
+          size="xs"
+        >
+          <USlider
+            v-model="occluderShellDepth"
+            :min="0.06"
+            :max="0.2"
+            :step="0.005"
+          />
+        </UFormField>
+
+        <UFormField
+          :label="`Shell inflate · ${occluderShellInflate.toFixed(2)}`"
+          size="xs"
+        >
+          <USlider
+            v-model="occluderShellInflate"
+            :min="1"
+            :max="1.15"
+            :step="0.01"
+          />
+        </UFormField>
 
         <UFormField
           :label="`Occluder width ratio · ${occluderWidthRatio.toFixed(2)}`"

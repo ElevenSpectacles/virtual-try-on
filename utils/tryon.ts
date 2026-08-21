@@ -264,6 +264,51 @@ export const IRIS_CENTER_RIGHT = 468
 export const IRIS_CENTER_LEFT = 473
 
 /**
+ * Landmark indices averaged into the frame anchor: the nose-bridge ridge
+ * (168 between eyebrows, 6 glabella, 197/5 down the ridge) pins the anchor
+ * vertically where the frame's bridge actually rests, and the iris centres
+ * (468/473) pin it to the lens line. Averaging six points also smooths
+ * single-landmark jitter for free. Brow/mouth/chin landmarks are
+ * deliberately excluded — they move with expression and would make the
+ * frame drift when the user talks or raises their eyebrows.
+ */
+export const TRYON_ANCHOR_INDICES = [168, 6, 197, 5, 468, 473] as const
+
+/**
+ * Average the given landmark indices into a single anchor point. Missing
+ * indices (e.g. iris centres on a 468-point model) are skipped; returns
+ * null when none of the indices are present so callers can fall back.
+ */
+export function computeAnchorCentroid(
+  landmarks: NormalizedLandmark[],
+  indices: readonly number[]
+): NormalizedLandmark | null {
+  let x = 0
+  let y = 0
+  let z = 0
+  let count = 0
+  for (const index of indices) {
+    const landmark = landmarks[index]
+    if (!landmark) continue
+    x += landmark.x
+    y += landmark.y
+    z += landmark.z ?? 0
+    count++
+  }
+  if (count === 0) return null
+  return { x: x / count, y: y / count, z: z / count }
+}
+
+/**
+ * Frames are worn slightly wider than the skull they sit on — the temple
+ * arms bow outward and the front overhangs the cheeks a touch — so sizing
+ * exactly to the ear-to-ear measure reads as too tight. Applied on top of
+ * the metric scale (all tracked sources) so the frame sits like a real,
+ * slightly-oversized fit.
+ */
+export const FRAME_FIT_SCALE_BOOST = 1.08
+
+/**
  * Inter-pupillary distance in normalized image units, from the iris-center
  * landmarks. Returns 0 when the model did not emit iris landmarks (e.g. a
  * 468-point result), letting callers fall back to the face-width path.
@@ -425,6 +470,47 @@ export function oneEuroFilter(
   const cutoff = minCutoff + beta * Math.abs(derivative)
   const alpha = oneEuroAlpha(cutoff, dtSeconds)
   return { value: alpha * value + (1 - alpha) * state.value, derivative }
+}
+
+/** Hard cap on how far into the future `predictOneEuro` may extrapolate. */
+export const ONE_EURO_MAX_PREDICTION_SECONDS = 0.1
+
+/**
+ * Latency compensation on top of `oneEuroFilter`: extrapolate the filtered
+ * value along the filter's own velocity estimate by `dtSeconds` (typically
+ * the measured camera→result pipeline latency), so the rendered pose matches
+ * where the head is *now* rather than where it was when the frame was
+ * captured.
+ *
+ * Two guards keep extrapolation from becoming a new artifact:
+ *
+ * - The lookahead is capped at `ONE_EURO_MAX_PREDICTION_SECONDS` so a latency
+ *   spike (GC pause, background tab) cannot fling the value far away.
+ * - The prediction may overshoot the latest raw measurement by at most
+ *   `(maxOvershoot - 1)` times the remaining gap between filtered value and
+ *   measurement — beyond that the filter, not the velocity estimate, is the
+ *   better information source (e.g. the head just decelerated and the stale
+ *   velocity would overshoot badly).
+ */
+export function predictOneEuro(
+  state: OneEuroState,
+  measurement: number,
+  dtSeconds: number,
+  maxOvershoot = 1.5
+): number {
+  if (dtSeconds <= 0) return state.value
+  const dt = Math.min(dtSeconds, ONE_EURO_MAX_PREDICTION_SECONDS)
+  const predicted = state.value + state.derivative * dt
+  const gap = measurement - state.value
+  const overshoot = predicted - measurement
+  if (
+    gap !== 0 &&
+    Math.sign(overshoot) === Math.sign(gap) &&
+    Math.abs(overshoot) > Math.abs(gap) * (maxOvershoot - 1)
+  ) {
+    return measurement + gap * (maxOvershoot - 1)
+  }
+  return predicted
 }
 
 /**
