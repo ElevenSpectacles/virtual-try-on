@@ -73,6 +73,7 @@ npm install                     # only needed when working standalone
 npx vitest                      # run unit tests (tests/unit only, per vitest.config.ts)
 npx vitest run                  # single run (CI-style)
 npm run playground              # standalone dev playground on :4000 (visual tuning)
+npm run typecheck               # vue-tsc against the playground's generated tsconfig
 npm run verify                  # vitest + playground build + booted-server smoke test
 npx tsx scripts/generate-calibration.ts \
   --input public/models \
@@ -154,3 +155,19 @@ When changing public surfaces, keep the host contract in mind (documented in
   sends nothing.
 - Secrets/config (`.env`, `*.local`) are git-ignored; the module holds no
   credentials.
+
+## Known production gaps
+
+Tracked here rather than fixed silently, since the fix for most of these
+belongs in the host project or its asset pipeline, not in this module:
+
+- **GLB asset size**: catalog models are ~5.8MB each — fine for local
+  tuning, too large to download per try-on session. Compression/decimation
+  is a prerequisite for production use and belongs in the host's asset
+  pipeline (this module only consumes whatever GLBs it's given).
+- **Hardcoded MediaPipe CDN dependency**: `workers/face-landmarker.worker.ts`
+  loads WASM and model weights from `cdn.jsdelivr.net` /
+  `storage.googleapis.com` at runtime, with no self-hosted fallback. A CDN
+  outage or breaking upstream release takes down try-on entirely beyond the
+  existing "unsupported" error state. Self-hosting these assets (and pinning
+  versions) is host-repo work.

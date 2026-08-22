@@ -6,6 +6,7 @@
   "scripts": {
     "generate-calibration": "npx tsx scripts/generate-calibration.ts",
     "playground": "nuxt dev playground --port 4000",
+    "typecheck": "nuxt typecheck playground",
     "verify": "npx vitest run && node scripts/verify-playground.mjs"
   },
   "peerDependencies": {
@@ -26,7 +27,8 @@
     "@types/three": "^0.185.1",
     "tsx": "^4.23.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "vue-tsc": "^3.1.0"
   },
   "overrides": {
     "esbuild": "^0.28.2"
