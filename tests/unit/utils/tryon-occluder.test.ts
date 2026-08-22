@@ -166,13 +166,36 @@ describe('head occluder shell', () => {
     })
   })
 
-  it('pushes the front ring toward the camera by the surface offset', () => {
+  it('pushes the front ring toward the camera by a positive surface offset', () => {
     const offset = 0.004
     const positions = buildHeadOccluderPositions(
       baseOptions({ surfaceOffsetMeters: offset })
     )!
     for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
       expect(vertexAt(positions, i).z).toBeCloseTo(offset * SCALE)
+    }
+  })
+
+  it('places the front cap BEHIND the frame front face by default', () => {
+    // Regression: calibration anchors each GLB's front face at the anchor
+    // plane (z=0). A cap at/above that plane depth-hides the entire frame
+    // inside the face silhouette — the "glasses behind the face" bug. The
+    // default offset must keep the cap behind the frame front so the frame
+    // wins the depth test where it rests on the skin.
+    const positions = buildHeadOccluderPositions(baseOptions())!
+    for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
+      expect(vertexAt(positions, i).z).toBeLessThan(0)
+    }
+  })
+
+  it('extrudes far enough to cover the full temple length by default', () => {
+    // The frame extends ~15.5cm back from its front face (front-at-anchor
+    // convention); a shorter shell lets the temple tips escape it.
+    const positions = buildHeadOccluderPositions(baseOptions())!
+    for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
+      const front = vertexAt(positions, i)
+      const back = vertexAt(positions, i + FACE_OVAL_INDICES.length)
+      expect(front.z - back.z).toBeGreaterThanOrEqual(0.15 * SCALE)
     }
   })
 

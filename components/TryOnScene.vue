@@ -147,11 +147,12 @@ watch(
   { immediate: true }
 )
 
-// Debug helper: the GLB's local-space bounding box. Calibration translation
-// is authored as `-bboxCenter`, so this box shows exactly what the calibration
-// recenters onto the tracked anchor. The box is accumulated relative to the
-// GLB scene root (not via `setFromObject`, which measures in world space and
-// would double-apply the group transform once the scene is mounted).
+// Debug helper: the GLB's local-space bounding box. Calibration y-centers the
+// bbox on the tracked anchor and places the frame's FRONT face on it in z
+// (the frame extends backward toward the temples), so this box shows exactly
+// what the calibration anchors against. The box is accumulated relative to
+// the GLB scene root (not via `setFromObject`, which measures in world space
+// and would double-apply the group transform once the scene is mounted).
 const boundingBoxHelper = computed(() => {
   if (!props.showBoundingBox || !model.value) return null
   const scene = model.value.scene

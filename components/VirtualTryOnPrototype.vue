@@ -20,7 +20,6 @@ import {
   getEarWidth,
   isBlinking,
   getEyeAspectRatio,
-  ASSUMED_FRAME_HALF_DEPTH_METERS,
   ASSUMED_FACE_WIDTH_METERS,
   ASSUMED_EAR_WIDTH_METERS,
   ASSUMED_IPD_METERS,
@@ -167,7 +166,7 @@ const occluderDepthRatio = ref(1.4)
 // Landmark-shell occluder (the production path) with its tuning knobs; the
 // width/height/depth ratios above only steer the ellipsoid fallback.
 const occluderShellEnabled = ref(true)
-const occluderShellDepth = ref(0.11)
+const occluderShellDepth = ref(0.16)
 const occluderShellInflate = ref(1.04)
 
 // The occluder must stay skull-sized when the head turns: the cheek-to-cheek
@@ -194,12 +193,14 @@ const occluderPosition = computed(() => {
   const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
     mirror: mirrorLandmarks
   })
-  const frameHalfDepth = ASSUMED_FRAME_HALF_DEPTH_METERS * smoothedScale.value
+  // Front-at-anchor calibration: the ellipsoid's front surface sits just
+  // behind the frame front (2mm skin clearance), matching the shell's cap.
+  const clearance = 0.002 * smoothedScale.value
   const rot = smoothedEuler.value
   const back = new Vector3(
     0,
     0,
-    -(frameHalfDepth + occluderGeometry.value.radiusZ)
+    -(occluderGeometry.value.radiusZ + clearance)
   ).applyEuler(new Euler(rot.x, rot.y, rot.z))
   return {
     x: position.x + back.x,

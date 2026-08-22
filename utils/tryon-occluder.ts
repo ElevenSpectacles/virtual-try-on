@@ -39,6 +39,15 @@ import {
  * rigid body and inherit all One-Euro smoothing / latency prediction for
  * free. Only the shell's *shape* tracks the raw landmarks, and shape jitter
  * is invisible on a depth-only surface.
+ *
+ * Depth convention
+ * ----------------
+ * The calibration manifest anchors each GLB's FRONT face at the anchor plane
+ * (z=0): the frame extends backward from it, toward the temples. The shell's
+ * front cap must therefore sit slightly BEHIND that plane (see
+ * `surfaceOffsetMeters`) — it plays the role of the skin surface the frame
+ * rests on. A cap at or in front of the anchor plane would depth-hide the
+ * entire frame inside the face silhouette.
  */
 
 /**
@@ -100,8 +109,10 @@ export interface HeadOccluderOptions {
   /** Smoothed metric scale (world units per GLB metre) — converts the metre constants below to world units. */
   scale: number
   /**
-   * How far the shell extends behind the face, in metres. Must cover the
-   * far temple and ear: skull half-depth ~9cm, temples tip ~2cm past it.
+   * How far the shell extends behind the face, in metres. The calibration
+   * anchors each frame's FRONT face at the anchor plane, so the temple arms
+   * run the full frame depth back from there (~15.5cm for the catalog GLBs);
+   * the shell must reach the tips or they escape it at frontal/profile views.
    */
   depthMeters?: number
   /**
@@ -111,9 +122,13 @@ export interface HeadOccluderOptions {
    */
   inflate?: number
   /**
-   * Pulls the whole shell slightly toward the camera, in metres, so frame
-   * parts touching the skin (nose pads) always win the depth test instead of
-   * speckling against the cap surface.
+   * Offsets the whole shell along the head axis, in metres (positive = toward
+   * the camera). Must stay NEGATIVE: calibration places the frame's front
+   * face AT the anchor plane, so a cap at/above it depth-hides the entire
+   * frame inside the face silhouette ("glasses behind the face"). The default
+   * parks the cap 2mm behind the frame front — the skin surface the frame
+   * rests on — so the frame always wins the depth test where it touches the
+   * face, and only what lies behind the skin (temple arms) is hidden.
    */
   surfaceOffsetMeters?: number
 }
@@ -140,9 +155,9 @@ export function buildHeadOccluderPositions(
     smoothedAnchor,
     smoothedEuler,
     scale,
-    depthMeters = 0.11,
+    depthMeters = 0.16,
     inflate = 1.04,
-    surfaceOffsetMeters = 0.004
+    surfaceOffsetMeters = -0.002
   } = options
 
   if (scale <= 0) return null

@@ -81,6 +81,8 @@ export function useTryOnSmoothing(options: {
   // Display-only rotation: filter state quaternion + latency prediction.
   // Kept separate so the prediction never feeds back into the slerp state.
   const displayQuat = new Quaternion()
+  // Reused per-frame instead of allocating in the rAF loop (60-120Hz).
+  const outEulerObj = new Euler()
 
   useRafFn(
     ({ delta }) => {
@@ -170,7 +172,7 @@ export function useTryOnSmoothing(options: {
           displayQuat.slerp(targetQuat, 1 + extra / remaining)
         }
       }
-      const outEuler = new Euler().setFromQuaternion(displayQuat)
+      const outEuler = outEulerObj.setFromQuaternion(displayQuat)
       smoothedEuler.value = { x: outEuler.x, y: outEuler.y, z: outEuler.z }
       // scaleState stays null until the first non-held frame — keep the
       // initial value in that window instead of crashing on the read.

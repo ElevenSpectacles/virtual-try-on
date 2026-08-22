@@ -161,14 +161,6 @@ export function computeMetricBaseScale(
 /** Assumed real-world head depth (front to back) used to size the occluder. */
 export const ASSUMED_HEAD_DEPTH_METERS = 0.09
 
-/**
- * Assumed half-depth (front to back) of a frame GLB, used to push the head
- * occluder behind the frame's own front-to-back extent. Measured through the
- * scene graph (node transforms applied) the GLBs span ~160mm front-to-back —
- * full temple arms — so half of that is roughly this value.
- */
-export const ASSUMED_FRAME_HALF_DEPTH_METERS = 0.08
-
 export interface HeadOccluderGeometry {
   radiusX: number
   radiusY: number

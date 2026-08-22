@@ -18,7 +18,6 @@ import {
   getFaceWidth,
   getEarWidth,
   isBlinking,
-  ASSUMED_FRAME_HALF_DEPTH_METERS,
   ASSUMED_FACE_WIDTH_METERS,
   ASSUMED_EAR_WIDTH_METERS,
   ASSUMED_IPD_METERS,
@@ -205,16 +204,23 @@ const occluderGeometry = computed(() =>
 // at yaw the skull sits diagonally behind the nose bridge, and pushing
 // straight back along camera Z drifts the ellipsoid off the head, exposing
 // the far temple arm it exists to hide.
+//
+// Calibration anchors each frame's FRONT face at the anchor plane, so the
+// ellipsoid's front surface must sit just behind that plane (the skin the
+// frame rests on) — centre it a skin clearance past its own radius. Pushing
+// it back by a frame half-depth on top (the pre-shell convention) leaves a
+// gap where the frame's front half renders on top of the head.
+const SKIN_CLEARANCE_METERS = 0.002
 const occluderPosition = computed(() => {
   const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
     mirror: mirrorLandmarks
   })
-  const frameHalfDepth = ASSUMED_FRAME_HALF_DEPTH_METERS * smoothedScale.value
+  const clearance = SKIN_CLEARANCE_METERS * smoothedScale.value
   const rot = smoothedEuler.value
   const back = new Vector3(
     0,
     0,
-    -(frameHalfDepth + occluderGeometry.value.radiusZ)
+    -(occluderGeometry.value.radiusZ + clearance)
   ).applyEuler(new Euler(rot.x, rot.y, rot.z))
   return {
     x: position.x + back.x,
