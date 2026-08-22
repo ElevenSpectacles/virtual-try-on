@@ -133,6 +133,10 @@ Props:
 | `modelBaseUrl` | `string` | `'/models'` | Directory the GLB files are served from (`<modelBaseUrl>/<file>.glb`). |
 | `initialModel` | `string` | — | `file` of the model to render first. Falls back to the `?model=` query param, then to `models[0]`. |
 | `simplifiedControls` | `boolean` | `true` | Hides the tuning sliders (exposure, scale, yaw, temple width). |
+| `mediapipeBasePath` | `string` | jsDelivr CDN | Directory the MediaPipe Wasm fileset is served from. Pass a same-origin path to self-host. |
+| `mediapipeModelAssetPath` | `string` | Google-storage CDN | URL/path to the `face_landmarker.task` model asset. |
+| `draco` | `boolean` | `true` | Whether the GLB loader wires up Draco decompression. Safe to leave on even for uncompressed GLBs. |
+| `dracoDecoderPath` | `string` | TresJS's gstatic CDN default | Draco decoder path override — pass a same-origin path to self-host. |
 
 v-model:
 
@@ -196,6 +200,45 @@ npx tsx app/virtual-try-on/scripts/generate-calibration.ts \
 
 The calibration is per-model: it recenters each GLB's bounding box onto the
 tracked face anchor and normalizes the scale against the reference model.
+
+## GLB compression
+
+GLBs in the catalog run several MB uncompressed. Before shipping a model
+directory to production, compress it with Draco mesh compression:
+
+```bash
+npx tsx app/virtual-try-on/scripts/compress-models.ts \
+  --input public/models \
+  --output public/models
+```
+
+`TryOnScene`'s GLB loader (`draco` prop, default `true`) already decodes
+Draco-compressed meshes — compressing the source files needs no component
+changes. Run `generate-calibration` against the compressed output, since
+compression can shift bounding boxes by float rounding.
+
+## Self-hosting MediaPipe and Draco assets
+
+By default the module loads MediaPipe's Wasm fileset and model weights from
+CDNs (`cdn.jsdelivr.net`, `storage.googleapis.com`), and the Draco decoder
+from TresJS's gstatic CDN default. To remove those runtime CDN dependencies,
+host the files yourself and pass overrides:
+
+```vue
+<VirtualTryOnExperience
+  :models="models"
+  calibration-url="/models/calibration.json"
+  mediapipe-base-path="/mediapipe/wasm"
+  mediapipe-model-asset-path="/mediapipe/face_landmarker.task"
+  draco-decoder-path="/draco/"
+  @track="onTryOnTrack"
+/>
+```
+
+The MediaPipe Wasm binaries ship inside
+`@mediapipe/tasks-vision`'s own package (`wasm/`) — copy them into a public
+directory the host serves. The `.task` model file is downloadable from
+Google's model zoo. The Draco decoder ships inside `three`'s `examples/jsm/libs/draco/`.
 
 ## Module-only tests
 

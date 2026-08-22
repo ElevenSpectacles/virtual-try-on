@@ -23,6 +23,17 @@ export interface UseFaceLandmarkerOptions {
    * centres — see utils/tryon for why that set).
    */
   anchorIndices?: readonly number[]
+  /**
+   * Directory the MediaPipe Wasm fileset is served from, passed through to
+   * the worker's `FilesetResolver.forVisionTasks`. Omit to use the worker's
+   * jsDelivr CDN default; pass a same-origin path to self-host.
+   */
+  mediapipeBasePath?: string
+  /**
+   * URL/path to the `face_landmarker.task` model asset. Omit to use the
+   * worker's Google-storage CDN default.
+   */
+  mediapipeModelAssetPath?: string
 }
 
 /**
@@ -212,7 +223,11 @@ export function useFaceLandmarker(
       await new Promise<void>((resolve, reject) => {
         readyResolve = resolve
         readyReject = reject
-        post({ type: 'init' })
+        post({
+          type: 'init',
+          basePath: options.mediapipeBasePath,
+          modelAssetPath: options.mediapipeModelAssetPath
+        })
       })
 
       logger.info('[useFaceLandmarker] FaceLandmarker ready (worker)')

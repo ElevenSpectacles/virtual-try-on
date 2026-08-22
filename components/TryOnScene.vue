@@ -25,7 +25,7 @@ import {
   type EnvPreset,
   type HeadOccluderGeometry
 } from '../utils/tryon'
-import { HEAD_OCCLUDER_INDEX } from '../utils/tryon-occluder'
+import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 
 const props = withDefaults(
   defineProps<{
@@ -53,10 +53,10 @@ const props = withDefaults(
     /** Depth-only head proxy that hides geometry behind it (temple arms). */
     occluderEnabled?: boolean
     /**
-     * Per-frame world-space vertices of the landmark-built head shell (see
-     * `buildHeadOccluderPositions`). When present this replaces the ellipsoid
-     * proxy — the shell hugs the tracked face silhouette, so temple arms are
-     * occluded exactly where the real head would occlude them.
+     * Per-frame world-space vertices of the landmark-built face mesh (see
+     * `buildFaceMeshOccluderPositions`). When present this replaces the
+     * ellipsoid proxy — the mesh hugs the tracked face surface, so temple
+     * arms are occluded exactly where the real head would occlude them.
      */
     occluderPositions?: Float32Array | null
     occluderPosition?: { x: number; y: number; z?: number }
@@ -76,6 +76,15 @@ const props = withDefaults(
      * tracking momentarily loses the face so the glasses don't freeze mid-air.
      */
     visible?: boolean
+    /**
+     * Whether the loader wires up Draco decompression support. Harmless to
+     * leave on for uncompressed GLBs — GLTFLoader only invokes the decoder
+     * when a mesh actually carries the `KHR_draco_mesh_compression`
+     * extension.
+     */
+    draco?: boolean
+    /** Draco decoder path override — omit to use cientos's CDN default. */
+    dracoDecoderPath?: string
   }>(),
   {
     position: () => ({ x: 0, y: 0, z: 0 }),
@@ -97,14 +106,19 @@ const props = withDefaults(
     occluderDebugVisible: false,
     showBoundingBox: false,
     modelOffset: () => ({ x: 0, y: 0, z: 0 }),
-    visible: true
+    visible: true,
+    draco: true,
+    dracoDecoderPath: undefined
   }
 )
 
 // Non-blocking loader: `model` is null until the GLB resolves, so a heavy
 // frame download never stalls the whole scene graph.
 const src = computed(() => props.src)
-const { state: model } = useGLTF(src)
+const { state: model } = useGLTF(src, {
+  draco: props.draco,
+  decoderPath: props.dracoDecoderPath
+})
 
 // The catalog's lens materials are authored as metalness ≈ 0.7 with
 // alpha-blend transparency — physically wrong for a dielectric: metalness
@@ -207,29 +221,30 @@ const occluderPositionVec = computed(
     )
 )
 
-// Head-shell occluder: one persistent BufferGeometry whose positions are
-// re-uploaded per frame from `occluderPositions`. Fixed layout (front ring +
-// back ring, HEAD_OCCLUDER_INDEX triangles) so no re-allocation happens per
-// detection. Frustum culling is disabled — recomputing a bounding sphere
-// every frame costs more than the 140-triangle draw it would save.
-const occluderShellGeometry = shallowRef<BufferGeometry | null>(null)
+// Face-mesh occluder: one persistent BufferGeometry whose positions are
+// re-uploaded per frame from `occluderPositions`. Fixed layout (468 landmark
+// vertices, FACE_MESH_OCCLUDER_INDEX triangles) so no re-allocation happens
+// per detection. Frustum culling is disabled — recomputing a bounding sphere
+// every frame costs more than the ~900-triangle depth-only draw it would
+// save.
+const occluderMeshGeometry = shallowRef<BufferGeometry | null>(null)
 
 watch(
   () => props.occluderPositions,
   (positions) => {
     if (!positions) {
-      occluderShellGeometry.value = null
+      occluderMeshGeometry.value = null
       return
     }
-    let geometry = occluderShellGeometry.value
+    let geometry = occluderMeshGeometry.value
     if (!geometry) {
       geometry = new BufferGeometry()
       geometry.setAttribute(
         'position',
         new BufferAttribute(new Float32Array(positions.length), 3)
       )
-      geometry.setIndex(new BufferAttribute(HEAD_OCCLUDER_INDEX, 1))
-      occluderShellGeometry.value = geometry
+      geometry.setIndex(new BufferAttribute(FACE_MESH_OCCLUDER_INDEX, 1))
+      occluderMeshGeometry.value = geometry
     }
     const attribute = geometry.getAttribute('position') as BufferAttribute
     ;(attribute.array as Float32Array).set(positions)
@@ -285,12 +300,12 @@ const occluderRotationVec = computed(
        without needing named anchor nodes in the GLBs. Must render before the
        glasses group so its depth is already in the buffer when they draw.
 
-       The landmark-built shell (tracked face silhouette extruded to a skull
-       depth) is the accurate occluder; the ellipsoid is the fallback for
+       The landmark-built face mesh (real tracked surface with its true
+       curvature) is the accurate occluder; the ellipsoid is the fallback for
        pointer/idle mode where no face is tracked. -->
   <TresMesh
-    v-if="occluderEnabled && visible && occluderShellGeometry"
-    :geometry="occluderShellGeometry"
+    v-if="occluderEnabled && visible && occluderMeshGeometry"
+    :geometry="occluderMeshGeometry"
     :frustum-culled="false"
     :render-order="-1"
   >

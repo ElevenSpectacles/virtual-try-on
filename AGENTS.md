@@ -43,8 +43,10 @@ Key facts:
 - `utils/` — pure, unit-testable math: `tryon.ts` (landmark→NDC/world
   remapping, metric/IPD scaling, occluder geometry, One-Euro filter,
   `TRYON_CAMERA` constants), `tryon-occluder.ts` (per-frame landmark-built
-  head-shell occluder: face-oval silhouette extruded along the head axis —
-  hides temple arms frontally and the far temple at profile) and
+  face-mesh occluder: the tracked 468-point face surface rendered depth-only,
+  so frame parts behind the skin — temple arms, far lens at profile — are
+  hidden exactly where the real head hides them),
+  `face-mesh-triangles.ts` (generated canonical-model triangulation), and
   `tryon-pose.ts` (transformation matrix → face-pose decomposition).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
@@ -61,6 +63,10 @@ Key facts:
 - `scripts/generate-calibration.ts` — CLI that scans a directory of GLBs and
   emits `calibration.json` (bounding-box recentring + scale normalization
   against a reference model).
+- `scripts/compress-models.ts` — CLI that Draco-compresses a directory of
+  GLBs via `@gltf-transform/functions`' `draco()` transform. Run before
+  `generate-calibration` on the compressed output, since compression can
+  shift bounding boxes by float rounding.
 - `tests/unit/` — Vitest unit tests (run from this repo).
 - `tests/nuxt/` — Nuxt-environment tests (run from the host project).
 
@@ -79,6 +85,9 @@ npx tsx scripts/generate-calibration.ts \
   --input public/models \
   --output public/models/calibration.json \
   --reference iris-bronze       # regenerate the calibration manifest
+npm run compress-models -- \
+  --input public/models \
+  --output public/models       # Draco-compress a GLB directory in place
 ```
 
 Testing strategy:
@@ -143,7 +152,9 @@ When changing public surfaces, keep the host contract in mind (documented in
   running mode and never switches — the live camera is the only input
   source (the photo-upload path was removed).
 - MediaPipe WASM and the face model are loaded from CDNs (jsdelivr /
-  Google storage) at runtime — network access is required at first load.
+  Google storage) at runtime by default — network access is required at
+  first load unless the host overrides `mediapipeBasePath` /
+  `mediapipeModelAssetPath` (see below) to self-hosted paths.
 
 ## Security and privacy considerations
 
@@ -158,16 +169,22 @@ When changing public surfaces, keep the host contract in mind (documented in
 
 ## Known production gaps
 
-Tracked here rather than fixed silently, since the fix for most of these
-belongs in the host project or its asset pipeline, not in this module:
+The module now supports compression and self-hosting overrides, but actually
+using them (compressing the catalog, hosting the assets) is host-repo work:
 
 - **GLB asset size**: catalog models are ~5.8MB each — fine for local
-  tuning, too large to download per try-on session. Compression/decimation
-  is a prerequisite for production use and belongs in the host's asset
-  pipeline (this module only consumes whatever GLBs it's given).
-- **Hardcoded MediaPipe CDN dependency**: `workers/face-landmarker.worker.ts`
-  loads WASM and model weights from `cdn.jsdelivr.net` /
-  `storage.googleapis.com` at runtime, with no self-hosted fallback. A CDN
-  outage or breaking upstream release takes down try-on entirely beyond the
-  existing "unsupported" error state. Self-hosting these assets (and pinning
-  versions) is host-repo work.
+  tuning, too large to download per try-on session. Run
+  `scripts/compress-models.ts` against the host's model directory before
+  shipping; `TryOnScene`'s loader already decodes Draco meshes (`draco` prop,
+  default `true`). Re-run `generate-calibration` against the compressed
+  output afterward.
+- **MediaPipe / Draco CDN dependency**: by default
+  `workers/face-landmarker.worker.ts` loads WASM and model weights from
+  `cdn.jsdelivr.net` / `storage.googleapis.com`, and `TryOnScene`'s Draco
+  decoder from TresJS's gstatic CDN default. A CDN outage or breaking
+  upstream release takes down try-on entirely beyond the existing
+  "unsupported" error state. Pass `mediapipeBasePath` /
+  `mediapipeModelAssetPath` / `dracoDecoderPath` to `VirtualTryOnExperience`
+  with self-hosted paths to remove the dependency — hosting the actual files
+  (copied from `@mediapipe/tasks-vision`'s `wasm/` dir, the model-zoo `.task`
+  file, and `three`'s `examples/jsm/libs/draco/`) is host-repo work.

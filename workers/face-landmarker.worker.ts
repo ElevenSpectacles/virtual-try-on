@@ -14,7 +14,7 @@
 // lives in `./face-landmarker.worker.types`, consumed via normal import by
 // the main-thread composable) instead of imported.
 type FaceLandmarkerWorkerRequest =
-  | { type: 'init' }
+  | { type: 'init'; basePath?: string; modelAssetPath?: string }
   | { type: 'detect'; id: number; bitmap: ImageBitmap; timestamp: number }
   | { type: 'destroy' }
 
@@ -48,18 +48,26 @@ function post(message: FaceLandmarkerWorkerResponse) {
   self.postMessage(message)
 }
 
-async function init() {
+// Defaults used when the host doesn't pass a self-hosted path — kept as the
+// fallback rather than a hard requirement, since FilesetResolver.forVisionTasks
+// accepts any basePath (see docs on the class) and modelAssetPath is just a
+// URL/path string.
+const DEFAULT_WASM_BASE_PATH =
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.0/wasm'
+const DEFAULT_MODEL_ASSET_PATH =
+  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
+
+async function init(basePath?: string, modelAssetPath?: string) {
   try {
     const { FilesetResolver, FaceLandmarker } =
       await import('@mediapipe/tasks-vision')
 
     const vision = await FilesetResolver.forVisionTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.0/wasm'
+      basePath ?? DEFAULT_WASM_BASE_PATH
     )
 
     const baseOptions = {
-      modelAssetPath:
-        'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
+      modelAssetPath: modelAssetPath ?? DEFAULT_MODEL_ASSET_PATH
     }
 
     const landmarkerOptions = (delegate: 'GPU' | 'CPU') => ({
@@ -140,7 +148,7 @@ self.addEventListener(
 
     switch (message.type) {
       case 'init':
-        void init()
+        void init(message.basePath, message.modelAssetPath)
         break
 
       case 'detect': {

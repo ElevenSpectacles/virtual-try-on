@@ -25,7 +25,7 @@ import {
   type NormalizedLandmark
 } from '../utils/tryon'
 import { faceEulerToThree } from '../utils/tryon-pose'
-import { buildHeadOccluderPositions } from '../utils/tryon-occluder'
+import { buildFaceMeshOccluderPositions } from '../utils/tryon-occluder'
 import { useWebcamStream } from '../composables/tryon/useWebcamStream'
 import { useFaceLandmarker } from '../composables/tryon/useFaceLandmarker'
 import { useFrameCalibration } from '../composables/tryon/useFrameCalibration'
@@ -42,10 +42,23 @@ const props = withDefaults(
     modelBaseUrl?: string
     initialModel?: string
     simplifiedControls?: boolean
+    /**
+     * Directory the MediaPipe Wasm fileset is served from. Omit to use the
+     * built-in jsDelivr CDN default; pass a same-origin path (e.g.
+     * `/mediapipe/wasm`) to self-host and drop the CDN dependency.
+     */
+    mediapipeBasePath?: string
+    /** URL/path to the `face_landmarker.task` model asset. */
+    mediapipeModelAssetPath?: string
+    /** Whether the GLB loader wires up Draco decompression support. */
+    draco?: boolean
+    /** Draco decoder path override — omit to use TresJS's CDN default. */
+    dracoDecoderPath?: string
   }>(),
   {
     modelBaseUrl: '/models',
-    simplifiedControls: true
+    simplifiedControls: true,
+    draco: true
   }
 )
 
@@ -206,12 +219,12 @@ const occluderGeometry = computed(() =>
 // the far temple arm it exists to hide.
 //
 // Calibration anchors each frame at its front face, so the ellipsoid's front
-// surface must sit just behind that plane — at the eye/cheek plane a real
-// face recesses ~12mm behind the nose-ridge anchor (same convention as the
-// head-shell cap). Pushing it back by a frame half-depth on top (the
-// pre-shell convention) leaves a gap where the frame's front half renders on
-// top of the head.
-const EYE_PLANE_SETBACK_METERS = 0.012
+// surface must sit behind that plane — at the eye/cheek plane a real face
+// recesses behind the nose-ridge anchor (same convention as the head-shell
+// cap: just past the frame's endpiece wrap, ~15mm). Pushing it back by a
+// frame half-depth on top (the pre-shell convention) leaves a gap where the
+// frame's front half renders on top of the head.
+const EYE_PLANE_SETBACK_METERS = 0.015
 const occluderPosition = computed(() => {
   const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
     mirror: mirrorLandmarks
@@ -255,7 +268,10 @@ const {
   anchor: faceAnchor,
   latencyMs: faceLatencyMs,
   init: initFaceLandmarker
-} = useFaceLandmarker(videoRef)
+} = useFaceLandmarker(videoRef, {
+  mediapipeBasePath: props.mediapipeBasePath,
+  mediapipeModelAssetPath: props.mediapipeModelAssetPath
+})
 
 const correctedFaceLandmarks = computed(() =>
   faceLandmarks.value.map((lm) =>
@@ -321,10 +337,10 @@ const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
   )
 })
 
-// Head-shell occluder vertices, rebuilt per detection. Shape comes from the
-// RAW landmarks/pose (so the shell hugs the real face silhouette); placement
+// Face-mesh occluder vertices, rebuilt per detection. Shape comes from the
+// RAW landmarks/pose (so the mesh hugs the real face surface); placement
 // comes from the SMOOTHED anchor/euler/scale the glasses render with — the
-// shell and frame move as one rigid body and occluder edges never shimmer
+// mesh and frame move as one rigid body and occluder edges never shimmer
 // against the glasses. Null when no face is tracked → the scene falls back
 // to the ellipsoid proxy (pointer/idle mode).
 const occluderPositions = computed(() => {
@@ -337,7 +353,7 @@ const occluderPositions = computed(() => {
   ) {
     return null
   }
-  return buildHeadOccluderPositions({
+  return buildFaceMeshOccluderPositions({
     landmarks: correctedFaceLandmarks.value,
     aspect: aspect.value,
     mirror: mirrorLandmarks,
@@ -554,6 +570,8 @@ watch(model, (value) => {
             >
               <TryOnScene
                 :src="modelSrc"
+                :draco="draco"
+                :draco-decoder-path="dracoDecoderPath"
                 :visible="frameVisible"
                 :position="framePosition"
                 :model-offset="calibration.translation"
