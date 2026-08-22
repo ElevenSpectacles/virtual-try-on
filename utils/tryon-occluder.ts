@@ -42,12 +42,13 @@ import {
  *
  * Depth convention
  * ----------------
- * The calibration manifest anchors each GLB's FRONT face at the anchor plane
- * (z=0): the frame extends backward from it, toward the temples. The shell's
- * front cap must therefore sit slightly BEHIND that plane (see
- * `surfaceOffsetMeters`) — it plays the role of the skin surface the frame
- * rests on. A cap at or in front of the anchor plane would depth-hide the
- * entire frame inside the face silhouette.
+ * The calibration manifest anchors each GLB at its front face (z≈0 at the
+ * nose-ridge anchor): the frame extends backward from it, toward the
+ * temples. The shell's front cap must therefore sit slightly BEHIND that
+ * plane (see `surfaceOffsetMeters`) — it plays the role of the eye/cheek
+ * plane, which a real face recesses ~12mm behind the protruding nose ridge.
+ * A cap at or in front of the anchor plane would depth-hide the frame's
+ * front surface inside the face silhouette.
  */
 
 /**
@@ -123,12 +124,16 @@ export interface HeadOccluderOptions {
   inflate?: number
   /**
    * Offsets the whole shell along the head axis, in metres (positive = toward
-   * the camera). Must stay NEGATIVE: calibration places the frame's front
-   * face AT the anchor plane, so a cap at/above it depth-hides the entire
-   * frame inside the face silhouette ("glasses behind the face"). The default
-   * parks the cap 2mm behind the frame front — the skin surface the frame
-   * rests on — so the frame always wins the depth test where it touches the
-   * face, and only what lies behind the skin (temple arms) is hidden.
+   * the camera). Must stay NEGATIVE: calibration anchors the frame at its
+   * front face, but that front is not a flat plane — measured on the catalog
+   * GLBs, front-facing surfaces run from +11mm (bridge) down past −15mm
+   * (endpieces wrapping toward the hinges). The cap plays the role of the
+   * eye/cheek plane, which sits ~12mm behind the protruding nose-ridge
+   * anchor on a real face — deep enough that the entire frame front wins the
+   * depth test, shallow enough that temple arms (running back from the
+   * hinges) stay hidden inside the silhouette. A cap at/above the anchor
+   * plane depth-hides most of the frame front — the "glasses behind the
+   * face" bug.
    */
   surfaceOffsetMeters?: number
 }
@@ -157,7 +162,7 @@ export function buildHeadOccluderPositions(
     scale,
     depthMeters = 0.16,
     inflate = 1.04,
-    surfaceOffsetMeters = -0.002
+    surfaceOffsetMeters = -0.012
   } = options
 
   if (scale <= 0) return null

@@ -176,15 +176,15 @@ describe('head occluder shell', () => {
     }
   })
 
-  it('places the front cap BEHIND the frame front face by default', () => {
-    // Regression: calibration anchors each GLB's front face at the anchor
-    // plane (z=0). A cap at/above that plane depth-hides the entire frame
-    // inside the face silhouette — the "glasses behind the face" bug. The
-    // default offset must keep the cap behind the frame front so the frame
-    // wins the depth test where it rests on the skin.
+  it('places the front cap at the eye plane, behind the frame front, by default', () => {
+    // Regression: calibration anchors each GLB at its front face (z≈0), but
+    // that front curves back (~+11mm bridge to −15mm endpieces). The cap
+    // must sit at the eye/cheek plane (~12mm back) so the whole frame front
+    // wins the depth test — a cap at/above the anchor plane depth-hides most
+    // of the frame inside the silhouette: the "glasses behind the face" bug.
     const positions = buildHeadOccluderPositions(baseOptions())!
     for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
-      expect(vertexAt(positions, i).z).toBeLessThan(0)
+      expect(vertexAt(positions, i).z).toBeCloseTo(-0.012 * SCALE)
     }
   })
 

@@ -193,14 +193,14 @@ const occluderPosition = computed(() => {
   const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
     mirror: mirrorLandmarks
   })
-  // Front-at-anchor calibration: the ellipsoid's front surface sits just
-  // behind the frame front (2mm skin clearance), matching the shell's cap.
-  const clearance = 0.002 * smoothedScale.value
+  // Front-at-anchor calibration: the ellipsoid's front surface sits at the
+  // eye/cheek plane ~12mm behind the frame front, matching the shell's cap.
+  const setback = 0.012 * smoothedScale.value
   const rot = smoothedEuler.value
   const back = new Vector3(
     0,
     0,
-    -(occluderGeometry.value.radiusZ + clearance)
+    -(occluderGeometry.value.radiusZ + setback)
   ).applyEuler(new Euler(rot.x, rot.y, rot.z))
   return {
     x: position.x + back.x,
