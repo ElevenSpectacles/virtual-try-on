@@ -128,7 +128,7 @@ const rotationDeg = ref(0)
 const rotationY = computed(() => (rotationDeg.value * Math.PI) / 180)
 const mirrorLandmarks = true
 const useFaceTracking = ref(true)
-const occluderEnabled = ref(true)
+const occluderEnabled = ref(false)
 
 // Normalized inter-pupillary distance from the iris landmarks — varies far
 // less between people than cheek-to-cheek width, so it stays the fallback
