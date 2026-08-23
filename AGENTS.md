@@ -67,6 +67,13 @@ Key facts:
   GLBs via `@gltf-transform/functions`' `draco()` transform. Run before
   `generate-calibration` on the compressed output, since compression can
   shift bounding boxes by float rounding.
+- `scripts/trim-temple-tips.ts` — CLI that shortens the catalog GLBs' curled
+  ear-hook temple tips (dropping geometry past a local-X threshold on the
+  `pt2` node) and tilts the remaining straight shaft upward around the hinge,
+  so it reads as resting over the ear rather than poking past it. Re-run
+  against `public/models` whenever the catalog is regenerated from source
+  GLBs with the full ear-hook geometry — the checked-in catalog already has
+  this applied.
 - `tests/unit/` — Vitest unit tests (run from this repo).
 - `tests/nuxt/` — Nuxt-environment tests (run from the host project).
 
@@ -88,6 +95,10 @@ npx tsx scripts/generate-calibration.ts \
 npm run compress-models -- \
   --input public/models \
   --output public/models       # Draco-compress a GLB directory in place
+npx tsx scripts/trim-temple-tips.ts \
+  --input public/models \
+  --output public/models       # trim + upward-tilt temple tips in place
+                                # (--threshold, --tilt-degrees to override)
 ```
 
 Testing strategy:
