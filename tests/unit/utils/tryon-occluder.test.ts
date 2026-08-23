@@ -1,43 +1,38 @@
 import { describe, it, expect } from 'vitest'
-import { Euler, Quaternion, Vector3 } from 'three'
+import { Vector3 } from 'three'
 import {
-  FACE_OVAL_INDICES,
-  HEAD_OCCLUDER_INDEX,
-  HEAD_OCCLUDER_VERTEX_COUNT,
-  buildHeadOccluderPositions,
-  type HeadOccluderOptions
+  FACE_MESH_OCCLUDER_INDEX,
+  FACE_MESH_OCCLUDER_VERTEX_COUNT,
+  buildFaceMeshOccluderPositions,
+  type FaceMeshOccluderOptions
 } from '../../../utils/tryon-occluder'
-import { landmarkToWorld, type NormalizedLandmark } from '../../../utils/tryon'
+import { FACE_MESH_VERTEX_COUNT } from '../../../utils/face-mesh-triangles'
+import {
+  landmarkToWorld,
+  worldPlaneWidth,
+  type NormalizedLandmark
+} from '../../../utils/tryon'
 
 const ASPECT = 3 / 4
 const SCALE = 6
 
-/** 478 landmarks; oval indices on a circle centred on the anchor. */
+/** 468 landmarks, all at the same point unless overridden. */
 function makeLandmarks(
   center: NormalizedLandmark,
-  radius = 0.1
+  overrides: Record<number, Partial<NormalizedLandmark>> = {}
 ): NormalizedLandmark[] {
-  const landmarks: NormalizedLandmark[] = Array.from(
-    { length: 478 },
-    () => ({ ...center })
-  )
-  FACE_OVAL_INDICES.forEach((index, i) => {
-    const angle = (i / FACE_OVAL_INDICES.length) * Math.PI * 2
-    landmarks[index] = {
-      x: center.x + Math.cos(angle) * radius,
-      y: center.y + Math.sin(angle) * radius,
-      z: 0
-    }
-  })
-  return landmarks
+  return Array.from({ length: FACE_MESH_VERTEX_COUNT }, (_, i) => ({
+    ...center,
+    ...overrides[i]
+  }))
 }
 
 const anchor: NormalizedLandmark = { x: 0.5, y: 0.5, z: 0 }
 const identityEuler = { x: 0, y: 0, z: 0 }
 
 function baseOptions(
-  overrides: Partial<HeadOccluderOptions> = {}
-): HeadOccluderOptions {
+  overrides: Partial<FaceMeshOccluderOptions> = {}
+): FaceMeshOccluderOptions {
   return {
     landmarks: makeLandmarks(anchor),
     aspect: ASPECT,
@@ -58,64 +53,66 @@ function vertexAt(positions: Float32Array, index: number): Vector3 {
   )
 }
 
-describe('head occluder shell', () => {
+describe('face-mesh occluder', () => {
   it('has a static index covering every vertex with full triangles', () => {
-    expect(HEAD_OCCLUDER_INDEX.length % 3).toBe(0)
-    for (const index of HEAD_OCCLUDER_INDEX) {
+    expect(FACE_MESH_OCCLUDER_INDEX.length % 3).toBe(0)
+    for (const index of FACE_MESH_OCCLUDER_INDEX) {
       expect(index).toBeGreaterThanOrEqual(0)
-      expect(index).toBeLessThan(HEAD_OCCLUDER_VERTEX_COUNT)
+      expect(index).toBeLessThan(FACE_MESH_OCCLUDER_VERTEX_COUNT)
     }
   })
 
-  it('emits front ring + back ring for every oval landmark', () => {
-    const positions = buildHeadOccluderPositions(baseOptions())
+  it('emits one vertex per landmark plus the collar ring', () => {
+    const positions = buildFaceMeshOccluderPositions(baseOptions())
     expect(positions).not.toBeNull()
-    expect(positions!.length).toBe(HEAD_OCCLUDER_VERTEX_COUNT * 3)
+    expect(positions!.length).toBe(FACE_MESH_OCCLUDER_VERTEX_COUNT * 3)
   })
 
-  it('returns null when an oval landmark is missing', () => {
+  it('returns null when landmarks are missing', () => {
     const landmarks = makeLandmarks(anchor).slice(0, 100)
-    expect(buildHeadOccluderPositions(baseOptions({ landmarks }))).toBeNull()
+    expect(buildFaceMeshOccluderPositions(baseOptions({ landmarks }))).toBeNull()
   })
 
   it('returns null on a non-positive scale', () => {
-    expect(buildHeadOccluderPositions(baseOptions({ scale: 0 }))).toBeNull()
+    expect(buildFaceMeshOccluderPositions(baseOptions({ scale: 0 }))).toBeNull()
   })
 
-  it('extrudes the back ring straight back at identity pose', () => {
-    const depth = 0.11
-    const positions = buildHeadOccluderPositions(
-      baseOptions({ depthMeters: depth, surfaceOffsetMeters: 0 })
+  it('maps MediaPipe z (negative toward camera) to world z (positive toward camera)', () => {
+    // The nose tip (landmark 4) is the foremost point of a real face — in
+    // MediaPipe coordinates that is a NEGATIVE z. It must land closer to the
+    // camera than a neutral-depth vertex or the whole occluder is inside-out
+    // and depth-hides the frame front.
+    const landmarks = makeLandmarks(anchor, { 4: { z: -0.05 } })
+    const positions = buildFaceMeshOccluderPositions(
+      baseOptions({ landmarks, skinSetbackMeters: 0, inflate: 1 })
     )!
-    for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
-      const front = vertexAt(positions, i)
-      const back = vertexAt(positions, i + FACE_OVAL_INDICES.length)
-      expect(back.x).toBeCloseTo(front.x)
-      expect(back.y).toBeCloseTo(front.y)
-      expect(front.z - back.z).toBeCloseTo(depth * SCALE)
-    }
+    const noseZ = vertexAt(positions, 4).z
+    const neutralZ = vertexAt(positions, 0).z
+    expect(noseZ).toBeGreaterThan(neutralZ)
+    expect(noseZ - neutralZ).toBeCloseTo(0.05 * worldPlaneWidth(ASPECT), 3)
   })
 
-  it('extrudes along the head axis, not camera Z, when yawed', () => {
-    const yaw = Math.PI / 2
-    const depth = 0.11
-    const positions = buildHeadOccluderPositions(
-      baseOptions({
-        rawEuler: { x: 0, y: yaw, z: 0 },
-        smoothedEuler: { x: 0, y: yaw, z: 0 },
-        depthMeters: depth,
-        surfaceOffsetMeters: 0
-      })
+  it('keeps the mesh on the anchor plane relative to the anchor z', () => {
+    // Anchor deeper than a vertex → that vertex sits toward the camera.
+    const landmarks = makeLandmarks({ ...anchor, z: -0.02 })
+    const positions = buildFaceMeshOccluderPositions(
+      baseOptions({ landmarks, skinSetbackMeters: 0, inflate: 1 })
     )!
-    const expectedBack = new Vector3(0, 0, -1)
-      .applyQuaternion(
-        new Quaternion().setFromEuler(new Euler(0, yaw, 0, 'YXZ'))
+    expect(vertexAt(positions, 0).z).toBeCloseTo(0.02 * worldPlaneWidth(ASPECT), 3)
+  })
+
+  it('pushes the whole mesh away from the camera by the skin setback', () => {
+    const landmarks = makeLandmarks(anchor)
+    const flush = buildFaceMeshOccluderPositions(
+      baseOptions({ landmarks, skinSetbackMeters: 0, inflate: 1 })
+    )!
+    const setback = buildFaceMeshOccluderPositions(
+      baseOptions({ landmarks, skinSetbackMeters: 0.005, inflate: 1 })
+    )!
+    for (const i of [0, 100, 300, 467]) {
+      expect(vertexAt(flush, i).z - vertexAt(setback, i).z).toBeCloseTo(
+        0.005 * SCALE
       )
-      .multiplyScalar(depth * SCALE)
-    for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
-      const front = vertexAt(positions, i)
-      const back = vertexAt(positions, i + FACE_OVAL_INDICES.length)
-      expect(back.sub(front).distanceTo(expectedBack)).toBeLessThan(1e-6)
     }
   })
 
@@ -124,99 +121,71 @@ describe('head occluder shell', () => {
     const options = baseOptions({
       landmarks: makeLandmarks(offCenter),
       rawAnchor: offCenter,
-      smoothedAnchor: offCenter
+      smoothedAnchor: offCenter,
+      skinSetbackMeters: 0,
+      inflate: 1
     })
-    const mirrored = buildHeadOccluderPositions(options)!
-    const unmirrored = buildHeadOccluderPositions({
+    const mirrored = buildFaceMeshOccluderPositions(options)!
+    const unmirrored = buildFaceMeshOccluderPositions({
       ...options,
       mirror: false
     })!
     expect(vertexAt(mirrored, 0).x).toBeCloseTo(-vertexAt(unmirrored, 0).x)
   })
 
-  it('hugs the (inflated) oval silhouette at identity pose', () => {
-    const radius = 0.1
-    const inflate = 1.04
-    const positions = buildHeadOccluderPositions(
-      baseOptions({
-        landmarks: makeLandmarks(anchor, radius),
-        inflate,
-        surfaceOffsetMeters: 0
-      })
-    )!
-    const anchorWorld = landmarkToWorld(anchor, ASPECT)
-    // A normalized-space circle projects to a world-space ellipse (x scales
-    // with aspect), so compare each vertex against its own projection.
-    FACE_OVAL_INDICES.forEach((_, i) => {
-      const angle = (i / FACE_OVAL_INDICES.length) * Math.PI * 2
-      const probeWorld = landmarkToWorld(
-        {
-          x: anchor.x + Math.cos(angle) * radius,
-          y: anchor.y + Math.sin(angle) * radius,
-          z: 0
-        },
-        ASPECT
-      )
-      const expectedRadius =
-        Math.hypot(probeWorld.x - anchorWorld.x, probeWorld.y - anchorWorld.y) *
-        inflate
-      const front = vertexAt(positions, i)
-      const r = Math.hypot(front.x - anchorWorld.x, front.y - anchorWorld.y)
-      expect(r).toBeCloseTo(expectedRadius)
-    })
-  })
-
-  it('pushes the front ring toward the camera by a positive surface offset', () => {
-    const offset = 0.004
-    const positions = buildHeadOccluderPositions(
-      baseOptions({ surfaceOffsetMeters: offset })
-    )!
-    for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
-      expect(vertexAt(positions, i).z).toBeCloseTo(offset * SCALE)
-    }
-  })
-
-  it('places the front cap at the eye plane, behind the frame front, by default', () => {
-    // Regression: calibration anchors each GLB at its front face (z≈0), but
-    // that front curves back (~+11mm bridge to −15mm endpieces). The cap
-    // must sit at the eye/cheek plane (~12mm back) so the whole frame front
-    // wins the depth test — a cap at/above the anchor plane depth-hides most
-    // of the frame inside the silhouette: the "glasses behind the face" bug.
-    const positions = buildHeadOccluderPositions(baseOptions())!
-    for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
-      expect(vertexAt(positions, i).z).toBeCloseTo(-0.012 * SCALE)
-    }
-  })
-
-  it('extrudes far enough to cover the full temple length by default', () => {
-    // The frame extends ~15.5cm back from its front face (front-at-anchor
-    // convention); a shorter shell lets the temple tips escape it.
-    const positions = buildHeadOccluderPositions(baseOptions())!
-    for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
-      const front = vertexAt(positions, i)
-      const back = vertexAt(positions, i + FACE_OVAL_INDICES.length)
-      expect(front.z - back.z).toBeGreaterThanOrEqual(0.15 * SCALE)
-    }
-  })
-
-  it('places the shell with the smoothed transform, not the raw one', () => {
+  it('places the mesh with the smoothed transform, not the raw one', () => {
     // Raw pose says the head is off-centre and yawed; the smoothed pose has
-    // already settled at centre. The shell must sit where the glasses are.
+    // already settled at centre. The mesh must sit where the glasses are.
     const rawAnchor: NormalizedLandmark = { x: 0.6, y: 0.55, z: 0 }
     const settled = landmarkToWorld(anchor, ASPECT)
-    const positions = buildHeadOccluderPositions(
+    const positions = buildFaceMeshOccluderPositions(
       baseOptions({
         landmarks: makeLandmarks(rawAnchor),
         rawAnchor,
-        rawEuler: { x: 0, y: 0.5, z: 0 }
+        rawEuler: { x: 0, y: 0.5, z: 0 },
+        skinSetbackMeters: 0,
+        inflate: 1
       })
     )!
     const centroid = new Vector3()
-    for (let i = 0; i < FACE_OVAL_INDICES.length; i++) {
+    for (let i = 0; i < FACE_MESH_VERTEX_COUNT; i++) {
       centroid.add(vertexAt(positions, i))
     }
-    centroid.divideScalar(FACE_OVAL_INDICES.length)
+    centroid.divideScalar(FACE_MESH_VERTEX_COUNT)
     expect(centroid.x).toBeCloseTo(settled.x, 1)
     expect(centroid.y).toBeCloseTo(settled.y, 1)
+  })
+
+  it('inflates x/y about the anchor but leaves depth untouched', () => {
+    const spread: Record<number, Partial<NormalizedLandmark>> = {
+      1: { x: 0.6, z: -0.03 }
+    }
+    const landmarks = makeLandmarks(anchor, spread)
+    const base = buildFaceMeshOccluderPositions(
+      baseOptions({ landmarks, inflate: 1, skinSetbackMeters: 0 })
+    )!
+    const inflated = buildFaceMeshOccluderPositions(
+      baseOptions({ landmarks, inflate: 1.1, skinSetbackMeters: 0 })
+    )!
+    const anchorWorld = landmarkToWorld(anchor, ASPECT)
+    const dx = vertexAt(base, 1).x - anchorWorld.x
+    const dxInflated = vertexAt(inflated, 1).x - anchorWorld.x
+    expect(dxInflated).toBeCloseTo(dx * 1.1)
+    expect(vertexAt(inflated, 1).z).toBeCloseTo(vertexAt(base, 1).z)
+  })
+
+  it('extrudes the collar behind the matching face-oval boundary point', () => {
+    // Landmark 284 (face-oval slot 4, right temple/cheek arc) is the first
+    // collar point — its back-vertex is appended right after the tracked
+    // mesh. The forehead (landmark 10) and chin are excluded from the collar
+    // entirely, so they have no back-vertex.
+    const positions = buildFaceMeshOccluderPositions(
+      baseOptions({ skinSetbackMeters: 0, collarDepthMeters: 0.1 })
+    )!
+    const front = vertexAt(positions, 284)
+    const back = vertexAt(positions, FACE_MESH_VERTEX_COUNT)
+    expect(front.x).toBeCloseTo(back.x)
+    expect(front.y).toBeCloseTo(back.y)
+    expect(front.z - back.z).toBeCloseTo(0.1 * SCALE)
   })
 })

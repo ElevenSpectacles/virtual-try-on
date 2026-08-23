@@ -222,11 +222,11 @@ const occluderPositionVec = computed(
 )
 
 // Face-mesh occluder: one persistent BufferGeometry whose positions are
-// re-uploaded per frame from `occluderPositions`. Fixed layout (468 landmark
-// vertices, FACE_MESH_OCCLUDER_INDEX triangles) so no re-allocation happens
-// per detection. Frustum culling is disabled — recomputing a bounding sphere
-// every frame costs more than the ~900-triangle depth-only draw it would
-// save.
+// re-uploaded per frame from `occluderPositions`. Fixed layout (468 tracked
+// landmark vertices plus the collar ring, FACE_MESH_OCCLUDER_INDEX
+// triangles) so no re-allocation happens per detection. Frustum culling is
+// disabled — recomputing a bounding sphere every frame costs more than the
+// depth-only draw it would save.
 const occluderMeshGeometry = shallowRef<BufferGeometry | null>(null)
 
 watch(

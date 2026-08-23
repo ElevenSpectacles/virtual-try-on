@@ -294,11 +294,12 @@ export function computeAnchorCentroid(
 /**
  * Frames are worn slightly wider than the skull they sit on — the temple
  * arms bow outward and the front overhangs the cheeks a touch — so sizing
- * exactly to the ear-to-ear measure reads as too tight. Applied on top of
- * the metric scale (all tracked sources) so the frame sits like a real,
- * slightly-oversized fit.
+ * exactly to the ear-to-ear measure reads as too tight. 1.16 makes the
+ * rendered front span ~1.08× the tracked temple width: the slightly
+ * oversized fashion fit retail customers expect. Applied on top of the
+ * metric scale (all tracked sources) so the frame sits like a real fit.
  */
-export const FRAME_FIT_SCALE_BOOST = 1.08
+export const FRAME_FIT_SCALE_BOOST = 1.16
 
 /**
  * Inter-pupillary distance in normalized image units, from the iris-center
@@ -482,13 +483,15 @@ export const ONE_EURO_MAX_PREDICTION_SECONDS = 0.1
  *   `(maxOvershoot - 1)` times the remaining gap between filtered value and
  *   measurement — beyond that the filter, not the velocity estimate, is the
  *   better information source (e.g. the head just decelerated and the stale
- *   velocity would overshoot badly).
+ *   velocity would overshoot badly). Keep this tight: past-the-measurement
+ *   overshoot is what makes the frame visibly swing past the face when a
+ *   head turn stops.
  */
 export function predictOneEuro(
   state: OneEuroState,
   measurement: number,
   dtSeconds: number,
-  maxOvershoot = 1.5
+  maxOvershoot = 1.2
 ): number {
   if (dtSeconds <= 0) return state.value
   const dt = Math.min(dtSeconds, ONE_EURO_MAX_PREDICTION_SECONDS)

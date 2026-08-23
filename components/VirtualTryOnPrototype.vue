@@ -27,7 +27,7 @@ import {
   type NormalizedLandmark
 } from '../utils/tryon'
 import { faceEulerToThree } from '../utils/tryon-pose'
-import { buildHeadOccluderPositions } from '../utils/tryon-occluder'
+import { buildFaceMeshOccluderPositions } from '../utils/tryon-occluder'
 import { useWebcamStream } from '../composables/tryon/useWebcamStream'
 import { useFaceLandmarker } from '../composables/tryon/useFaceLandmarker'
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
@@ -165,9 +165,10 @@ const occluderHeightRatio = ref(1.3)
 const occluderDepthRatio = ref(1.4)
 // Landmark-shell occluder (the production path) with its tuning knobs; the
 // width/height/depth ratios above only steer the ellipsoid fallback.
-const occluderShellEnabled = ref(true)
-const occluderShellDepth = ref(0.16)
-const occluderShellInflate = ref(1.04)
+const occluderMeshEnabled = ref(true)
+const occluderSkinSetback = ref(0.006)
+const occluderMeshInflate = ref(1.04)
+const occluderCollarDepth = ref(0.2)
 
 // The occluder must stay skull-sized when the head turns: the cheek-to-cheek
 // measure foreshortens by cos(yaw)·cos(pitch), so compensate it the same way
@@ -193,9 +194,9 @@ const occluderPosition = computed(() => {
   const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
     mirror: mirrorLandmarks
   })
-  // Front-at-anchor calibration: the ellipsoid's front surface sits at the
-  // eye/cheek plane ~12mm behind the frame front, matching the shell's cap.
-  const setback = 0.012 * smoothedScale.value
+  // Front-at-anchor calibration: the ellipsoid's front surface sits just past
+  // the frame's endpiece wrap (~15mm back), matching the shell's cap.
+  const setback = 0.015 * smoothedScale.value
   const rot = smoothedEuler.value
   const back = new Vector3(
     0,
@@ -348,9 +349,9 @@ const framePosition = computed(() => {
   }
 })
 
-// Same shell-occluder wiring as VirtualTryOnExperience: shape from raw
+// Same face-mesh occluder wiring as VirtualTryOnExperience: shape from raw
 // landmarks, placement from the smoothed transform. Null → ellipsoid.
-const occluderShellPositions = computed(() => {
+const occluderMeshPositions = computed(() => {
   if (
     !useFaceTracking.value ||
     !hasFace.value ||
@@ -360,7 +361,7 @@ const occluderShellPositions = computed(() => {
   ) {
     return null
   }
-  return buildHeadOccluderPositions({
+  return buildFaceMeshOccluderPositions({
     landmarks: correctedFaceLandmarks.value,
     aspect: aspect.value,
     mirror: mirrorLandmarks,
@@ -369,8 +370,9 @@ const occluderShellPositions = computed(() => {
     smoothedAnchor: smoothedAnchor.value,
     smoothedEuler: smoothedEuler.value,
     scale: smoothedScale.value,
-    depthMeters: occluderShellDepth.value,
-    inflate: occluderShellInflate.value
+    skinSetbackMeters: occluderSkinSetback.value,
+    inflate: occluderMeshInflate.value,
+    collarDepthMeters: occluderCollarDepth.value
   })
 })
 
@@ -600,7 +602,7 @@ watch(selectedModel, (model) => {
               :rotation="smoothedEuler"
               :occluder-enabled="occluderEnabled"
               :occluder-positions="
-                occluderShellEnabled ? occluderShellPositions : null
+                occluderMeshEnabled ? occluderMeshPositions : null
               "
               :occluder-position="occluderPosition"
               :occluder-radius="occluderGeometry"
@@ -905,32 +907,44 @@ watch(selectedModel, (model) => {
         />
 
         <USwitch
-          v-model="occluderShellEnabled"
-          label="Landmark shell (falls back to ellipsoid when off)"
+          v-model="occluderMeshEnabled"
+          label="Face-mesh occluder (falls back to ellipsoid when off)"
           size="sm"
         />
 
         <UFormField
-          :label="`Shell depth · ${(occluderShellDepth * 1000).toFixed(0)}mm`"
+          :label="`Skin setback · ${(occluderSkinSetback * 1000).toFixed(1)}mm`"
           size="xs"
         >
           <USlider
-            v-model="occluderShellDepth"
-            :min="0.06"
-            :max="0.2"
-            :step="0.005"
+            v-model="occluderSkinSetback"
+            :min="0"
+            :max="0.01"
+            :step="0.0005"
           />
         </UFormField>
 
         <UFormField
-          :label="`Shell inflate · ${occluderShellInflate.toFixed(2)}`"
+          :label="`Mesh inflate · ${occluderMeshInflate.toFixed(2)}`"
           size="xs"
         >
           <USlider
-            v-model="occluderShellInflate"
+            v-model="occluderMeshInflate"
             :min="1"
             :max="1.15"
             :step="0.01"
+          />
+        </UFormField>
+
+        <UFormField
+          :label="`Collar depth · ${(occluderCollarDepth * 1000).toFixed(0)}mm`"
+          size="xs"
+        >
+          <USlider
+            v-model="occluderCollarDepth"
+            :min="0.06"
+            :max="0.25"
+            :step="0.005"
           />
         </UFormField>
 

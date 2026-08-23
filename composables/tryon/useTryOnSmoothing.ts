@@ -163,12 +163,14 @@ export function useTryOnSmoothing(options: {
 
       // Rotation prediction: continue past the filtered quaternion along the
       // measured angular velocity, overshooting the latest measured rotation
-      // by at most half the remaining angle (t ≤ 1.5).
+      // by at most a fifth of the remaining angle (t ≤ 1.2) — the same clamp
+      // as `predictOneEuro`, so a decelerating head turn can't swing the
+      // frame visibly past the face.
       displayQuat.copy(smoothedQuaternion)
       if (predSeconds > 0) {
         const remaining = displayQuat.angleTo(targetQuat)
         if (remaining > 1e-4) {
-          const extra = Math.min(angularSpeedState * predSeconds, remaining * 0.5)
+          const extra = Math.min(angularSpeedState * predSeconds, remaining * 0.2)
           displayQuat.slerp(targetQuat, 1 + extra / remaining)
         }
       }

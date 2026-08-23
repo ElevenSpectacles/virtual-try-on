@@ -381,19 +381,19 @@ describe('try-on compositing helpers', () => {
     it('clamps overshoot beyond the latest measurement', () => {
       // Value 1, measurement 2 (gap +1), velocity +40/s, 50ms: raw prediction
       // 3 — 1.0 beyond the measurement, clamped to gap * (maxOvershoot - 1)
-      // = 0.5 beyond it.
+      // = 0.2 beyond it.
       const state: OneEuroState = { value: 1, derivative: 40 }
-      expect(predictOneEuro(state, 2, 0.05)).toBeCloseTo(2.5)
+      expect(predictOneEuro(state, 2, 0.05)).toBeCloseTo(2.2)
     })
 
     it('clamps overshoot symmetrically in the negative direction', () => {
       const state: OneEuroState = { value: 2, derivative: -40 }
-      expect(predictOneEuro(state, 1, 0.05)).toBeCloseTo(0.5)
+      expect(predictOneEuro(state, 1, 0.05)).toBeCloseTo(0.8)
     })
 
     it('honours a custom maxOvershoot', () => {
       const state: OneEuroState = { value: 1, derivative: 40 }
-      expect(predictOneEuro(state, 2, 0.05, 1.2)).toBeCloseTo(2.2)
+      expect(predictOneEuro(state, 2, 0.05, 1.5)).toBeCloseTo(2.5)
     })
 
     it('caps the lookahead horizon so wild latency spikes cannot fling the value', () => {
