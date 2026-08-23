@@ -294,12 +294,12 @@ export function computeAnchorCentroid(
 /**
  * Frames are worn slightly wider than the skull they sit on — the temple
  * arms bow outward and the front overhangs the cheeks a touch — so sizing
- * exactly to the ear-to-ear measure reads as too tight. 1.16 makes the
- * rendered front span ~1.08× the tracked temple width: the slightly
- * oversized fashion fit retail customers expect. Applied on top of the
- * metric scale (all tracked sources) so the frame sits like a real fit.
+ * exactly to the ear-to-ear measure reads as too tight. Bumped from 1.16 to
+ * 1.2 (2026-08-23) after visual review: the frame still read a touch small
+ * against the tracked face. Applied on top of the metric scale (all tracked
+ * sources) so the frame sits like a real fit.
  */
-export const FRAME_FIT_SCALE_BOOST = 1.16
+export const FRAME_FIT_SCALE_BOOST = 1.2
 
 /**
  * Inter-pupillary distance in normalized image units, from the iris-center
