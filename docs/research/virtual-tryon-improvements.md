@@ -302,24 +302,23 @@ constraints section, syntax and quotes above pulled directly from the page).
 
 ## Prioritized summary (impact vs. effort)
 
-| # | Recommendation | Area | Impact | Effort | Notes |
+| # | Recommendation | Area | Impact | Effort | Status |
 |---|---|---|---|---|---|
-| 1 | Add `@gltf-transform/functions` + `@gltf-transform/extensions`, run `draco()` (or `meshopt()`) in the existing calibration/build script | GLB size | High — directly attacks the self-documented "untenable" 5.8MB blocker | Medium — new deps, build-script change, needs matching runtime `DRACOLoader`/`MeshoptDecoder` wiring | §1 |
-| 2 | Wire `DRACOLoader`/`MeshoptDecoder` into the TresJS/GLTFLoader runtime path to match #1 | Rendering | High — required for #1 to not break loading | Low–Medium | §4 — re-verify `useGLTF` draco API against `@tresjs/cientos` types first |
-| 3 | Self-host MediaPipe WASM fileset + `.task` model as static assets, drop CDN dependency | Reliability | Medium-High — removes production blocker (no CDN fallback / offline risk) | Low — files already present in `node_modules`, just needs copy-to-`public/` + `basePath`/`modelAssetPath` change | §3 |
-| 4 | Constrain `getUserMedia` `width`/`height`/`frameRate` to match the 480px downscale + detector throttle | Tracking latency, battery | Medium — reduces wasted capture/downscale work | Low — constraint object change only | §5 |
-| 5 | Use already-returned iris landmarks (468–477) as a metric-scale signal | Tracking accuracy (metric scale) | Medium — potentially more stable than ear/face-width heuristics | Low-Medium — data already present in every frame, needs consumption + calibration validation | §2 |
-| 6 | Audit `TryOnScene.vue` for `ref()`→`shallowRef()` on Three.js objects | Rendering perf | Low-Medium (unquantified without profiling) | Low | §4 — re-verify against live TresJS docs, page 404'd during this research |
-| 7 | Texture compression (`textureCompress()`/KTX2) | GLB size | Low unless audit shows textures are a meaningful share of the 5.8MB | Medium (KTX2 needs extra runtime loader + transcoder assets) | §1 — do the byte-breakdown audit before investing here |
-| 8 | `outputFaceBlendshapes` | Tracking features | Low today (no consumer) | Low to enable, but pointless without a scoped feature | §2 |
+| 1 | Add `@gltf-transform/functions` + `@gltf-transform/extensions`, run `draco()` in a compression script | GLB size | High — directly attacks the self-documented "untenable" 5.8MB blocker | Medium | **Done** — `scripts/compress-models.ts` |
+| 2 | Wire `DRACOLoader` into the TresJS/GLTFLoader runtime path to match #1 | Rendering | High — required for #1 to not break loading | Low–Medium | **Done** — `draco`/`dracoDecoderPath` props on `TryOnScene`/`VirtualTryOnExperience`; `useGLTF`'s `draco`/`decoderPath` options confirmed directly against `@tresjs/cientos`'s shipped `.d.ts` |
+| 3 | Self-host MediaPipe WASM fileset + `.task` model as static assets, drop CDN dependency | Reliability | Medium-High — removes production blocker (no CDN fallback / offline risk) | Low | **Done** — `mediapipeBasePath`/`mediapipeModelAssetPath` props threaded to the worker's `init` message; deploying self-hosted files is host-repo work |
+| 4 | Constrain `getUserMedia` `width`/`height`/`frameRate` to match the 480px downscale + detector throttle | Tracking latency, battery | Medium | Low | **Not needed** — `useWebcamStream.ts` already requests `{ width: { ideal: 720 }, height: { ideal: 1280 }, frameRate: { ideal: 60 } }`; this research item was based on generic MDN guidance without checking that file |
+| 5 | Use already-returned iris landmarks (468–477) as a metric-scale signal | Tracking accuracy (metric scale) | Medium — potentially more stable than ear/face-width heuristics | Low-Medium | **Deferred** — touches `utils/tryon-occluder.ts`/`face-mesh-triangles.ts`, which have an in-progress, uncommitted user rework in the working tree; do after that WIP lands |
+| 6 | Audit `TryOnScene.vue` for `ref()`→`shallowRef()` on Three.js objects | Rendering perf | Low-Medium | Low | **Verified, already compliant** — file has zero plain `ref()` calls; the one Three.js-holding ref (`occluderMeshGeometry`) already uses `shallowRef` |
+| 7 | Texture compression (`textureCompress()`/KTX2) | GLB size | **Confirmed low** — measured `iris-bronze.glb` (5.9MB): mesh geometry 4.76MB (81%), textures 0.81MB (14%) via a `@gltf-transform/core` inspection script | Medium | **Skip** — mesh compression (#1) is the correct lever; textures aren't the bottleneck |
+| 8 | `outputFaceBlendshapes` | Tracking features | Low today (no consumer) | Low to enable, but pointless without a scoped feature | **Skip** — no consumer |
 
 ### Open items flagged during research (not resolved, need follow-up before acting on them)
 
-- `docs.tresjs.org/advanced/performance`, `tresjs.org/guide/performance.html`, and
-  `cientos.tresjs.org/guide/loaders/use-gltf.html` all returned HTTP 404 to direct fetch in this
-  session despite appearing in search results — re-check these against the live TresJS site (or
-  its GitHub source) before relying on the `draco` prop / `shallowRef` claims for implementation.
+- `docs.tresjs.org/advanced/performance` and `tresjs.org/guide/performance.html` returned HTTP 404
+  to direct fetch during research; the `shallowRef` guidance was corroborated only by search
+  snippets. Item 6 was independently verified by reading `TryOnScene.vue` directly instead
+  (see status above), so this no longer blocks that recommendation, but the TresJS performance
+  docs themselves are still unverified as a source.
 - No official standalone Three.js manual "performance" page was found; only the `GLTFLoader` API
   reference page was confirmed as a primary source for loader configuration.
-- The actual byte breakdown of an existing GLB (mesh buffer vs. image/texture bytes) was not
-  inspected in this pass — needed to correctly prioritize Draco/Meshopt vs. KTX2 work (item 7).
