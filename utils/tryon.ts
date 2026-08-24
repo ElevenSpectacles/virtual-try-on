@@ -298,12 +298,13 @@ export function computeAnchorCentroid(
  * (2026-08-23) but that read too large and pushed the temple hinge far
  * enough past the tracked face to clip against the occlusion collar at
  * close range; brought back to 1.16, then down to 1.08 (2026-08-24) since
- * the frame still read larger than real-world size. Applied on top of the
- * metric scale (all tracked sources, itself already derived from the
- * tracked face) so the frame sits like a real fit without being a flat,
+ * the frame still read larger than real-world size, then back up to 1.12
+ * (2026-08-24) to split the difference. Applied on top of the metric
+ * scale (all tracked sources, itself already derived from the tracked
+ * face) so the frame sits like a real fit without being a flat,
  * face-independent size.
  */
-export const FRAME_FIT_SCALE_BOOST = 1.08
+export const FRAME_FIT_SCALE_BOOST = 1.12
 
 /**
  * Inter-pupillary distance in normalized image units, from the iris-center
