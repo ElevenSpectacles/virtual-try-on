@@ -106,7 +106,7 @@ const privacyItems = computed(() => [
         <!-- Privacy step -->
         <div
           v-if="step === 'privacy'"
-          class="flex-1 overflow-y-auto px-4 py-8 lg:px-12 lg:py-12"
+          class="min-h-0 flex-1 overflow-y-auto px-4 py-8 lg:px-12 lg:py-12"
         >
           <div class="mx-auto max-w-md text-center">
             <UIcon
@@ -167,8 +167,11 @@ const privacyItems = computed(() => [
         </div>
 
         <!-- Try-on step -->
-        <div v-else class="flex flex-1 flex-col lg:flex-row overflow-hidden">
-          <div class="overflow-y-auto lg:flex-1">
+        <div
+          v-else
+          class="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden"
+        >
+          <div class="min-h-0 lg:flex-1 lg:overflow-y-auto">
             <ClientOnly>
               <VirtualTryOnExperience
                 v-model:model="selectedModel"
