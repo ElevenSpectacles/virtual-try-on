@@ -18,6 +18,8 @@ jobs:
 
       - run: npm ci
 
+      - run: npx nuxt prepare playground
+
       - run: npm run typecheck
 
       - run: npm run verify
