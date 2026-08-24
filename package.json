@@ -8,7 +8,9 @@
     "compress-models": "npx tsx scripts/compress-models.ts",
     "playground": "nuxt dev playground --port 4000",
     "typecheck": "nuxt typecheck playground",
-    "verify": "npx vitest run && node scripts/verify-playground.mjs"
+    "verify:unit": "npx vitest run",
+    "verify:playground": "node scripts/verify-playground.mjs",
+    "verify": "npm run verify:unit && npm run verify:playground"
   },
   "peerDependencies": {
     "@mediapipe/tasks-vision": "^1.0.0",
