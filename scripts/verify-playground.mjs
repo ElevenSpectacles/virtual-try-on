@@ -2,17 +2,25 @@
  * Playground smoke test: builds the playground, boots the production server,
  * and asserts the page, calibration manifest, and GLB assets actually serve.
  *
- * Run via `npm run verify` (after vitest) or directly:
+ * Run via `npm run verify:playground` or directly:
  *   node scripts/verify-playground.mjs
  *
- * Exit code is non-zero if any check fails, so CI can gate on it. Requires the
- * host models checkout (or TRYON_MODELS_DIR) — see playground/nuxt.config.ts.
+ * Requires the host models checkout (or TRYON_MODELS_DIR) — see
+ * playground/nuxt.config.ts. That checkout isn't available in CI (this repo
+ * is consumed as source by a separate host app), so this script is excluded
+ * from `verify:unit` / CI and is local-only. If the models directory isn't
+ * found, it exits 0 with a notice rather than failing the run.
  */
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 
 const PORT = 3299
 const BASE = `http://localhost:${PORT}`
 const STARTUP_TIMEOUT_MS = 30_000
+const MODELS_DIR =
+  process.env.TRYON_MODELS_DIR ??
+  fileURLToPath(new URL('../../nuxt/public/models', import.meta.url))
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -47,6 +55,14 @@ function check(label, ok, detail = '') {
 }
 
 async function main() {
+  if (!existsSync(MODELS_DIR)) {
+    console.log(
+      `▸ Skipping playground smoke test — models directory not found at ${MODELS_DIR}\n` +
+        '  Set TRYON_MODELS_DIR or check out the host repo alongside this one to run it.'
+    )
+    return
+  }
+
   console.log('▸ Building playground…')
   await run('npx', ['nuxt', 'build', 'playground'])
 
