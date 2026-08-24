@@ -168,7 +168,7 @@ const privacyItems = computed(() => [
 
         <!-- Try-on step -->
         <div v-else class="flex flex-1 flex-col lg:flex-row overflow-hidden">
-          <div class="flex-1 overflow-y-auto">
+          <div class="overflow-y-auto lg:flex-1">
             <ClientOnly>
               <VirtualTryOnExperience
                 v-model:model="selectedModel"
@@ -191,7 +191,7 @@ const privacyItems = computed(() => [
           </div>
 
           <div
-            class="border-t border-stone-200 bg-stone-50 px-4 py-4 lg:w-72 lg:border-t-0 lg:border-l lg:px-6 lg:py-8 lg:overflow-y-auto"
+            class="max-h-48 overflow-y-auto border-t border-stone-200 bg-stone-50 px-4 py-4 lg:max-h-none lg:w-72 lg:border-t-0 lg:border-l lg:px-6 lg:py-8 lg:overflow-y-auto"
           >
             <VirtualTryOnSuggestions
               v-model="selectedModel"

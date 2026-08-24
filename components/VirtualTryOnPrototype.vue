@@ -93,7 +93,9 @@ function onVideoLoadedMetadata() {
 }
 
 const selectedModel = ref(initialModel)
-const modelBaseUrl = computed(() => props.modelBaseUrl ?? '/models')
+const modelBaseUrl = computed(
+  () => props.modelBaseUrl ?? '/models/virtual-try-on'
+)
 const modelSrc = computed(() => `${modelBaseUrl.value}/${selectedModel.value}.glb`)
 const calibration = computed(() => getCalibration(selectedModel.value))
 const exposure = ref(1)

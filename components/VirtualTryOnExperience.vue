@@ -56,7 +56,7 @@ const props = withDefaults(
     dracoDecoderPath?: string
   }>(),
   {
-    modelBaseUrl: '/models',
+    modelBaseUrl: '/models/virtual-try-on',
     simplifiedControls: true,
     draco: true
   }
@@ -532,7 +532,8 @@ watch(model, (value) => {
       <!-- Stage -->
       <div
         ref="stageRef"
-        class="relative aspect-3/4 w-full flex-1 overflow-hidden rounded-sm bg-stone-900 ring-1 ring-stone-950/10 touch-none"
+        class="relative w-full flex-1 overflow-hidden rounded-sm bg-stone-900 ring-1 ring-stone-950/10 touch-none"
+        :class="isActive ? 'aspect-3/4' : 'aspect-square lg:aspect-3/4'"
         @pointermove="onPointerMove"
         @pointerleave="onPointerLeave"
       >

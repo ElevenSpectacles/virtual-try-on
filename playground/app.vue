@@ -32,7 +32,7 @@ function onTrack(event: string, payload: Record<string, unknown>) {
       </header>
       <VirtualTryOnPrototype
         :models="models"
-        calibration-url="/models/calibration.json"
+        calibration-url="/models/virtual-try-on/calibration.json"
         @track="onTrack"
       />
     </div>

@@ -71,9 +71,12 @@ Key facts:
   ear-hook temple tips (dropping geometry past a local-X threshold on the
   `pt2` node) and tilts the remaining straight shaft upward around the hinge,
   so it reads as resting over the ear rather than poking past it. Re-run
-  against `public/models` whenever the catalog is regenerated from source
-  GLBs with the full ear-hook geometry — the checked-in catalog already has
-  this applied.
+  against `public/models/virtual-try-on` whenever that catalog is
+  regenerated from source GLBs with the full ear-hook geometry — the
+  checked-in catalog already has this applied. **Do not** run it against
+  `public/models/original` or `public/models/compressed` (see below) — those
+  feed the product page's `<model-viewer>`, which should show the
+  untrimmed, true-to-source frame.
 - `tests/unit/` — Vitest unit tests (run from this repo).
 - `tests/nuxt/` — Nuxt-environment tests (run from the host project).
 
@@ -89,16 +92,16 @@ npm run playground              # standalone dev playground on :4000 (visual tun
 npm run typecheck               # vue-tsc against the playground's generated tsconfig
 npm run verify                  # vitest + playground build + booted-server smoke test
 npx tsx scripts/generate-calibration.ts \
-  --input public/models \
-  --output public/models/calibration.json \
+  --input public/models/virtual-try-on \
+  --output public/models/virtual-try-on/calibration.json \
   --reference iris-bronze       # regenerate the calibration manifest
 npm run compress-models -- \
-  --input public/models \
-  --output public/models       # Draco-compress a GLB directory in place
+  --input public/models/virtual-try-on \
+  --output public/models/virtual-try-on   # Draco-compress a GLB directory in place
 npx tsx scripts/trim-temple-tips.ts \
-  --input public/models \
-  --output public/models       # trim + upward-tilt temple tips in place
-                                # (--threshold, --tilt-degrees to override)
+  --input public/models/virtual-try-on \
+  --output public/models/virtual-try-on   # trim + upward-tilt temple tips in place
+                                           # (--threshold, --tilt-degrees to override)
 ```
 
 Testing strategy:
