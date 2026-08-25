@@ -20,7 +20,7 @@ const BASE = `http://localhost:${PORT}`
 const STARTUP_TIMEOUT_MS = 30_000
 const MODELS_DIR =
   process.env.TRYON_MODELS_DIR ??
-  fileURLToPath(new URL('../../nuxt/public/models', import.meta.url))
+  fileURLToPath(new URL('../../nuxt/public/models/virtual-try-on', import.meta.url))
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -84,6 +84,19 @@ async function main() {
       'playground renders',
       html.includes('Virtual Try-On · Playground')
     )
+
+    // The module injects Tailwind v4 @source scanning for its own
+    // components; `aspect-3/4` appears only in a module component
+    // (VirtualTryOnModal), so its generated utility proves the injection
+    // survived the production build.
+    const cssText = (
+      await Promise.all(
+        [...html.matchAll(/href="([^"]+\.css[^"]*)"/g)].map((m) =>
+          fetch(new URL(m[1], BASE)).then((r) => r.text())
+        )
+      )
+    ).join('\n')
+    check('module component CSS generated', cssText.includes('aspect-3'))
 
     const calibrationRes = await fetch(`${BASE}/models/calibration.json`)
     const calibration = await calibrationRes.json().catch(() => null)

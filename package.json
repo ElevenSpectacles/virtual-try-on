@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "./module.ts",
   "scripts": {
     "generate-calibration": "npx tsx scripts/generate-calibration.ts",
     "compress-models": "npx tsx scripts/compress-models.ts",

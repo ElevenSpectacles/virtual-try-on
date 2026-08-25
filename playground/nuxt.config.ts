@@ -10,22 +10,17 @@ const r = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 // both apps always render the same assets. Override with TRYON_MODELS_DIR if
 // your layout differs.
 const modelsDir =
-  process.env.TRYON_MODELS_DIR ?? r('../../nuxt/public/models')
+  process.env.TRYON_MODELS_DIR ?? r('../../nuxt/public/models/virtual-try-on')
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-08-01',
 
-  modules: ['@nuxt/ui', '@nuxtjs/i18n', '@tresjs/nuxt'],
+  // Dogfooding: consume this repo through its own Nuxt module entry so the
+  // auto-registration (components, composables/utils, Tailwind @source,
+  // i18n messages, worker fs.allow) is exercised exactly like a host's.
+  modules: ['@nuxt/ui', '@nuxtjs/i18n', '@tresjs/nuxt', r('..')],
 
   css: ['~/assets/css/main.css'],
-
-  components: {
-    dirs: [{ path: r('../components'), pathPrefix: false }]
-  },
-
-  imports: {
-    dirs: [r('../composables'), r('../utils')]
-  },
 
   i18n: {
     locales: [{ code: 'en', language: 'en-US' }],
@@ -60,13 +55,6 @@ export default defineNuxtConfig({
 
   nitro: {
     publicAssets: [{ dir: modelsDir, baseURL: 'models' }]
-  },
-
-  vite: {
-    server: {
-      // Module source lives one level up from the playground root.
-      fs: { allow: [r('..')] }
-    }
   },
 
   devtools: { enabled: true }
