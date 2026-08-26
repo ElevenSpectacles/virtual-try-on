@@ -38,7 +38,13 @@ export default defineNuxtModule({
 
     addComponentsDir({ path: componentsDir, pathPrefix: false })
 
-    addImportsDir([resolve('./composables'), resolve('./utils')])
+    // addImportsDir scans only the top level of each dir, and the
+    // composables live in composables/tryon/ — register it explicitly.
+    addImportsDir([
+      resolve('./composables'),
+      resolve('./composables/tryon'),
+      resolve('./utils')
+    ])
 
     // Dev server must be allowed to serve this module's classic worker and
     // component sources from outside the host project root.
