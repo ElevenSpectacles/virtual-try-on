@@ -23,6 +23,12 @@ Key facts:
 
 ## Repository layout
 
+- `module.ts` — Nuxt module entry (`defineNuxtModule` via `@nuxt/kit`, no
+  build step). Registers `components/`, `composables/` + `utils/`
+  auto-imports, Tailwind v4 source scanning (vite transform appending
+  `@source` to Tailwind CSS entries), i18n messages via the
+  `i18n:registerModule` hook, and vite dev-server `fs.allow`. Hosts add this
+  repo's local path to their `modules` array; nothing else.
 - `components/` — Vue SFCs. `VirtualTryOnExperience.vue` is the main entry
   component (props: `models: TryOnModel[]`, `calibration-url`; emits `track`).
   `VirtualTryOnModal.vue`, `VirtualTryOnSuggestions.vue` are supporting UI;
@@ -51,15 +57,16 @@ Key facts:
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
 - `i18n/` — default translations (`bg`, `de`, `en`, `es`, `fr`, `it`, `nl`) under
-  the `virtualTryOn.*` key; the host merges them into its locale files.
+  the `virtualTryOn.*` key; registered into the host's i18n config by
+  `module.ts` (no manual merging needed).
 - `playground/` — standalone dev-only Nuxt app (`npm run playground`, port
   4000) that mounts `VirtualTryOnPrototype` with the full frame catalog for
-  local visual tuning. It registers the module's `components/`,
-  `composables/`, and `utils/` exactly like the host does, provides a
-  console-backed `useLogger` stand-in (playground-only — the module source
-  still assumes the host's logger), and serves GLBs + `calibration.json`
-  from the host checkout via nitro `publicAssets` (override with
-  `TRYON_MODELS_DIR`). Not part of the shipped module.
+  local visual tuning. It consumes this repo through `module.ts` itself
+  (dogfooding the exact host integration), provides a console-backed
+  `useLogger` stand-in (playground-only — the module source still assumes
+  the host's logger), and serves GLBs + `calibration.json` from the host
+  checkout via nitro `publicAssets` (override with `TRYON_MODELS_DIR`). Not
+  part of the shipped module.
 - `scripts/generate-calibration.ts` — CLI that scans a directory of GLBs and
   emits `calibration.json` (bounding-box recentring + scale normalization
   against a reference model).
@@ -122,8 +129,9 @@ Testing strategy:
 When changing public surfaces, keep the host contract in mind (documented in
 `README.md`):
 
-- Host registers `~/virtual-try-on/components` and
-  `~/virtual-try-on/composables` + `/utils` as Nuxt auto-import dirs.
+- Host adds this repo's local path to their `modules` array; `module.ts`
+  self-registers components, composables/utils, Tailwind source scanning,
+  i18n messages, and worker `fs.allow`.
 - Host provides `@nuxt/ui` components (`UButton`, `UModal`, `USlider`, …),
   `@nuxtjs/i18n` (`useI18n`, `$t`, `<NuxtLinkLocale>`), `@tresjs/nuxt`, and a
   host-defined `useLogger()` composable — all assumed auto-imported; do not

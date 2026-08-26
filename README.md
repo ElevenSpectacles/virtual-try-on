@@ -10,6 +10,9 @@ Nuxt project.
 
 ## What lives here
 
+- `module.ts` — Nuxt module entry: registers components, composables/utils
+  auto-imports, Tailwind v4 source scanning, i18n messages, and dev-server
+  worker access automatically
 - `components/` — `VirtualTryOnExperience`, `VirtualTryOnModal`,
   `VirtualTryOnSuggestions`, `TryOnScene`, `VirtualTryOnPrototype`
 - `composables/tryon/` — MediaPipe worker integration, webcam lifecycle,
@@ -34,68 +37,40 @@ The consuming Nuxt project must provide:
 
 ## Usage in host
 
-### 1. Mount the module
+### 1. Register the module
 
-The Eleven Spectacles host keeps this repo as a **sibling checkout** and
-references it through a Nuxt alias (a git submodule under `app/` also works —
-point the alias there instead):
+Keep this repo as a **sibling checkout** (or git submodule) and add it to the
+host's `modules` array by local path:
 
 ```ts
 // nuxt.config.ts
 import { fileURLToPath } from 'node:url'
 
 export default defineNuxtConfig({
-  alias: {
-    'virtual-try-on': fileURLToPath(
-      new URL('../virtual-try-on', import.meta.url)
-    )
-  }
+  modules: [
+    '@nuxt/ui',
+    '@nuxtjs/i18n',
+    '@tresjs/nuxt',
+    fileURLToPath(new URL('../virtual-try-on', import.meta.url))
+  ]
 })
 ```
 
-### 2. Register module directories in `nuxt.config.ts`
+That single line registers everything the try-on needs:
 
-```ts
-export default defineNuxtConfig({
-  modules: ['@tresjs/nuxt' /* …host modules… */],
-  components: {
-    dirs: [
-      { path: '~/components', pathPrefix: false },
-      { path: 'virtual-try-on/components', pathPrefix: false }
-    ]
-  },
-  imports: {
-    dirs: [
-      '~/composables',
-      'virtual-try-on/composables',
-      'virtual-try-on/utils'
-    ]
-  },
-  vite: {
-    server: {
-      fs: {
-        // Dev server must be allowed to serve the module's classic worker
-        // from outside the host root.
-        allow: [fileURLToPath(new URL('..', import.meta.url))]
-      }
-    }
-  }
-})
-```
+- `components/*.vue` as auto-imported, unprefixed components
+- `composables/` + `utils/` auto-imports
+- Tailwind v4 `@source` scanning of the module's components (they live
+  outside the host root, so default scanning misses them — the module
+  appends the directive to every CSS entry that imports Tailwind itself)
+- `virtualTryOn.*` messages merged into each locale via
+  `@nuxtjs/i18n`'s `i18n:registerModule` hook (no-op without i18n)
+- Vite dev-server `fs.allow` for serving this repo's classic worker
 
-### 3. Source the module's CSS utilities
+The host must still provide `@nuxt/ui`, `@nuxtjs/i18n`, `@tresjs/nuxt`,
+`@vueuse/core`, and a `useLogger()` composable (auto-imported by the host).
 
-Tailwind v4 only auto-scans the host root — the module's components live
-outside it, so their utilities silently never generate unless you add an
-explicit `@source` to the host's main stylesheet (path relative to the CSS
-file):
-
-```css
-/* app/assets/css/main.css */
-@source "../../../../virtual-try-on/components";
-```
-
-### 4. Provide models and calibration
+### 2. Provide models and calibration
 
 ```vue
 <script setup lang="ts">
@@ -173,18 +148,12 @@ Props: `models`, `calibrationUrl`, `modelBaseUrl` (same semantics as
 `VirtualTryOnExperience`). It also honors `?model=` for deep-linking a
 specific frame and `?debug_tryon=true` for extra diagnostics.
 
-### 4. Merge translations
+### 3. Translations
 
-In each host locale file (e.g. `i18n/locales/en.ts`):
-
-```ts
-import virtualTryOn from 'virtual-try-on/i18n/en'
-
-export default {
-  // ...host translations
-  ...virtualTryOn
-}
-```
+Nothing to do — the module registers its `virtualTryOn.*` messages for all
+supported locales (`en`, `bg`, `de`, `es`, `fr`, `it`, `nl`) automatically
+when `@nuxtjs/i18n` is installed. Host translations win over the module's on
+key conflicts.
 
 ## Calibration generation
 
