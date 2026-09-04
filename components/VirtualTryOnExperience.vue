@@ -39,7 +39,7 @@ const props = withDefaults(
   defineProps<{
     models: TryOnModel[]
     calibrationUrl: string
-    modelBaseUrl?: string
+    modelBaseUrl?: string | undefined
     initialModel?: string
     simplifiedControls?: boolean
     /**
@@ -47,13 +47,13 @@ const props = withDefaults(
      * built-in jsDelivr CDN default; pass a same-origin path (e.g.
      * `/mediapipe/wasm`) to self-host and drop the CDN dependency.
      */
-    mediapipeBasePath?: string
+    mediapipeBasePath?: string | undefined
     /** URL/path to the `face_landmarker.task` model asset. */
-    mediapipeModelAssetPath?: string
+    mediapipeModelAssetPath?: string | undefined
     /** Whether the GLB loader wires up Draco decompression support. */
     draco?: boolean
     /** Draco decoder path override — omit to use TresJS's CDN default. */
-    dracoDecoderPath?: string
+    dracoDecoderPath?: string | undefined
   }>(),
   {
     modelBaseUrl: '/models/virtual-try-on',
@@ -269,8 +269,12 @@ const {
   latencyMs: faceLatencyMs,
   init: initFaceLandmarker
 } = useFaceLandmarker(videoRef, {
-  mediapipeBasePath: props.mediapipeBasePath,
-  mediapipeModelAssetPath: props.mediapipeModelAssetPath
+  ...(props.mediapipeBasePath !== undefined
+    ? { mediapipeBasePath: props.mediapipeBasePath }
+    : {}),
+  ...(props.mediapipeModelAssetPath !== undefined
+    ? { mediapipeModelAssetPath: props.mediapipeModelAssetPath }
+    : {})
 })
 
 const correctedFaceLandmarks = computed(() =>
@@ -572,7 +576,11 @@ watch(model, (value) => {
               <TryOnScene
                 :src="modelSrc"
                 :draco="draco"
-                :draco-decoder-path="dracoDecoderPath"
+                v-bind="{
+                  ...(dracoDecoderPath !== undefined
+                    ? { dracoDecoderPath }
+                    : {})
+                }"
                 :visible="frameVisible"
                 :position="framePosition"
                 :model-offset="calibration.translation"
