@@ -43,7 +43,7 @@ const props = withDefaults(
     /** Yaw (radians) so the lenses can be faced at the camera. */
     rotationY?: number
     /** Full Euler rotation (radians). Overrides rotationY when provided. */
-    rotation?: { x: number; y: number; z: number }
+    rotation?: { x: number; y: number; z: number } | undefined
     /** IBL preset eyeballed against the video's white balance. */
     envPreset?: EnvPreset
     /** IBL strength — the main knob for matching scene light to the feed. */
@@ -84,14 +84,13 @@ const props = withDefaults(
      */
     draco?: boolean
     /** Draco decoder path override — omit to use cientos's CDN default. */
-    dracoDecoderPath?: string
+    dracoDecoderPath?: string | undefined
   }>(),
   {
     position: () => ({ x: 0, y: 0, z: 0 }),
     scale: 6,
     scaleXBoost: 1,
     rotationY: 0,
-    rotation: undefined,
     // 'city' reads as neutral architectural reflections rather than a
     // photo-studio product shot — at low intensity it lifts color/specular
     // accuracy without visibly compositing a studio backdrop over the feed.
@@ -107,8 +106,7 @@ const props = withDefaults(
     showBoundingBox: false,
     modelOffset: () => ({ x: 0, y: 0, z: 0 }),
     visible: true,
-    draco: true,
-    dracoDecoderPath: undefined
+    draco: true
   }
 )
 
@@ -117,7 +115,11 @@ const props = withDefaults(
 const src = computed(() => props.src)
 const { state: model } = useGLTF(src, {
   draco: props.draco,
-  decoderPath: props.dracoDecoderPath
+  // UseGLTFOptions is exact under exactOptionalPropertyTypes — omit rather
+  // than pass an explicit undefined so cientos's CDN default applies.
+  ...(props.dracoDecoderPath !== undefined
+    ? { decoderPath: props.dracoDecoderPath }
+    : {})
 })
 
 // The catalog's lens materials are authored as metalness ≈ 0.7 with

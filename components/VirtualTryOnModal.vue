@@ -8,15 +8,21 @@ import {
 const props = defineProps<{
   models: TryOnModel[]
   calibrationUrl: string
-  modelBaseUrl?: string
-  productModel?: string
+  modelBaseUrl?: string | undefined
+  productModel?: string | undefined
 }>()
 
 const emit = defineEmits<{
   track: [event: string, payload: Record<string, unknown>]
 }>()
 
-const open = defineModel<boolean>('open')
+const open = defineModel<boolean>('open', { default: false })
+const modalOpen = computed({
+  get: () => open.value ?? false,
+  set: (value: boolean) => {
+    open.value = value
+  }
+})
 const { t } = useI18n()
 
 const isMobile = useMediaQuery('(max-width: 1023px)')
@@ -73,7 +79,7 @@ const privacyItems = computed(() => [
 
 <template>
   <UModal
-    v-model:open="open"
+    v-model:open="modalOpen"
     dismissible
     overlay
     :fullscreen="isMobile"
@@ -177,7 +183,9 @@ const privacyItems = computed(() => [
                 v-model:model="selectedModel"
                 :models="models"
                 :calibration-url="calibrationUrl"
-                :model-base-url="modelBaseUrl"
+                v-bind="{
+                  ...(modelBaseUrl !== undefined ? { modelBaseUrl } : {})
+                }"
                 @track="onTrack"
               />
               <template #fallback>

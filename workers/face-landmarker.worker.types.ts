@@ -15,12 +15,12 @@ export type FaceLandmarkerWorkerRequest =
        * jsDelivr's CDN when omitted — pass a same-origin path (e.g.
        * `/mediapipe/wasm`) to self-host and drop the CDN dependency.
        */
-      basePath?: string
+      basePath?: string | undefined
       /**
        * URL/path to the `face_landmarker.task` model asset. Defaults to
        * Google's model-zoo CDN when omitted.
        */
-      modelAssetPath?: string
+      modelAssetPath?: string | undefined
     }
   | { type: 'detect'; id: number; bitmap: ImageBitmap; timestamp: number }
   | { type: 'destroy' }

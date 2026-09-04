@@ -28,12 +28,12 @@ export interface UseFaceLandmarkerOptions {
    * the worker's `FilesetResolver.forVisionTasks`. Omit to use the worker's
    * jsDelivr CDN default; pass a same-origin path to self-host.
    */
-  mediapipeBasePath?: string
+  mediapipeBasePath?: string | undefined
   /**
    * URL/path to the `face_landmarker.task` model asset. Omit to use the
    * worker's Google-storage CDN default.
    */
-  mediapipeModelAssetPath?: string
+  mediapipeModelAssetPath?: string | undefined
 }
 
 /**
@@ -225,8 +225,12 @@ export function useFaceLandmarker(
         readyReject = reject
         post({
           type: 'init',
-          basePath: options.mediapipeBasePath,
-          modelAssetPath: options.mediapipeModelAssetPath
+          ...(options.mediapipeBasePath !== undefined
+            ? { basePath: options.mediapipeBasePath }
+            : {}),
+          ...(options.mediapipeModelAssetPath !== undefined
+            ? { modelAssetPath: options.mediapipeModelAssetPath }
+            : {})
         })
       })
 
