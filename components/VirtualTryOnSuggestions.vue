@@ -3,6 +3,7 @@ import {
   getTryOnModelFamilies,
   type TryOnModel
 } from '../composables/tryon/useTryOnModels'
+import { computed } from 'vue'
 
 const props = defineProps<{
   models: TryOnModel[]

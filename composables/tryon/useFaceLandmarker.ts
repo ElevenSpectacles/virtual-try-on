@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef, watch, type Ref } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch, type Ref } from 'vue'
 import {
   computeAnchorCentroid,
   getFaceWidth,
@@ -10,6 +10,7 @@ import type {
   FaceLandmarkerWorkerRequest,
   FaceLandmarkerWorkerResponse
 } from '../../workers/face-landmarker.worker.types'
+import { useLogger } from '~/composables/useLogger'
 
 export type FaceLandmarkerError =
   | 'unsupported'

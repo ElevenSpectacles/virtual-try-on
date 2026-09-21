@@ -2,6 +2,7 @@ import type {
   TryOnCalibrationFile,
   TryOnFrameCalibration
 } from '../../types/tryon-calibration'
+import { useFetch } from '#imports'
 
 const DEFAULT_CALIBRATION: TryOnFrameCalibration = {
   model: 'unknown',

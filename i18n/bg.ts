@@ -39,7 +39,7 @@ export default {
     templeWidth: 'Широчина на дръжките',
     prototypeBadge: 'Прототип',
     modal: {
-      title: 'Виртуално пробване',
+      title: 'Виртуална пробна',
       close: 'Затвори',
       privacy: {
         title: 'Поверителността ти е важна',

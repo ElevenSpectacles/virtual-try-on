@@ -5,6 +5,11 @@ import {
   type TryOnModel
 } from '../composables/tryon/useTryOnModels'
 
+import VirtualTryOnExperience from './VirtualTryOnExperience.vue'
+import VirtualTryOnSuggestions from './VirtualTryOnSuggestions.vue'
+import { useI18n } from 'vue-i18n'
+import { computed, ref, watch } from 'vue'
+
 const props = defineProps<{
   models: TryOnModel[]
   calibrationUrl: string
