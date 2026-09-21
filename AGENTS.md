@@ -12,10 +12,16 @@ Key facts:
 - Distributed as a **git submodule** consumed by the Eleven Spectacles Nuxt
   host project. It is intentionally **not published to npm** and is not
   designed for reuse outside that host.
-- The module itself has no app entry point at the repo root — Vue/Nuxt
-  auto-imports (`ref`, `computed`, `onBeforeUnmount`, `useLogger`, etc.)
-  resolve in the host, not here. The one exception is `playground/`, a
-  self-contained dev-only Nuxt app for local visual tuning (see below).
+- The module itself has no app entry point at the repo root. **Import
+  everything explicitly** — `ref`/`computed`/`onBeforeUnmount` from `vue`,
+  `useI18n` from `vue-i18n`, VueUse from `@vueuse/core`, Nuxt composables from
+  `#imports`, sibling components/composables by relative path. The host
+  (Eleven Spectacles) disables auto-imports project-wide, so nothing here may
+  rely on a bare global. The host-provided `useLogger()` is the one symbol
+  addressed through the embedding app: `~/composables/useLogger` — `~` resolves
+  to the host's `app/`, and to `playground/composables/` in the playground.
+  `playground/` is a self-contained dev-only Nuxt app for local visual tuning
+  (see below).
 - `"type": "module"`; all source is TypeScript / Vue 3 `<script setup lang="ts">` SFCs.
 - Runtime dependencies are declared as `peerDependencies` and provided by the
   host: `nuxt` ^4, `vue` ^3, `@nuxt/ui`, `@nuxtjs/i18n`, `@tresjs/nuxt` +
@@ -133,9 +139,10 @@ When changing public surfaces, keep the host contract in mind (documented in
   self-registers components, composables/utils, Tailwind source scanning,
   i18n messages, and worker `fs.allow`.
 - Host provides `@nuxt/ui` components (`UButton`, `UModal`, `USlider`, …),
-  `@nuxtjs/i18n` (`useI18n`, `$t`, `<NuxtLinkLocale>`), `@tresjs/nuxt`, and a
-  host-defined `useLogger()` composable — all assumed auto-imported; do not
-  add local stubs for them.
+  `@nuxtjs/i18n`, `@tresjs/nuxt`, and a host-defined `useLogger()` composable —
+  do not add local stubs for them. `U*` and `<NuxtLinkLocale>` stay globally
+  registered by their modules; `useI18n` (from `vue-i18n`) and `useLogger`
+  (from `~/composables/useLogger`) must be imported explicitly.
 - Host supplies GLB assets and a generated `calibration.json` at a
   host-controlled URL, passes `models` + `calibration-url` props, and consumes
   the `track` event (all analytics stay in the host).

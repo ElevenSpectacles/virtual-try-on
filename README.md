@@ -32,7 +32,7 @@ The consuming Nuxt project must provide:
 - `@nuxtjs/i18n` for `useI18n()` / `$t()` and `<NuxtLinkLocale>`
 - `@tresjs/nuxt` registered in `nuxt.config.ts`
 - `@vueuse/core` composables
-- `useLogger()` composable (auto-imported by host)
+- `useLogger()` composable, imported as `~/composables/useLogger`
 - GLB model assets and a generated `calibration.json` at a host-controlled path
 
 ## Usage in host
@@ -68,7 +68,9 @@ That single line registers everything the try-on needs:
 - Vite dev-server `fs.allow` for serving this repo's classic worker
 
 The host must still provide `@nuxt/ui`, `@nuxtjs/i18n`, `@tresjs/nuxt`,
-`@vueuse/core`, and a `useLogger()` composable (auto-imported by the host).
+`@vueuse/core`, and a `useLogger()` composable at `~/composables/useLogger`.
+This repo's own source imports everything explicitly — the host disables Nuxt
+auto-imports, so bare globals are not available here.
 
 ### 2. Provide models and calibration
 

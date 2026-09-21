@@ -1,4 +1,5 @@
 import { onBeforeUnmount, ref, shallowRef, type Ref } from 'vue'
+import { useLogger } from '~/composables/useLogger'
 
 export type WebcamError = 'unsupported' | 'denied' | 'unavailable'
 

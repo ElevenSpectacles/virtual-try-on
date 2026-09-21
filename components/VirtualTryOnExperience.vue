@@ -35,6 +35,11 @@ import {
 } from '../composables/tryon/useTryOnModels'
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
 
+import TryOnScene from './TryOnScene.vue'
+import { useRoute } from '#imports'
+import { useI18n } from 'vue-i18n'
+import { computed, ref, watch } from 'vue'
+
 const props = withDefaults(
   defineProps<{
     models: TryOnModel[]

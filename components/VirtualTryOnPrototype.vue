@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { NeutralToneMapping, Euler, Vector3 } from 'three'
 import {
   useElementSize,
@@ -36,6 +36,10 @@ import {
   getTryOnModel,
   type TryOnModel
 } from '../composables/tryon/useTryOnModels'
+
+import TryOnScene from './TryOnScene.vue'
+import { useRoute } from '#imports'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   models: TryOnModel[]
