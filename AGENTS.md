@@ -198,15 +198,15 @@ When changing public surfaces, keep the host contract in mind (documented in
 
 ## Known production gaps
 
-The module now supports compression and self-hosting overrides, but actually
-using them (compressing the catalog, hosting the assets) is host-repo work:
+The module supports compression and self-hosting overrides; applying them
+is host-repo work:
 
-- **GLB asset size**: catalog models are ~5.8MB each — fine for local
-  tuning, too large to download per try-on session. Run
-  `scripts/compress-models.ts` against the host's model directory before
-  shipping; `TryOnScene`'s loader already decodes Draco meshes (`draco` prop,
-  default `true`). Re-run `generate-calibration` against the compressed
-  output afterward.
+- **GLB asset size** (resolved): the host's `public/models/virtual-try-on`
+  catalog is Draco-compressed (~1.2MB per model, down from ~5.8MB
+  uncompressed). Whenever that catalog is regenerated from source GLBs,
+  re-run `scripts/compress-models.ts` and then `generate-calibration` against
+  the compressed output; `TryOnScene`'s loader decodes Draco meshes (`draco`
+  prop, default `true`).
 - **MediaPipe / Draco CDN dependency**: by default
   `workers/face-landmarker.worker.ts` loads WASM and model weights from
   `cdn.jsdelivr.net` / `storage.googleapis.com`, and `TryOnScene`'s Draco
