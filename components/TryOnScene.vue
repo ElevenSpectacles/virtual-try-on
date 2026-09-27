@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
+import { computed, onUnmounted, shallowRef, watch } from 'vue'
 import {
   Vector3,
   Euler,
@@ -186,6 +186,14 @@ const boundingBoxHelper = computed(() => {
   })
   return new Box3Helper(box, new Color('yellow'))
 })
+// `<primitive>` objects are never disposed by Tres, so free the previous
+// helper's geometry/material whenever it is rebuilt or toggled off.
+watch(boundingBoxHelper, (_helper, previous) => previous?.dispose())
+
+onUnmounted(() => {
+  occluderMeshGeometry.value?.dispose()
+  boundingBoxHelper.value?.dispose()
+})
 
 // Tres catch-all components type vector props as raw three.js instances, so we
 // hand them Vector3 / Euler objects (fresh instances keep them reactive).
@@ -235,6 +243,10 @@ watch(
   () => props.occluderPositions,
   (positions) => {
     if (!positions) {
+      // Tres only fires `Object3D.dispose()` on the unmounted mesh — a
+      // geometry passed in as a prop is ours to free, else every lost-face
+      // cycle leaks its GPU buffers.
+      occluderMeshGeometry.value?.dispose()
       occluderMeshGeometry.value = null
       return
     }
