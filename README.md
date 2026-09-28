@@ -160,12 +160,12 @@ key conflicts.
 ## Calibration generation
 
 The module includes a script that scans a directory of GLB files and emits a
-`calibration.json` manifest.
+`calibration.json` manifest (from the host's `nuxt/` directory):
 
 ```bash
-npx tsx app/virtual-try-on/scripts/generate-calibration.ts \
-  --input public/models \
-  --output public/models/calibration.json \
+npx tsx ../virtual-try-on/scripts/generate-calibration.ts \
+  --input public/models/virtual-try-on \
+  --output public/models/virtual-try-on/calibration.json \
   --reference iris-bronze
 ```
 
@@ -174,13 +174,14 @@ tracked face anchor and normalizes the scale against the reference model.
 
 ## GLB compression
 
-GLBs in the catalog run several MB uncompressed. Before shipping a model
-directory to production, compress it with Draco mesh compression:
+GLBs in the catalog run ~5.8MB uncompressed (~1.2MB with Draco). Before
+shipping a model directory to production, compress it with Draco mesh
+compression (from the host's `nuxt/` directory):
 
 ```bash
-npx tsx app/virtual-try-on/scripts/compress-models.ts \
-  --input public/models \
-  --output public/models
+npx tsx ../virtual-try-on/scripts/compress-models.ts \
+  --input public/models/virtual-try-on \
+  --output public/models/virtual-try-on
 ```
 
 `TryOnScene`'s GLB loader (`draco` prop, default `true`) already decodes
