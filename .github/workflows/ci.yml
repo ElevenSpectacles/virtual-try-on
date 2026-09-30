@@ -4,22 +4,44 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
-  verify:
+  test:
+    name: Unit tests + typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
       - run: npm ci
 
-      - run: npx nuxt prepare playground
+      # The playground smoke test (verify:playground) skips itself without the
+      # host GLB catalog, so CI runs the unit suite + typecheck — the full
+      # CI-runnable surface.
+      - run: npm run verify:unit
 
       - run: npm run typecheck
 
-      - run: npm run verify:unit
+  doctor:
+    name: Vite Doctor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Blocking: --format text exits non-zero on any diagnostic. The root run
+      # covers the module source (worker constraint: no imports means it is
+      # analyzed as plain Vite); the playground run applies Nuxt-app rules.
+      - run: npx vite-doctor . --format text
+      - run: npx vite-doctor playground --format text

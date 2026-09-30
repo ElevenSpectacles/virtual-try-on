@@ -81,17 +81,22 @@ async function init(basePath?: string, modelAssetPath?: string) {
     })
 
     try {
-      faceLandmarker = (await FaceLandmarker.createFromOptions(
+      // The dynamically-imported FaceLandmarker satisfies the narrowed
+      // FaceLandmarkerInstance structurally (VIDEO-mode detectForVideo result
+      // is a superset), so no cast is needed — assign directly.
+      const gpu: FaceLandmarkerInstance = await FaceLandmarker.createFromOptions(
         vision,
         landmarkerOptions('GPU')
-      )) as unknown as FaceLandmarkerInstance
+      )
+      faceLandmarker = gpu
     } catch {
       // GPU delegate needs OffscreenCanvas/WebGL2 in-worker support; fall
       // back to CPU the same way the main-thread path does.
-      faceLandmarker = (await FaceLandmarker.createFromOptions(
+      const cpu: FaceLandmarkerInstance = await FaceLandmarker.createFromOptions(
         vision,
         landmarkerOptions('CPU')
-      )) as unknown as FaceLandmarkerInstance
+      )
+      faceLandmarker = cpu
     }
 
     post({ type: 'ready' })
