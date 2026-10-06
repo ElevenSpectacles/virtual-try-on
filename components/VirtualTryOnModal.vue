@@ -167,7 +167,7 @@ const privacyItems = computed(() => [
             <p class="mt-4 text-xs font-light text-stone-500">
               {{ t('virtualTryOn.modal.privacy.policy.before') }}
               <NuxtLinkLocale
-                to="/resources/legal/privacy-policy"
+                :to="{ path: '/resources/legal/privacy-policy' }"
                 class="text-stone-950 underline hover:text-stone-700 transition-colors"
               >
                 {{ t('virtualTryOn.modal.privacy.policy.link') }}
