@@ -1,7 +1,8 @@
 import { onBeforeUnmount, ref, shallowRef, type Ref } from 'vue'
+import type { WebcamError } from '../../types/tryon-experience'
 import { useTryOnLogger } from './useTryOnLogger'
 
-export type WebcamError = 'unsupported' | 'denied' | 'unavailable'
+export type { WebcamError }
 
 /**
  * Front-camera stream lifecycle for the virtual try-on.

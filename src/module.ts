@@ -7,6 +7,12 @@ export type {
   TryOnFrameCalibration,
   TryOnModelCalibration
 } from './runtime/types/tryon-calibration'
+export type {
+  FaceLandmarkerError,
+  TryOnGuideHint,
+  TryOnStatus,
+  WebcamError
+} from './runtime/types/tryon-experience'
 
 /**
  * Nuxt module wrapper around the virtual try-on experience.
@@ -16,10 +22,6 @@ export type {
  *
  * - `components/` (unprefixed auto-imported component names)
  * - `composables/` + `utils/` auto-imports
- * - Tailwind v4 source detection for this module's components (they live
- *   outside the host root, so they are invisible to default scanning —
- *   a tiny vite transform appends an `@source` directive to every CSS
- *   entry that pulls in Tailwind)
  * - Vite dev-server `fs.allow` so the classic face-landmarker worker can
  *   be served from outside the host project root
  *
@@ -81,25 +83,5 @@ export default defineNuxtModule({
     nuxt.options.vite.server.fs ??= {}
     nuxt.options.vite.server.fs.allow ??= []
     nuxt.options.vite.server.fs.allow.push(resolve('./runtime'))
-
-    // Tailwind v4 only scans the host root; register this module's
-    // components as an explicit source on every CSS entry that imports
-    // Tailwind. The plugin is PREPENDED so it appends the @source directive
-    // before @tailwindcss/vite compiles the entry (hook-appended plugins run
-    // after it — verified empirically). Idempotent per file via includes().
-    const sourceDir = componentsDir.replaceAll('\\', '/')
-    nuxt.hook('vite:extendConfig', (config) => {
-      const cfg = config as { plugins?: unknown[] }
-      ;(cfg.plugins ??= []).unshift({
-        name: 'virtual-try-on:tailwind-source',
-        enforce: 'pre',
-        transform(code: string, id: string) {
-          if (!/\.css($|\?)/.test(id)) return
-          if (!/@import\s+["'][^"']*tailwindcss/.test(code)) return
-          if (code.includes(sourceDir)) return
-          return `${code}\n@source "${sourceDir}";\n`
-        }
-      })
-    })
   }
 })

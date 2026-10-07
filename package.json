@@ -48,7 +48,6 @@
   },
   "peerDependencies": {
     "@mediapipe/tasks-vision": "^1.0.0",
-    "@nuxt/ui": "^4.10.0",
     "@tresjs/cientos": "^5.8.1",
     "@tresjs/nuxt": "^5.6.3",
     "@vueuse/core": "^14.4.0",
@@ -63,6 +62,7 @@
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/lucide": "^1.2.137",
     "@nuxt/module-builder": "^1.0.3",
+    "@nuxt/ui": "^4.10.0",
     "@types/node": "^26.6.3",
     "@types/three": "^0.186.0",
     "draco3dgltf": "^1.5.7",

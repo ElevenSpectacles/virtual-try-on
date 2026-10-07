@@ -10,12 +10,10 @@ import type {
   FaceLandmarkerWorkerRequest,
   FaceLandmarkerWorkerResponse
 } from '../../workers/face-landmarker.worker.types'
+import type { FaceLandmarkerError } from '../../types/tryon-experience'
 import { useTryOnLogger } from './useTryOnLogger'
 
-export type FaceLandmarkerError =
-  | 'unsupported'
-  | 'load_failed'
-  | 'runtime_failed'
+export type { FaceLandmarkerError }
 
 export interface UseFaceLandmarkerOptions {
   /**
