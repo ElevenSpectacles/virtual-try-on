@@ -62,6 +62,19 @@ export default defineNuxtModule({
     nuxt.options.vite.optimizeDeps.exclude ??= []
     nuxt.options.vite.optimizeDeps.exclude.push('@eleven.spectacles/virtual-try-on')
 
+    // Peers must resolve to the host's single copy: a sibling checkout with
+    // its own node_modules would otherwise bundle a second vue/three
+    // (duplicate renderer state, broken reactivity, ~600 KB extra).
+    nuxt.options.vite.resolve ??= {}
+    nuxt.options.vite.resolve.dedupe ??= []
+    nuxt.options.vite.resolve.dedupe.push(
+      'vue',
+      'three',
+      '@tresjs/core',
+      '@tresjs/cientos',
+      '@vueuse/core'
+    )
+
     // Dev server must be allowed to serve this module's classic worker and
     // component sources from outside the host project root.
     nuxt.options.vite.server ??= {}
