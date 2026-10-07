@@ -34,13 +34,13 @@ export type {
  * ```ts
  * // nuxt.config.ts
  * export default defineNuxtConfig({
- *   modules: ['@elevenspectacles/virtual-try-on']
+ *   modules: ['@eleven.spectacles/virtual-try-on']
  * })
  * ```
  */
 export default defineNuxtModule({
   meta: {
-    name: '@elevenspectacles/virtual-try-on',
+    name: '@eleven.spectacles/virtual-try-on',
     configKey: 'virtualTryOn',
     compatibility: { nuxt: '>=4.0.0' }
   },
@@ -63,7 +63,7 @@ export default defineNuxtModule({
     // when the package is consumed from node_modules.
     nuxt.options.vite.optimizeDeps ??= {}
     nuxt.options.vite.optimizeDeps.exclude ??= []
-    nuxt.options.vite.optimizeDeps.exclude.push('@elevenspectacles/virtual-try-on')
+    nuxt.options.vite.optimizeDeps.exclude.push('@eleven.spectacles/virtual-try-on')
 
     // Dev server must be allowed to serve this module's classic worker and
     // component sources from outside the host project root.

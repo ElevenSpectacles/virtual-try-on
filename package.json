@@ -1,5 +1,5 @@
 {
-  "name": "@elevenspectacles/virtual-try-on",
+  "name": "@eleven.spectacles/virtual-try-on",
   "version": "2.0.0",
   "description": "Nuxt module: virtual try-on for 3D eyewear over a live camera feed (MediaPipe + TresJS).",
   "license": "UNLICENSED",
