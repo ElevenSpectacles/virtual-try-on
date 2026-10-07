@@ -25,19 +25,19 @@ import {
   ASSUMED_IPD_METERS,
   FRAME_FIT_SCALE_BOOST,
   type NormalizedLandmark
-} from '../utils/tryon'
-import { faceEulerToThree } from '../utils/tryon-pose'
-import { buildFaceMeshOccluderPositions } from '../utils/tryon-occluder'
-import { useWebcamStream } from '../composables/tryon/useWebcamStream'
-import { useFaceLandmarker } from '../composables/tryon/useFaceLandmarker'
-import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
-import { useFrameCalibration } from '../composables/tryon/useFrameCalibration'
+} from '../../src/runtime/utils/tryon'
+import { faceEulerToThree } from '../../src/runtime/utils/tryon-pose'
+import { buildFaceMeshOccluderPositions } from '../../src/runtime/utils/tryon-occluder'
+import { useWebcamStream } from '../../src/runtime/composables/tryon/useWebcamStream'
+import { useFaceLandmarker } from '../../src/runtime/composables/tryon/useFaceLandmarker'
+import { useTryOnSmoothing } from '../../src/runtime/composables/tryon/useTryOnSmoothing'
+import { useFrameCalibration } from '../../src/runtime/composables/tryon/useFrameCalibration'
 import {
   getTryOnModel,
   type TryOnModel
-} from '../composables/tryon/useTryOnModels'
+} from '../../src/runtime/composables/tryon/useTryOnModels'
 
-import TryOnScene from './TryOnScene.vue'
+import TryOnScene from '../../src/runtime/components/TryOnScene.vue'
 import { useRoute } from '#imports'
 import { useI18n } from 'vue-i18n'
 

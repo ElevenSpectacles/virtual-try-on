@@ -7,7 +7,7 @@
  *
  * Requires the host models checkout (or TRYON_MODELS_DIR) — see
  * playground/nuxt.config.ts. That checkout isn't available in CI (this repo
- * is consumed as source by a separate host app), so this script is excluded
+ * is consumed by a separate host app), so this script is excluded
  * from `verify:unit` / CI and is local-only. If the models directory isn't
  * found, it exits 0 with a notice rather than failing the run.
  */
@@ -87,8 +87,8 @@ async function main() {
 
     // The module injects Tailwind v4 @source scanning for its own
     // components; `aspect-3/4` appears only in a module component
-    // (VirtualTryOnModal), so its generated utility proves the injection
-    // survived the production build.
+    // (VirtualTryOnExperience), so its generated utility proves the
+    // injection survived the production build.
     const cssText = (
       await Promise.all(
         [...html.matchAll(/href="([^"]+\.css[^"]*)"/g)].map((m) =>

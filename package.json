@@ -1,10 +1,38 @@
 {
   "name": "@elevenspectacles/virtual-try-on",
   "version": "1.0.0",
-  "private": true,
+  "description": "Nuxt module: virtual try-on for 3D eyewear over a live camera feed (MediaPipe + TresJS).",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ElevenSpectacles/virtual-try-on.git"
+  },
   "type": "module",
-  "main": "./module.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.mts",
+      "import": "./dist/module.mjs"
+    }
+  },
+  "main": "./dist/module.mjs",
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types.d.mts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "restricted"
+  },
   "scripts": {
+    "build": "nuxt-module-build build",
+    "prepack": "nuxt-module-build build",
     "generate-calibration": "npx tsx scripts/generate-calibration.ts",
     "compress-models": "npx tsx scripts/compress-models.ts",
     "playground": "nuxt dev playground --port 4000",
@@ -12,7 +40,11 @@
     "verify:unit": "npx vitest run",
     "verify:playground": "node scripts/verify-playground.mjs",
     "verify": "npm run verify:unit && npm run verify:playground",
-    "prepare": "husky"
+    "prepare": "husky",
+    "changelog": "changelogen --hideAuthorEmail"
+  },
+  "dependencies": {
+    "@nuxt/kit": "^4.5.2"
   },
   "peerDependencies": {
     "@mediapipe/tasks-vision": "^1.0.0",
@@ -23,7 +55,8 @@
     "@vueuse/core": "^14.4.0",
     "nuxt": "^4.5.1",
     "three": "^0.186.1",
-    "vue": "^3.0.0"
+    "vue": "^3.0.0",
+    "vue-i18n": "^11.0.0"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.0",
@@ -31,8 +64,10 @@
     "@gltf-transform/functions": "^4.5.0",
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/lucide": "^1.2.137",
+    "@nuxt/module-builder": "^1.0.3",
     "@types/node": "^26.6.3",
     "@types/three": "^0.186.0",
+    "changelogen": "^0.6.2",
     "draco3dgltf": "^1.5.7",
     "husky": "^9.1.7",
     "tsx": "^4.23.15",
@@ -42,6 +77,9 @@
     "vue-tsc": "^3.1.0"
   },
   "overrides": {
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "@nuxt/module-builder": {
+      "typescript": "$typescript"
+    }
   }
 }

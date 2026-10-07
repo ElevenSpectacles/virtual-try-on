@@ -1,0 +1,72 @@
+name: Release
+
+# Manual release: Actions → Release → Run workflow. changelogen reads the
+# conventional commits since the last tag, bumps package.json (auto: feat →
+# minor, fix → patch, breaking → major), prepends CHANGELOG.md, commits and
+# tags. Then the package is published to npm, the commit + tag are pushed, and
+# a GitHub Release is created from the same CHANGELOG.md section.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump (auto = derived from commit types)
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Bump, changelog, publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # changelogen needs full history + tags
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - run: npm run verify:unit
+
+      - run: npm run typecheck
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Commits CHANGELOG.md + package.json and tags vX.Y.Z locally; pushed
+      # only after npm publish succeeds, so a failed publish leaves no tag.
+      - name: Bump version and write changelog
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          FLAG=""
+          if [ "$BUMP" != "auto" ]; then FLAG="--$BUMP"; fi
+          npx changelogen --release $FLAG --hideAuthorEmail
+          echo "VERSION=$(node -p 'require("./package.json").version')" >> "$GITHUB_ENV"
+
+      # prepack runs `nuxt-module-build build`.
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - run: git push --follow-tags
+
+      - name: Create GitHub Release from CHANGELOG.md
+        run: npx changelogen gh release "v$VERSION"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

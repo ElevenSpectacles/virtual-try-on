@@ -1,258 +1,145 @@
 # @elevenspectacles/virtual-try-on
 
-Nuxt-only module for the Eleven Spectacles virtual try-on experience. It
-composites 3D eyewear GLB models over a live front-camera feed using
-MediaPipe face tracking and TresJS rendering.
+Nuxt module that renders 3D eyewear (GLB models) over a live front-camera
+feed — MediaPipe `FaceLandmarker` tracking in a Web Worker, TresJS (Three.js)
+rendering, all processing on-device.
 
-This module is consumed as a git submodule. It is intentionally **not**
-published to npm and is not designed for reuse outside the Eleven Spectacles
-Nuxt project.
+Published to npm as a scoped package (built with `@nuxt/module-builder`);
+can also be consumed from a local checkout.
 
-## What lives here
+## Setup
 
-- `module.ts` — Nuxt module entry: registers components, composables/utils
-  auto-imports, Tailwind v4 source scanning, i18n messages, and dev-server
-  worker access automatically
-- `components/` — `VirtualTryOnExperience`, `VirtualTryOnModal`,
-  `VirtualTryOnSuggestions`, `TryOnScene`, `VirtualTryOnPrototype`
-- `composables/tryon/` — MediaPipe worker integration, webcam lifecycle,
-  smoothing, frame calibration lookup, model helpers
-- `utils/` — pure math for landmark remapping, metric scaling, occluder
-  geometry, and face-pose decomposition
-- `workers/` — MediaPipe `FaceLandmarker` Web Worker
-- `types/` — calibration TypeScript types
-- `i18n/` — default translations for `virtualTryOn.*` keys
-- `scripts/` — GLB calibration manifest generator
+```bash
+npm i @elevenspectacles/virtual-try-on
+```
 
-## Host expectations
-
-The consuming Nuxt project must provide:
-
-- `@nuxt/ui` for UI components (`UButton`, `UModal`, `USlider`, etc.)
-- `@nuxtjs/i18n` for `useI18n()` / `$t()` and `<NuxtLinkLocale>`
-- `@tresjs/nuxt` registered in `nuxt.config.ts`
-- `@vueuse/core` composables
-- `useLogger()` composable, imported as `~/composables/useLogger`
-- GLB model assets and a generated `calibration.json` at a host-controlled path
-
-## Usage in host
-
-### 1. Register the module
-
-Keep this repo as a **sibling checkout** (or git submodule) and add it to the
-host's `modules` array by local path:
+The host Nuxt app provides the peer dependencies: `@nuxt/ui`, `@nuxtjs/i18n`
+(+ `vue-i18n`), `@tresjs/nuxt` + `@tresjs/cientos`, `@vueuse/core`, `three`,
+`@mediapipe/tasks-vision`.
 
 ```ts
 // nuxt.config.ts
-import { fileURLToPath } from 'node:url'
-
 export default defineNuxtConfig({
   modules: [
     '@nuxt/ui',
     '@nuxtjs/i18n',
     '@tresjs/nuxt',
-    fileURLToPath(new URL('../virtual-try-on', import.meta.url))
+    '@elevenspectacles/virtual-try-on'
   ]
 })
 ```
 
-That single line registers everything the try-on needs:
+**Local checkout** (no build needed): point `modules` at the source entry
+instead, e.g.
+`fileURLToPath(new URL('../virtual-try-on/src/module', import.meta.url))`.
 
-- `components/*.vue` as auto-imported, unprefixed components
-- `composables/` + `utils/` auto-imports
-- Tailwind v4 `@source` scanning of the module's components (they live
-  outside the host root, so default scanning misses them — the module
-  appends the directive to every CSS entry that imports Tailwind itself)
-- `virtualTryOn.*` messages merged into each locale via
-  `@nuxtjs/i18n`'s `i18n:registerModule` hook (no-op without i18n)
-- Vite dev-server `fs.allow` for serving this repo's classic worker
+That one entry auto-registers the components, composables/utils, Tailwind v4
+`@source` scanning, the `virtualTryOn.*` i18n messages
+(`bg`, `de`, `en`, `es`, `fr`, `it`, `nl`), and dev-server access to the
+worker. Nothing else to wire.
 
-The host must still provide `@nuxt/ui`, `@nuxtjs/i18n`, `@tresjs/nuxt`,
-`@vueuse/core`, and a `useLogger()` composable at `~/composables/useLogger`.
-This repo's own source imports everything explicitly — the host disables Nuxt
-auto-imports, so bare globals are not available here.
+### Logging
 
-### 2. Provide models and calibration
+Module logs go to the console by default. To route them into the host's
+logger, provide `$tryOnLogger` (any object with `info`/`warn`/`error`):
+
+```ts
+// app/plugins/tryon-logger.ts
+export default defineNuxtPlugin(() => ({
+  provide: { tryOnLogger: useLogger() }
+}))
+```
+
+## Usage
+
+The host owns the surrounding UI (modal, page layout, analytics). The module
+renders just the camera view with the tracked frame:
 
 ```vue
 <script setup lang="ts">
-import type { TryOnModel } from '~/virtual-try-on/composables/tryon/useTryOnModels'
+import type { TryOnModel } from '@elevenspectacles/virtual-try-on'
 
 const models: TryOnModel[] = [
-  { label: 'Iris · Bronze', file: 'iris-bronze', family: 'iris', color: 'Bronze', colorClass: 'bg-amber-700' },
-  // ...
+  { label: 'Iris · Bronze', file: 'iris-bronze', family: 'iris', color: 'Bronze', colorClass: 'bg-amber-700' }
 ]
 
-const { track } = useTracking()
-
-function onTryOnTrack(event: string, payload: Record<string, unknown>) {
-  track(event, payload).catch(() => {})
+function onTrack(event: string, payload: Record<string, unknown>) {
+  // forward to host analytics
 }
 </script>
 
 <template>
   <VirtualTryOnExperience
     :models="models"
-    calibration-url="/models/calibration.json"
-    @track="onTryOnTrack"
+    calibration-url="/models/virtual-try-on/calibration.json"
+    @track="onTrack"
   />
 </template>
 ```
 
-### Public contract: `VirtualTryOnExperience`
+GLBs are served as `<modelBaseUrl>/<file>.glb` (`modelBaseUrl` defaults to
+`/models`).
 
-Props:
+| Prop | Default | Purpose |
+| --- | --- | --- |
+| `models` | required | `TryOnModel[]` catalog, at least one entry |
+| `calibrationUrl` | required | URL of the generated `calibration.json` |
+| `initialModel` | — | first frame; falls back to `?model=`, then `models[0]` |
+| `simplifiedControls` | `true` | hides the tuning sliders |
+| `mediapipeBasePath` / `mediapipeModelAssetPath` | CDN | self-hosting overrides for MediaPipe assets |
+| `draco` / `dracoDecoderPath` | `true` / CDN | Draco decoding + self-hosted decoder path |
 
-| Prop | Type | Default | Purpose |
-| --- | --- | --- | --- |
-| `models` | `TryOnModel[]` | required | Full catalog. Must contain at least one model. |
-| `calibrationUrl` | `string` | required | URL of the generated `calibration.json`. |
-| `modelBaseUrl` | `string` | `'/models'` | Directory the GLB files are served from (`<modelBaseUrl>/<file>.glb`). |
-| `initialModel` | `string` | — | `file` of the model to render first. Falls back to the `?model=` query param, then to `models[0]`. |
-| `simplifiedControls` | `boolean` | `true` | Hides the tuning sliders (exposure, scale, yaw, temple width). |
-| `mediapipeBasePath` | `string` | jsDelivr CDN | Directory the MediaPipe Wasm fileset is served from. Pass a same-origin path to self-host. |
-| `mediapipeModelAssetPath` | `string` | Google-storage CDN | URL/path to the `face_landmarker.task` model asset. |
-| `draco` | `boolean` | `true` | Whether the GLB loader wires up Draco decompression. Safe to leave on even for uncompressed GLBs. |
-| `dracoDecoderPath` | `string` | TresJS's gstatic CDN default | Draco decoder path override — pass a same-origin path to self-host. |
+`v-model:model` exposes the active frame's `file`. The `track` event emits
+`TRY_ON_OPENED`, `TRY_ON_CAMERA_GRANTED`, `TRY_ON_CAMERA_DENIED`,
+`TRY_ON_FACE_DETECTED`, `TRY_ON_FRAME_CHANGED`, `TRY_ON_ERROR`.
 
-v-model:
-
-- `v-model:model` (`string`) — the `file` of the currently rendered model.
-  To render a single product's glasses, pass `:models="[thatModel]"` (or the
-  full catalog with `:initial-model="file"`) and drive switches via
-  `v-model:model`.
-
-Events:
-
-- `track(event: string, payload: Record<string, unknown>)` — emitted with
-  `TRY_ON_OPENED`, `TRY_ON_CAMERA_GRANTED`, `TRY_ON_CAMERA_DENIED`,
-  `TRY_ON_FACE_DETECTED`, `TRY_ON_FRAME_CHANGED`,
-  `TRY_ON_ERROR`. Forward to the host's analytics.
-
-### Debug playground: `VirtualTryOnPrototype`
-
-For a host debug page that exercises every model, mount
-`VirtualTryOnPrototype` and pass the whole catalog — it renders a model
-picker (all `models`, switchable at runtime) plus tuning sliders for scale,
-offsets, and the occluder:
-
-```vue
-<template>
-  <VirtualTryOnPrototype
-    :models="models"
-    calibration-url="/models/calibration.json"
-    @track="onTryOnTrack"
-  />
-</template>
-```
-
-Props: `models`, `calibrationUrl`, `modelBaseUrl` (same semantics as
-`VirtualTryOnExperience`). It also honors `?model=` for deep-linking a
-specific frame and `?debug_tryon=true` for extra diagnostics.
-
-### 3. Translations
-
-Nothing to do — the module registers its `virtualTryOn.*` messages for all
-supported locales (`en`, `bg`, `de`, `es`, `fr`, `it`, `nl`) automatically
-when `@nuxtjs/i18n` is installed. Host translations win over the module's on
-key conflicts.
-
-## Calibration generation
-
-The module includes a script that scans a directory of GLB files and emits a
-`calibration.json` manifest (from the host's `nuxt/` directory):
+## Model tooling
 
 ```bash
-npx tsx ../virtual-try-on/scripts/generate-calibration.ts \
-  --input public/models/virtual-try-on \
-  --output public/models/virtual-try-on/calibration.json \
-  --reference iris-bronze
+npm run compress-models -- --input <dir> --output <dir>     # Draco-compress GLBs
+npm run generate-calibration -- \
+  --input <dir> --output <dir>/calibration.json --reference <file>
 ```
 
-The calibration is per-model: it recenters each GLB's bounding box onto the
-tracked face anchor and normalizes the scale against the reference model.
+Compress first, then generate calibration against the compressed output
+(compression can shift bounding boxes by float rounding).
 
-## GLB compression
-
-GLBs in the catalog run ~5.8MB uncompressed (~1.2MB with Draco). Before
-shipping a model directory to production, compress it with Draco mesh
-compression (from the host's `nuxt/` directory):
-
-```bash
-npx tsx ../virtual-try-on/scripts/compress-models.ts \
-  --input public/models/virtual-try-on \
-  --output public/models/virtual-try-on
-```
-
-`TryOnScene`'s GLB loader (`draco` prop, default `true`) already decodes
-Draco-compressed meshes — compressing the source files needs no component
-changes. Run `generate-calibration` against the compressed output, since
-compression can shift bounding boxes by float rounding.
-
-## Self-hosting MediaPipe and Draco assets
-
-By default the module loads MediaPipe's Wasm fileset and model weights from
-CDNs (`cdn.jsdelivr.net`, `storage.googleapis.com`), and the Draco decoder
-from TresJS's gstatic CDN default. To remove those runtime CDN dependencies,
-host the files yourself and pass overrides:
-
-```vue
-<VirtualTryOnExperience
-  :models="models"
-  calibration-url="/models/calibration.json"
-  mediapipe-base-path="/mediapipe/wasm"
-  mediapipe-model-asset-path="/mediapipe/face_landmarker.task"
-  draco-decoder-path="/draco/"
-  @track="onTryOnTrack"
-/>
-```
-
-The MediaPipe Wasm binaries ship inside
-`@mediapipe/tasks-vision`'s own package (`wasm/`) — copy them into a public
-directory the host serves. The `.task` model file is downloadable from
-Google's model zoo. The Draco decoder ships inside `three`'s `examples/jsm/libs/draco/`.
-
-## Module-only tests
-
-```bash
-npm install  # only needed if running standalone
-npx vitest
-```
-
-Nuxt-environment tests for the module are intended to be run from the host
-project, which includes the module's `tests/nuxt` directory in its Vitest config.
-
-## Local playground
-
-A self-contained Nuxt app for visual tuning lives in `playground/`:
+## Playground & verification
 
 ```bash
 npm install
-npm run playground   # serves on http://localhost:4000
+npm run playground   # dev playground on http://localhost:4000
+npm run verify       # unit tests + playground build + smoke test
+npm run build        # dist/ via @nuxt/module-builder
 ```
 
-It mounts `VirtualTryOnPrototype` with the full frame catalog — model picker,
-tuning sliders, occluder/bounding-box debug views. Query params:
-`?model=<file>` deep-links a frame, `?debug_tryon=true` shows extra
-diagnostics.
+`playground/` is a dev-only Nuxt app that dogfoods the module through
+`src/module.ts` itself, mounting a tuning prototype with the full frame catalog
+(`?model=<file>`, `?debug_tryon=true`). GLBs and `calibration.json` are served
+from the host checkout; override with `TRYON_MODELS_DIR`.
 
-GLBs and `calibration.json` are served from the host checkout
-(`../nuxt/public/models`); point `TRYON_MODELS_DIR` elsewhere if your layout
-differs. The playground is dev-only and is not part of the shipped module.
+## Releasing
 
-## Verification
+Releases are cut from GitHub: **Actions → Release → Run workflow** (on
+`main`). Pick `auto` (bump derived from conventional commits: `feat` → minor,
+`fix` → patch, breaking → major) or force `patch` / `minor` / `major`. The
+workflow runs the tests, bumps `package.json`, prepends
+[`CHANGELOG.md`](./CHANGELOG.md), publishes to npm, pushes the
+`chore(release)` commit + `vX.Y.Z` tag, and creates a GitHub Release from the
+same changelog section.
 
-```bash
-npm run verify
-```
+One-time setup: an npm automation token with publish rights on the
+`@elevenspectacles` org, stored as the `NPM_TOKEN` repository secret. If
+`main` is branch-protected, allow `github-actions[bot]` to push.
 
-Runs the unit tests, builds the playground, boots the production server, and
-smoke-tests that the page, `calibration.json`, and GLB assets serve and that
-icons render without errors. Exits non-zero on any failure — safe to gate CI
-on.
+Preview the next changelog locally with `npm run changelog`.
 
-## Tracking
+`publishConfig.access` is `restricted` (private scoped package, needs a paid
+org); change it to `public` to publish openly. Check the tarball with
+`npm pack --dry-run` — it should contain only `dist/`, `CHANGELOG.md`,
+`README.md` and `package.json`.
 
-All analytics stay in the host. The module emits a `track` event with the
-standard try-on event names and payloads; the host forwards them to its own
-`useTracking()` implementation.
+## Privacy
+
+Camera frames are processed entirely on-device — no video leaves the browser.
+Analytics flow only through the `track` event; the module sends nothing.

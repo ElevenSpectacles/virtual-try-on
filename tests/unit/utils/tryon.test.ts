@@ -35,7 +35,7 @@ import {
   EYE_LEFT_INNER,
   ASSUMED_IPD_METERS,
   TRYON_CAMERA
-} from '../../../utils/tryon'
+} from '../../../src/runtime/utils/tryon'
 
 /** 478 zeroed landmarks with both eyes set to the given lid opening. */
 function landmarksWithEyeOpening(opening: number) {

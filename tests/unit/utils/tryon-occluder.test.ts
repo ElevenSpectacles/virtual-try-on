@@ -5,13 +5,13 @@ import {
   FACE_MESH_OCCLUDER_VERTEX_COUNT,
   buildFaceMeshOccluderPositions,
   type FaceMeshOccluderOptions
-} from '../../../utils/tryon-occluder'
-import { FACE_MESH_VERTEX_COUNT } from '../../../utils/face-mesh-triangles'
+} from '../../../src/runtime/utils/tryon-occluder'
+import { FACE_MESH_VERTEX_COUNT } from '../../../src/runtime/utils/face-mesh-triangles'
 import {
   landmarkToWorld,
   worldPlaneWidth,
   type NormalizedLandmark
-} from '../../../utils/tryon'
+} from '../../../src/runtime/utils/tryon'
 
 const ASPECT = 3 / 4
 const SCALE = 6
