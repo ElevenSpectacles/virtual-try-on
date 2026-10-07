@@ -18,18 +18,10 @@ export default defineNuxtConfig({
 
   // Dogfooding: consume this repo through its own Nuxt module entry so the
   // auto-registration (components, composables/utils, Tailwind @source,
-  // i18n messages, worker fs.allow) is exercised exactly like a host's.
-  modules: ['@nuxt/ui', '@nuxtjs/i18n', '@tresjs/nuxt', r('../src/module')],
+  // worker fs.allow) is exercised exactly like a host's.
+  modules: ['@nuxt/ui', '@tresjs/nuxt', r('../src/module')],
 
   css: ['~/assets/css/main.css'],
-
-  i18n: {
-    locales: [{ code: 'en', language: 'en-US', files: ['en.ts'] }],
-    defaultLocale: 'en',
-    strategy: 'no_prefix',
-    restructureDir: '.',
-    vueI18n: './i18n.config.ts'
-  },
 
   icon: {
     // The module's components live outside the playground root, so usage

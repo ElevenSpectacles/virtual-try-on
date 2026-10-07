@@ -10,12 +10,13 @@ import type {
   FaceLandmarkerWorkerRequest,
   FaceLandmarkerWorkerResponse
 } from '../../workers/face-landmarker.worker.types'
-import { useTryOnLogger } from './useTryOnLogger'
+import type { FaceLandmarkerError } from '../../types/tryon-experience'
 
-export type FaceLandmarkerError =
-  | 'unsupported'
-  | 'load_failed'
-  | 'runtime_failed'
+export type { FaceLandmarkerError }
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
 
 export interface UseFaceLandmarkerOptions {
   /**
@@ -69,6 +70,8 @@ export function useFaceLandmarker(
   const isLoading = ref(false)
   const isReady = ref(false)
   const error: Ref<FaceLandmarkerError | null> = ref(null)
+  /** Message of the last failure, for host logging. */
+  const errorDetail = ref<string | null>(null)
   const worker = shallowRef<Worker | null>(null)
   const landmarks = ref<NormalizedLandmark[]>([])
   const transformationMatrixes = ref<Float32Array[]>([])
@@ -76,7 +79,6 @@ export function useFaceLandmarker(
   const hasFace = computed(() => landmarks.value.length > 0)
   const noFace = computed(() => isReady.value && !hasFace.value)
   const faceWidth = computed(() => getFaceWidth(landmarks.value))
-  const logger = useTryOnLogger()
 
   // MediaPipe FaceLandmarker does not reliably populate per-landmark
   // visibility in video mode, so confidence is derived from detection
@@ -155,10 +157,8 @@ export function useFaceLandmarker(
         break
 
       case 'load_failed':
+        errorDetail.value = message.message
         error.value = 'load_failed'
-        logger.error('[useFaceLandmarker] Failed to load FaceLandmarker', {
-          message: message.message
-        })
         readyReject?.(new Error(message.message))
         readyResolve = null
         readyReject = null
@@ -174,10 +174,8 @@ export function useFaceLandmarker(
       case 'detect_failed':
         if (message.id !== pendingRequestId) return
         pendingRequestId = null
+        errorDetail.value = message.message
         error.value = 'runtime_failed'
-        logger.error('[useFaceLandmarker] Detection failed', {
-          message: message.message
-        })
         break
     }
   }
@@ -199,6 +197,7 @@ export function useFaceLandmarker(
 
     isLoading.value = true
     error.value = null
+    errorDetail.value = null
 
     try {
       // Classic (non-module) worker: MediaPipe's own WASM/script loader
@@ -234,11 +233,9 @@ export function useFaceLandmarker(
             : {})
         })
       })
-
-      logger.info('[useFaceLandmarker] FaceLandmarker ready (worker)')
     } catch (err) {
+      errorDetail.value ??= errorMessage(err)
       error.value = 'load_failed'
-      logger.error('[useFaceLandmarker] Failed to load FaceLandmarker', { err })
       worker.value?.terminate()
       worker.value = null
     } finally {
@@ -315,8 +312,8 @@ export function useFaceLandmarker(
       .catch((err) => {
         if (pendingRequestId !== id) return
         pendingRequestId = null
+        errorDetail.value = errorMessage(err)
         error.value = 'runtime_failed'
-        logger.error('[useFaceLandmarker] Frame capture failed', { err })
       })
   }
 
@@ -396,6 +393,7 @@ export function useFaceLandmarker(
     isLoading,
     isReady,
     error,
+    errorDetail,
     hasFace,
     noFace,
     confidence,

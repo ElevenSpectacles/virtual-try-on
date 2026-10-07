@@ -1,4 +1,12 @@
 <script setup lang="ts">
+/**
+ * Headless virtual try-on view: renders only the mirrored camera feed and the
+ * tracked 3D frame, sized to fill its container. It ships no UI copy, icons
+ * or utility classes — consent, error states, positioning guidance and any
+ * tuning controls are the host's job, built from the state and actions the
+ * default slot (and the component ref) exposes. Slot content is rendered on
+ * top of the feed inside the stage.
+ */
 import { NeutralToneMapping, Euler, Vector3 } from 'three'
 import {
   useElementSize,
@@ -34,11 +42,16 @@ import {
   type TryOnModel
 } from '../composables/tryon/useTryOnModels'
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
+import type {
+  FaceLandmarkerError,
+  TryOnGuideHint,
+  TryOnStatus,
+  WebcamError
+} from '../types/tryon-experience'
 
 import TryOnScene from './TryOnScene.vue'
 import { useRoute } from '#imports'
-import { useI18n } from 'vue-i18n'
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -46,7 +59,20 @@ const props = withDefaults(
     calibrationUrl: string
     modelBaseUrl?: string | undefined
     initialModel?: string
-    simplifiedControls?: boolean
+    /**
+     * Start the camera as soon as the component mounts. Use when the host
+     * already collected consent (e.g. its own privacy step); otherwise call
+     * the exposed `start()` from the host's consent UI.
+     */
+    autoStart?: boolean
+    /** Renderer tone-mapping exposure. */
+    exposure?: number
+    /** Multiplier on the computed frame scale. */
+    frameScale?: number
+    /** Manual frame yaw in degrees, used only while no face is tracked. */
+    frameYaw?: number
+    /** Multiplier on the calibrated temple-width boost. */
+    templeWidth?: number
     /**
      * Directory the MediaPipe Wasm fileset is served from. Omit to use the
      * built-in jsDelivr CDN default; pass a same-origin path (e.g.
@@ -57,12 +83,16 @@ const props = withDefaults(
     mediapipeModelAssetPath?: string | undefined
     /** Whether the GLB loader wires up Draco decompression support. */
     draco?: boolean
-    /** Draco decoder path override — omit to use TresJS's CDN default. */
+    /** Draco decoder path override — omit to use the gstatic CDN default. */
     dracoDecoderPath?: string | undefined
   }>(),
   {
     modelBaseUrl: '/models/virtual-try-on',
-    simplifiedControls: true,
+    autoStart: false,
+    exposure: 1,
+    frameScale: 1,
+    frameYaw: 0,
+    templeWidth: 1,
     draco: true
   }
 )
@@ -72,7 +102,6 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const { t } = useI18n()
 const { getCalibration } = useFrameCalibration(props.calibrationUrl)
 
 const queryModel = route.query.model as string | undefined
@@ -87,7 +116,15 @@ if (!initialModel) {
 const hasConsented = ref(false)
 const hasReportedFaceDetected = ref(false)
 
-const { videoRef, isActive, isStarting, error, start } = useWebcamStream()
+const {
+  videoRef,
+  isActive,
+  isStarting,
+  error,
+  errorDetail: cameraErrorDetail,
+  start: startStream,
+  stop
+} = useWebcamStream()
 const prefersReducedMotion = usePreferredReducedMotion()
 
 const stageRef = ref<HTMLElement | null>(null)
@@ -118,8 +155,6 @@ if (!model.value) {
 }
 const modelSrc = computed(() => `${props.modelBaseUrl}/${model.value}.glb`)
 const calibration = computed(() => getCalibration(model.value ?? initialModel))
-const exposure = ref(1)
-const fineTuneScale = ref(1)
 const referenceFaceWidth = ref(0.32)
 // The calibration translation now y-centers each model's bbox on the anchor
 // landmark, which is where the lens line naturally sits — the old -0.08
@@ -128,9 +163,7 @@ const DEFAULT_ANCHOR_Y_OFFSET = 0
 const debugYOffset = ref(0)
 const debugZOffset = ref(0)
 const debugScaleBoost = ref(1)
-const debugTempleBoost = ref(1)
-const rotationDeg = ref(0)
-const rotationY = computed(() => (rotationDeg.value * Math.PI) / 180)
+const rotationY = computed(() => (props.frameYaw * Math.PI) / 180)
 const mirrorLandmarks = true
 const useFaceTracking = ref(true)
 const occluderEnabled = ref(false)
@@ -194,7 +227,7 @@ const calibratedScale = computed(
     autoMetricScale.value *
     calibration.value.scale *
     debugScaleBoost.value *
-    fineTuneScale.value
+    props.frameScale
 )
 
 // The occluder must stay skull-sized when the head turns: the cheek-to-cheek
@@ -266,6 +299,7 @@ const manualRotation = computed(() => ({
 
 const {
   error: faceError,
+  errorDetail: faceErrorDetail,
   hasFace,
   confidence,
   landmarks: faceLandmarks,
@@ -297,7 +331,7 @@ const correctedFaceWidth = computed(() =>
 )
 
 const templeScaleBoost = computed(
-  () => calibration.value.templeWidthBoost * debugTempleBoost.value
+  () => calibration.value.templeWidthBoost * props.templeWidth
 )
 
 const pointerActive = ref(false)
@@ -389,66 +423,16 @@ const framePosition = computed(() => {
   }
 })
 
-// Positioning guide (Blackfin/Fittingbox-style): corner-bracket rectangle
-// with a blurred/dimmed surround while no face is found; the whole overlay
-// fades out shortly after a face is tracked. Ported from
-// VirtualTryOnPrototype, minus the distance hints (too far / too close) —
-// the metric scale already adapts the frame to any workable distance.
-const showGuideOverlay = computed(
-  () => isActive.value && useFaceTracking.value
-)
-
-type GuideHint = 'noFace' | 'aligned'
-
-const guideHint = computed<GuideHint>(() =>
-  !hasFace.value || !correctedFaceAnchor.value ? 'noFace' : 'aligned'
-)
-
-const guideHintText = computed(() =>
-  guideHint.value === 'noFace' ? t('virtualTryOn.guide.noFace') : null
-)
-
-const guideVisible = ref(true)
-let guideFadeTimer: ReturnType<typeof setTimeout> | null = null
-watch(guideHint, (hint) => {
-  if (hint === 'aligned') {
-    if (guideFadeTimer) clearTimeout(guideFadeTimer)
-    guideFadeTimer = setTimeout(() => {
-      guideVisible.value = false
-    }, 600)
-    return
-  }
-  if (guideFadeTimer) {
-    clearTimeout(guideFadeTimer)
-    guideFadeTimer = null
-  }
-  guideVisible.value = true
+const guideHint = computed<TryOnGuideHint | null>(() => {
+  if (!isActive.value || !useFaceTracking.value) return null
+  return !hasFace.value || !correctedFaceAnchor.value ? 'noFace' : 'aligned'
 })
 
-const errorMessage = computed(() => {
-  switch (error.value) {
-    case 'denied':
-      return t('virtualTryOn.denied.body')
-    case 'unsupported':
-      return t('virtualTryOn.noCamera.body')
-    case 'unavailable':
-      return t('virtualTryOn.noCamera.body')
-    default:
-      return null
-  }
-})
-
-const faceErrorMessage = computed(() => {
-  switch (faceError.value) {
-    case 'unsupported':
-      return t('virtualTryOn.noCamera.body')
-    case 'load_failed':
-      return t('virtualTryOn.denied.body')
-    case 'runtime_failed':
-      return t('virtualTryOn.denied.body')
-    default:
-      return null
-  }
+const status = computed<TryOnStatus>(() => {
+  if (isActive.value) return 'active'
+  if (isStarting.value) return 'starting'
+  if (error.value) return 'error'
+  return 'idle'
 })
 
 function onPointerMove(event: PointerEvent) {
@@ -488,12 +472,38 @@ function trackTryOn(
   })
 }
 
-async function onConsent() {
-  hasConsented.value = true
-  hasReportedFaceDetected.value = false
-  trackTryOn('TRY_ON_OPENED', { entryPoint: 'camera_consent' })
-  await start()
+/** Start (or retry) the camera. The first call reports TRY_ON_OPENED. */
+async function start() {
+  if (!hasConsented.value) {
+    hasConsented.value = true
+    hasReportedFaceDetected.value = false
+    trackTryOn('TRY_ON_OPENED', {
+      entryPoint: props.autoStart ? 'auto_start' : 'camera_consent'
+    })
+  }
+  await startStream()
 }
+
+onMounted(() => {
+  if (props.autoStart) void start()
+})
+
+defineExpose({ start, stop, status, error, faceError, hasFace, guideHint })
+
+defineSlots<{
+  default?: (props: {
+    status: TryOnStatus
+    isStarting: boolean
+    /** Camera failure: 'denied' | 'unsupported' | 'unavailable'. */
+    error: WebcamError | null
+    /** Face tracker failure: 'unsupported' | 'load_failed' | 'runtime_failed'. */
+    faceError: FaceLandmarkerError | null
+    hasFace: boolean
+    guideHint: TryOnGuideHint | null
+    start: () => Promise<void>
+    stop: () => void
+  }) => unknown
+}>()
 
 watch(isActive, (active) => {
   if (active) {
@@ -509,15 +519,31 @@ watch(error, (err) => {
   if (err === 'denied') {
     trackTryOn('TRY_ON_CAMERA_DENIED')
   } else if (err) {
-    trackTryOn('TRY_ON_ERROR', { errorType: err, source: 'camera' })
+    trackTryOn('TRY_ON_ERROR', {
+      errorType: err,
+      source: 'camera',
+      message: cameraErrorDetail.value
+    })
   }
 })
 
 watch(faceError, (err) => {
   if (err) {
-    trackTryOn('TRY_ON_ERROR', { errorType: err, source: 'face_landmarker' })
+    trackTryOn('TRY_ON_ERROR', {
+      errorType: err,
+      source: 'face_landmarker',
+      message: faceErrorDetail.value
+    })
   }
 })
+
+function onSceneError(source: 'model' | 'environment', message: string) {
+  trackTryOn('TRY_ON_ERROR', {
+    errorType: 'load_failed',
+    source,
+    message
+  })
+}
 
 watch(hasFace, (detected) => {
   if (detected && !hasReportedFaceDetected.value) {
@@ -536,250 +562,110 @@ watch(model, (value) => {
 </script>
 
 <template>
-  <div>
-    <div class="flex w-full flex-col gap-6 lg:flex-row lg:items-start">
-      <!-- Stage -->
-      <div
-        ref="stageRef"
-        class="relative w-full flex-1 overflow-hidden rounded-sm bg-stone-900 ring-1 ring-stone-950/10 touch-none"
-        :class="isActive ? 'aspect-3/4' : 'aspect-square lg:aspect-3/4'"
-        @pointermove="onPointerMove"
-        @pointerleave="onPointerLeave"
-      >
-        <!-- Always mounted so the webcam stream has an element to attach to;
-             hidden until the stream is active. -->
-        <video
-          ref="videoRef"
-          class="absolute inset-0 z-0 h-full w-full object-cover transition-opacity duration-500"
-          :class="isActive ? 'opacity-100' : 'opacity-0'"
-          style="transform: scaleX(-1)"
-          playsinline
-          muted
-          autoplay
-          aria-hidden="true"
-          @loadedmetadata="onVideoLoadedMetadata"
-        />
+  <div
+    ref="stageRef"
+    class="vto-stage"
+    @pointermove="onPointerMove"
+    @pointerleave="onPointerLeave"
+  >
+    <!-- Always mounted so the webcam stream has an element to attach to;
+         hidden until the stream is active. Mirrored here and only here
+         (see landmarkToNdc). -->
+    <video
+      ref="videoRef"
+      class="vto-video"
+      :class="{ 'vto-video--active': isActive }"
+      playsinline
+      muted
+      autoplay
+      aria-hidden="true"
+      @loadedmetadata="onVideoLoadedMetadata"
+    />
 
-        <ClientOnly>
-          <div class="absolute inset-0 z-10 h-full w-full">
-            <!-- Neutral tone mapping (Khronos PBR Neutral), not ACES: the
-                 camera feed behind the canvas is untone-mapped sRGB, and
-                 ACES' filmic curve would desaturate frame colors against it.
-                 Neutral is near-identity in the SDR range — exactly what
-                 e-commerce frame colors need. -->
-            <TresCanvas
-              :alpha="true"
-              :clear-alpha="0"
-              :antialias="true"
-              :dpr="[1, 2]"
-              :tone-mapping="NeutralToneMapping"
-              :tone-mapping-exposure="exposure"
-              power-preference="high-performance"
-              render-mode="always"
-              class="absolute inset-0 h-full w-full"
-            >
-              <TryOnScene
-                :src="modelSrc"
-                :draco="draco"
-                v-bind="{
-                  ...(dracoDecoderPath !== undefined
-                    ? { dracoDecoderPath }
-                    : {})
-                }"
-                :visible="frameVisible"
-                :position="framePosition"
-                :model-offset="calibration.translation"
-                :scale="smoothedScale"
-                :scale-x-boost="templeScaleBoost"
-                :rotation="smoothedEuler"
-                :occluder-enabled="occluderEnabled"
-                :occluder-positions="occluderPositions"
-                :occluder-position="occluderPosition"
-                :occluder-radius="occluderGeometry"
-                :occluder-rotation="smoothedEuler"
-              />
-            </TresCanvas>
-          </div>
-        </ClientOnly>
-
-        <!-- Positioning guide (Blackfin/Fittingbox-style): corner-bracket
-             rectangle; everything outside it is blurred + dimmed until a face
-             is found, then the whole overlay fades once aligned. -->
-        <div
-          v-if="showGuideOverlay"
-          class="pointer-events-none absolute inset-0 z-20 transition-opacity duration-500"
-          :class="guideVisible ? 'opacity-100' : 'opacity-0'"
+    <ClientOnly>
+      <div class="vto-layer">
+        <!-- Neutral tone mapping (Khronos PBR Neutral), not ACES: the
+             camera feed behind the canvas is untone-mapped sRGB, and
+             ACES' filmic curve would desaturate frame colors against it.
+             Neutral is near-identity in the SDR range — exactly what
+             e-commerce frame colors need. -->
+        <TresCanvas
+          :alpha="true"
+          :clear-alpha="0"
+          :antialias="true"
+          :dpr="[1, 2]"
+          :tone-mapping="NeutralToneMapping"
+          :tone-mapping-exposure="exposure"
+          power-preference="high-performance"
+          render-mode="always"
+          class="vto-layer"
         >
-          <!-- Blurred/dimmed surround, cut out around the guide rect. Shown
-               only while no face is found (hint states keep the feed clear). -->
-          <div
-            class="absolute inset-0 transition-opacity duration-500"
-            :class="guideHint === 'noFace' ? 'opacity-100' : 'opacity-0'"
-          >
-            <div class="absolute inset-x-0 top-0 h-[14%] bg-black/40 backdrop-blur-md" />
-            <div class="absolute inset-x-0 bottom-0 h-[14%] bg-black/40 backdrop-blur-md" />
-            <div class="absolute left-0 top-[14%] bottom-[14%] w-[22%] bg-black/40 backdrop-blur-md" />
-            <div class="absolute right-0 top-[14%] bottom-[14%] w-[22%] bg-black/40 backdrop-blur-md" />
-          </div>
-
-          <!-- Corner brackets (borders, not SVG strokes, so thickness stays
-               uniform under the stage's non-uniform aspect). -->
-          <div
-            class="absolute left-[22%] right-[22%] top-[14%] bottom-[14%] drop-shadow-md transition-opacity duration-300"
-            :class="guideHint === 'aligned' ? 'opacity-95' : 'opacity-70'"
-          >
-            <span class="absolute left-0 top-0 h-10 w-10 rounded-tl-xl border-l-4 border-t-4 border-white" />
-            <span class="absolute right-0 top-0 h-10 w-10 rounded-tr-xl border-r-4 border-t-4 border-white" />
-            <span class="absolute bottom-0 left-0 h-10 w-10 rounded-bl-xl border-b-4 border-l-4 border-white" />
-            <span class="absolute bottom-0 right-0 h-10 w-10 rounded-br-xl border-b-4 border-r-4 border-white" />
-          </div>
-
-          <p
-            v-if="guideHintText"
-            class="absolute inset-x-3 bottom-[4%] text-center text-xs font-light tracking-wide text-white drop-shadow"
-          >
-            {{ guideHintText }}
-          </p>
-        </div>
-
-        <!-- Consent / idle / error states -->
-        <div
-          v-if="!isActive"
-          class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-black/50 px-6 text-center backdrop-blur-sm"
-        >
-          <template v-if="!hasConsented && !error">
-            <UIcon
-              name="i-heroicons-video-camera"
-              class="h-10 w-10 text-white/90"
-            />
-            <div class="space-y-2">
-              <h3
-                class="text-sm font-medium uppercase tracking-wide text-white"
-              >
-                {{ t('virtualTryOn.consent.title') }}
-              </h3>
-              <p class="text-xs font-light leading-5 text-white/90">
-                {{ t('virtualTryOn.consent.subtitle') }}
-              </p>
-            </div>
-            <ul class="text-left text-xs font-light leading-5 text-white/80">
-              <li class="flex items-center gap-2">
-                <UIcon name="i-heroicons-check" class="h-3 w-3" />
-                {{ t('virtualTryOn.consent.cameraUse') }}
-              </li>
-              <li class="flex items-center gap-2">
-                <UIcon name="i-heroicons-check" class="h-3 w-3" />
-                {{ t('virtualTryOn.consent.privacy') }}
-              </li>
-              <li class="flex items-center gap-2">
-                <UIcon name="i-heroicons-check" class="h-3 w-3" />
-                {{ t('virtualTryOn.consent.noStorage') }}
-              </li>
-              <li class="flex items-center gap-2">
-                <UIcon name="i-heroicons-check" class="h-3 w-3" />
-                {{ t('virtualTryOn.consent.localProcessing') }}
-              </li>
-            </ul>
-            <UButton
-              :loading="isStarting"
-              color="neutral"
-              variant="solid"
-              size="sm"
-              @click="onConsent"
-            >
-              {{ t('virtualTryOn.consent.cta') }}
-            </UButton>
-          </template>
-
-          <template v-else>
-            <UIcon
-              name="i-heroicons-exclamation-triangle"
-              class="h-8 w-8 text-white/90"
-            />
-            <p class="text-xs font-light tracking-wider text-white/90">
-              {{ errorMessage ?? t('virtualTryOn.noCamera.body') }}
-            </p>
-            <UButton
-              :loading="isStarting"
-              color="neutral"
-              variant="solid"
-              size="sm"
-              @click="start"
-            >
-              {{
-                error
-                  ? t('virtualTryOn.retryCamera')
-                  : t('virtualTryOn.startCamera')
-              }}
-            </UButton>
-          </template>
-        </div>
-
-        <div
-          v-if="faceErrorMessage"
-          class="absolute inset-x-3 bottom-3 z-20"
-        >
-          <UAlert
-            icon="i-heroicons-exclamation-triangle"
-            color="error"
-            variant="solid"
-            :description="faceErrorMessage"
-            :ui="{ description: 'text-xs' }"
+          <TryOnScene
+            :src="modelSrc"
+            :draco="draco"
+            v-bind="{
+              ...(dracoDecoderPath !== undefined ? { dracoDecoderPath } : {})
+            }"
+            :visible="frameVisible"
+            :position="framePosition"
+            :model-offset="calibration.translation"
+            :scale="smoothedScale"
+            :scale-x-boost="templeScaleBoost"
+            :rotation="smoothedEuler"
+            :occluder-enabled="occluderEnabled"
+            :occluder-positions="occluderPositions"
+            :occluder-position="occluderPosition"
+            :occluder-radius="occluderGeometry"
+            :occluder-rotation="smoothedEuler"
+            @error="onSceneError"
           />
-        </div>
+        </TresCanvas>
       </div>
+    </ClientOnly>
 
-      <!-- Controls -->
-      <div
-        v-if="!simplifiedControls"
-        class="flex w-full flex-col gap-5 lg:w-56 lg:shrink-0"
-      >
-        <div class="flex flex-col gap-5">
-          <UFormField
-            :label="`${t('virtualTryOn.exposure')} · ${exposure.toFixed(2)}`"
-            size="xs"
-          >
-            <USlider v-model="exposure" :min="0.4" :max="1.8" :step="0.05" />
-          </UFormField>
-
-          <UFormField
-            :label="`${t('virtualTryOn.frameScale')} · ${fineTuneScale.toFixed(2)}`"
-            size="xs"
-          >
-            <USlider
-              v-model="fineTuneScale"
-              :min="0.5"
-              :max="1.5"
-              :step="0.02"
-            />
-          </UFormField>
-
-          <UFormField
-            :label="`${t('virtualTryOn.frameYaw')} · ${rotationDeg}°`"
-            size="xs"
-          >
-            <USlider
-              v-model="rotationDeg"
-              :min="-90"
-              :max="90"
-              :step="1"
-              :disabled="!!faceRotation"
-            />
-          </UFormField>
-
-          <UFormField
-            :label="`${t('virtualTryOn.templeWidth')} · ${debugTempleBoost.toFixed(2)}`"
-            size="xs"
-          >
-            <USlider
-              v-model="debugTempleBoost"
-              :min="0.8"
-              :max="1.3"
-              :step="0.01"
-            />
-          </UFormField>
-        </div>
-      </div>
-    </div>
+    <slot
+      :status="status"
+      :is-starting="isStarting"
+      :error="error"
+      :face-error="faceError"
+      :has-face="hasFace"
+      :guide-hint="guideHint"
+      :start="start"
+      :stop="stop"
+    />
   </div>
 </template>
+
+<!-- Structural styles only (stacking, mirroring, fill) — no visual design.
+     The host sizes the component; the stage fills it. -->
+<style scoped>
+.vto-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.vto-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  opacity: 0;
+  transition: opacity 500ms;
+}
+
+.vto-video--active {
+  opacity: 1;
+}
+
+.vto-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+</style>

@@ -48,15 +48,12 @@
   },
   "peerDependencies": {
     "@mediapipe/tasks-vision": "^1.0.0",
-    "@nuxt/ui": "^4.10.0",
-    "@nuxtjs/i18n": "^10.6.0",
-    "@tresjs/cientos": "^5.8.1",
+    "@tresjs/core": "^5.9.0",
     "@tresjs/nuxt": "^5.6.3",
     "@vueuse/core": "^14.4.0",
     "nuxt": "^4.5.1",
     "three": "^0.186.1",
-    "vue": "^3.0.0",
-    "vue-i18n": "^11.0.0"
+    "vue": "^3.0.0"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.0",
@@ -65,6 +62,7 @@
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/lucide": "^1.2.137",
     "@nuxt/module-builder": "^1.0.3",
+    "@nuxt/ui": "^4.10.0",
     "@types/node": "^26.6.3",
     "@types/three": "^0.186.0",
     "draco3dgltf": "^1.5.7",

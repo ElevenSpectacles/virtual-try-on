@@ -1,13 +1,17 @@
-import { existsSync } from 'node:fs'
 import { addComponentsDir, addImportsDir, createResolver, defineNuxtModule } from '@nuxt/kit'
 
 export type { TryOnModel, TryOnModelFamily } from './runtime/composables/tryon/useTryOnModels'
-export type { TryOnLogger } from './runtime/utils/tryon-logger'
 export type {
   TryOnCalibrationFile,
   TryOnFrameCalibration,
   TryOnModelCalibration
 } from './runtime/types/tryon-calibration'
+export type {
+  FaceLandmarkerError,
+  TryOnGuideHint,
+  TryOnStatus,
+  WebcamError
+} from './runtime/types/tryon-experience'
 
 /**
  * Nuxt module wrapper around the virtual try-on experience.
@@ -17,12 +21,6 @@ export type {
  *
  * - `components/` (unprefixed auto-imported component names)
  * - `composables/` + `utils/` auto-imports
- * - Tailwind v4 source detection for this module's components (they live
- *   outside the host root, so they are invisible to default scanning —
- *   a tiny vite transform appends an `@source` directive to every CSS
- *   entry that pulls in Tailwind)
- * - `virtualTryOn.*` i18n messages via the `@nuxtjs/i18n`
- *   `i18n:registerModule` hook (a no-op when i18n isn't installed)
  * - Vite dev-server `fs.allow` so the classic face-landmarker worker can
  *   be served from outside the host project root
  *
@@ -65,51 +63,46 @@ export default defineNuxtModule({
     nuxt.options.vite.optimizeDeps.exclude ??= []
     nuxt.options.vite.optimizeDeps.exclude.push('@eleven.spectacles/virtual-try-on')
 
+    // Peers must resolve to the host's single copy: a sibling checkout with
+    // its own node_modules would otherwise bundle a second vue/three
+    // (duplicate renderer state, broken reactivity, ~600 KB extra).
+    nuxt.options.vite.resolve ??= {}
+    nuxt.options.vite.resolve.dedupe ??= []
+    nuxt.options.vite.resolve.dedupe.push(
+      'vue',
+      'three',
+      '@tresjs/core',
+      '@vueuse/core'
+    )
+
+    // three's DRACOLoader references its bundled decoder via
+    // `new URL(…, import.meta.url)`, so Vite emits ~1.3 MB of decoder files
+    // and Nuxt preloads/prefetches them wherever the try-on chunk renders.
+    // The loader is pointed at `dracoDecoderPath` (gstatic by default) and
+    // never requests them — drop them from the resource hints.
+    const DRACO_ASSET = /(^|\/)draco_(decoder|wasm_wrapper)[.-]/
+    nuxt.hook('build:manifest', (manifest) => {
+      for (const entry of Object.values(manifest)) {
+        if (DRACO_ASSET.test(entry.file)) {
+          entry.preload = false
+          entry.prefetch = false
+        }
+        if (entry.assets) {
+          entry.assets = entry.assets.filter((a) => !DRACO_ASSET.test(a))
+        }
+        if (entry.imports) {
+          entry.imports = entry.imports.filter(
+            (key) => !DRACO_ASSET.test(manifest[key]?.file ?? key)
+          )
+        }
+      }
+    })
+
     // Dev server must be allowed to serve this module's classic worker and
     // component sources from outside the host project root.
     nuxt.options.vite.server ??= {}
     nuxt.options.vite.server.fs ??= {}
     nuxt.options.vite.server.fs.allow ??= []
     nuxt.options.vite.server.fs.allow.push(resolve('./runtime'))
-
-    // Tailwind v4 only scans the host root; register this module's
-    // components as an explicit source on every CSS entry that imports
-    // Tailwind. The plugin is PREPENDED so it appends the @source directive
-    // before @tailwindcss/vite compiles the entry (hook-appended plugins run
-    // after it — verified empirically). Idempotent per file via includes().
-    const sourceDir = componentsDir.replaceAll('\\', '/')
-    nuxt.hook('vite:extendConfig', (config) => {
-      const cfg = config as { plugins?: unknown[] }
-      ;(cfg.plugins ??= []).unshift({
-        name: 'virtual-try-on:tailwind-source',
-        enforce: 'pre',
-        transform(code: string, id: string) {
-          if (!/\.css($|\?)/.test(id)) return
-          if (!/@import\s+["'][^"']*tailwindcss/.test(code)) return
-          if (code.includes(sourceDir)) return
-          return `${code}\n@source "${sourceDir}";\n`
-        }
-      })
-    })
-
-    // Merge the module's translations into every matching locale when the
-    // host uses @nuxtjs/i18n. Never fires when it doesn't.
-    // Message files are `.ts` in source and `.js` in the built dist/runtime.
-    const langDir = resolve('./runtime/i18n')
-    const ext = existsSync(`${langDir}/en.ts`) ? 'ts' : 'js'
-    nuxt.hook('i18n:registerModule', (register) => {
-      register({
-        langDir,
-        locales: [
-          { code: 'bg', language: 'bg-BG', file: `bg.${ext}` },
-          { code: 'de', language: 'de-DE', file: `de.${ext}` },
-          { code: 'en', language: 'en-US', file: `en.${ext}` },
-          { code: 'es', language: 'es-ES', file: `es.${ext}` },
-          { code: 'fr', language: 'fr-FR', file: `fr.${ext}` },
-          { code: 'it', language: 'it-IT', file: `it.${ext}` },
-          { code: 'nl', language: 'nl-NL', file: `nl.${ext}` }
-        ]
-      })
-    })
   }
 })

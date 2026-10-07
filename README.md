@@ -11,14 +11,14 @@ the frame, and everything runs on-device.
 Built by [Eleven Spectacles](https://elevenspectacles.com) — luxury eyewear,
 with virtual try-on for every frame in the catalog.
 
-- **One `modules` entry** — components, composables, Tailwind v4 scanning and
-  i18n messages register themselves.
+- **Headless** — renders only the camera feed and the tracked frame. No UI
+  library, no copy, no utility classes: your app draws every control.
+- **One `modules` entry** — components and composables register themselves.
 - **Private by design** — camera frames never leave the browser.
 - **Accurate fit** — metric scaling from the user's face width, per-frame
   calibration, and a face-mesh occluder that hides temples behind the head.
 - **Smooth** — One-Euro filtering on landmarks and pose; detection runs off
   the main thread.
-- **7 languages** — `bg`, `de`, `en`, `es`, `fr`, `it`, `nl`.
 
 ## Contents
 
@@ -35,7 +35,7 @@ with virtual try-on for every frame in the catalog.
 
 ## Requirements
 
-- **Nuxt 4** with `@nuxt/ui` 4, `@nuxtjs/i18n` 10 and `@tresjs/nuxt` 5.
+- **Nuxt 4** with `@tresjs/nuxt` 5 (which provides `@tresjs/core`).
 - **Browser**: WebAssembly, Web Workers, `createImageBitmap` and
   `getUserMedia` — every current evergreen browser, desktop and mobile.
   Unsupported browsers get an error state instead of a crash.
@@ -50,7 +50,7 @@ npm i @eleven.spectacles/virtual-try-on
 Install the peer dependencies your app doesn't already have:
 
 ```bash
-npm i @nuxt/ui @nuxtjs/i18n vue-i18n @tresjs/nuxt @tresjs/cientos three @vueuse/core @mediapipe/tasks-vision
+npm i @tresjs/nuxt three @vueuse/core @mediapipe/tasks-vision
 ```
 
 Register the module after its peers:
@@ -59,8 +59,6 @@ Register the module after its peers:
 // nuxt.config.ts
 export default defineNuxtConfig({
   modules: [
-    '@nuxt/ui',
-    '@nuxtjs/i18n',
     '@tresjs/nuxt',
     '@eleven.spectacles/virtual-try-on'
   ]
@@ -68,14 +66,15 @@ export default defineNuxtConfig({
 ```
 
 That's all the wiring. The module registers its components and
-composables, adds its components to Tailwind v4 scanning, and merges the
-`virtualTryOn.*` messages into every matching i18n locale.
+composables.
 
 ## Usage
 
-The module renders the try-on view only — consent screen, mirrored camera
-and tracked frame. The host owns everything around it (modal, page layout,
-frame picker, analytics):
+The component renders the mirrored camera feed and the tracked frame, and
+fills its container — give it a size. Everything else is yours: consent,
+error messages, positioning hints, the frame picker, the modal. Build them
+in the default slot, which renders on top of the feed and receives the
+current state and actions:
 
 ```vue
 <script setup lang="ts">
@@ -98,12 +97,26 @@ function onTrack(event: string, payload: Record<string, unknown>) {
 </script>
 
 <template>
-  <VirtualTryOnExperience
-    v-model:model="activeModel"
-    :models="models"
-    calibration-url="/models/virtual-try-on/calibration.json"
-    @track="onTrack"
-  />
+  <div class="relative aspect-3/4 w-full">
+    <VirtualTryOnExperience
+      v-model:model="activeModel"
+      :models="models"
+      calibration-url="/models/virtual-try-on/calibration.json"
+      @track="onTrack"
+    >
+      <template #default="{ status, error, guideHint, isStarting, start }">
+        <div v-if="status !== 'active'" class="absolute inset-0 grid place-items-center">
+          <p v-if="error">Camera unavailable ({{ error }})</p>
+          <button :disabled="isStarting" @click="start">
+            {{ error ? 'Retry' : 'Allow camera access' }}
+          </button>
+        </div>
+        <p v-else-if="guideHint === 'noFace'" class="absolute inset-x-0 bottom-4">
+          Position your face in view
+        </p>
+      </template>
+    </VirtualTryOnExperience>
+  </div>
 </template>
 ```
 
@@ -150,11 +163,32 @@ The full types are exported as `TryOnCalibrationFile` and
 | `calibrationUrl` | `string` | required | URL of the calibration manifest. |
 | `modelBaseUrl` | `string` | `/models/virtual-try-on` | Directory the GLBs are served from. |
 | `initialModel` | `string` | — | First frame shown. Falls back to the `?model=` query, then `models[0]`. |
-| `simplifiedControls` | `boolean` | `true` | Hides the tuning sliders (scale, yaw, temple width, exposure). |
+| `autoStart` | `boolean` | `false` | Starts the camera on mount. Use when your app already collected consent. |
+| `exposure` | `number` | `1` | Renderer tone-mapping exposure. |
+| `frameScale` | `number` | `1` | Multiplier on the computed frame scale. |
+| `frameYaw` | `number` | `0` | Manual frame yaw in degrees, used only while no face is tracked. |
+| `templeWidth` | `number` | `1` | Multiplier on the calibrated temple width. |
 | `mediapipeBasePath` | `string` | jsDelivr CDN | Directory of the MediaPipe Wasm fileset, for self-hosting. |
 | `mediapipeModelAssetPath` | `string` | Google Storage | URL of `face_landmarker.task`, for self-hosting. |
 | `draco` | `boolean` | `true` | Enables Draco decompression in the GLB loader. |
-| `dracoDecoderPath` | `string` | TresJS CDN | Draco decoder path, for self-hosting. |
+| `dracoDecoderPath` | `string` | gstatic CDN | Draco decoder path, for self-hosting. |
+
+### Default slot
+
+Rendered inside the stage, on top of the feed. Position its content
+yourself (e.g. `absolute inset-0`). The same state and actions are exposed
+on the component ref.
+
+| Slot prop | Type | Description |
+| --- | --- | --- |
+| `status` | `TryOnStatus` | `'idle'` \| `'starting'` \| `'active'` \| `'error'` |
+| `isStarting` | `boolean` | Camera permission prompt / stream start in progress. |
+| `error` | `WebcamError \| null` | `'denied'` \| `'unsupported'` \| `'unavailable'` |
+| `faceError` | `FaceLandmarkerError \| null` | `'unsupported'` \| `'load_failed'` \| `'runtime_failed'` |
+| `hasFace` | `boolean` | A face is currently tracked. |
+| `guideHint` | `TryOnGuideHint \| null` | `'noFace'` \| `'aligned'`; `null` while the camera is off. |
+| `start` | `() => Promise<void>` | Start or retry the camera. |
+| `stop` | `() => void` | Stop the camera. |
 
 ### `v-model:model`
 
@@ -176,12 +210,12 @@ module reports anything. Every payload has this shape:
 
 | Event | When | Extra `customData` |
 | --- | --- | --- |
-| `TRY_ON_OPENED` | User accepts the consent screen | `entryPoint: 'camera_consent'` |
+| `TRY_ON_OPENED` | First `start()` call (or mount with `autoStart`) | `entryPoint`: `'camera_consent'` \| `'auto_start'` |
 | `TRY_ON_CAMERA_GRANTED` | Camera stream started | — |
 | `TRY_ON_CAMERA_DENIED` | Camera permission refused | — |
 | `TRY_ON_FACE_DETECTED` | First face detected in the session | `confidence` |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
-| `TRY_ON_ERROR` | Camera or tracker failure | `errorType`, `source` (`camera` \| `face_landmarker`) |
+| `TRY_ON_ERROR` | Camera, tracker or asset failure | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment`), `message` |
 
 ### Exported types
 
@@ -189,10 +223,13 @@ module reports anything. Every payload has this shape:
 import type {
   TryOnModel,
   TryOnModelFamily,
-  TryOnLogger,
   TryOnCalibrationFile,
   TryOnModelCalibration,
-  TryOnFrameCalibration
+  TryOnFrameCalibration,
+  TryOnStatus,
+  TryOnGuideHint,
+  WebcamError,
+  FaceLandmarkerError
 } from '@eleven.spectacles/virtual-try-on'
 ```
 
@@ -202,17 +239,27 @@ your own picker UI (see the auto-imported `getTryOnModelFamilies()`).
 
 ## Configuration
 
-### Logging
+### Errors and logging
 
-Module logs go to the console. To route them into your own logger, provide
-`$tryOnLogger` — any object with `info`, `warn` and `error`:
+The module never logs. Every failure is reported as a `TRY_ON_ERROR`
+`track` event, so log it from your handler:
 
 ```ts
-// app/plugins/tryon-logger.ts
-export default defineNuxtPlugin(() => ({
-  provide: { tryOnLogger: useLogger() }
-}))
+function onTrack(event: string, payload: Record<string, unknown>) {
+  if (event === 'TRY_ON_ERROR') console.error('[virtual-try-on]', payload)
+  // forward to your analytics
+}
 ```
+
+| `source` | `errorType` | Effect |
+| --- | --- | --- |
+| `camera` | `'unsupported'` \| `'unavailable'` | No feed; slot `error` is set. `message` is the `DOMException` name. |
+| `face_landmarker` | `'unsupported'` \| `'load_failed'` \| `'runtime_failed'` | Feed shows, no tracking; slot `faceError` is set. |
+| `model` | `'load_failed'` | The GLB failed to load; `message` starts with its URL. |
+| `environment` | `'load_failed'` | Reflections lost; the frame still renders. |
+
+A denied camera permission is reported as `TRY_ON_CAMERA_DENIED`, not as an
+error.
 
 ### Self-hosting third-party assets
 
@@ -221,13 +268,6 @@ from public CDNs on first use. To remove those dependencies (for a strict
 CSP or offline use), serve the files yourself and pass
 `mediapipe-base-path`, `mediapipe-model-asset-path` and
 `draco-decoder-path`.
-
-### Translations and icons
-
-All copy lives under the `virtualTryOn.*` i18n key. Override any message by
-defining the same key in your app's locale files. The UI uses Heroicons via
-`@nuxt/ui`; install `@iconify-json/heroicons` to bundle them locally instead
-of fetching them from the Iconify API.
 
 ## Privacy
 
@@ -251,13 +291,6 @@ npm run build        # dist/ via @nuxt/module-builder
 (`?model=<file>`, `?debug_tryon=true`). It serves GLBs and
 `calibration.json` from a sibling host checkout — set `TRYON_MODELS_DIR` if
 yours live elsewhere.
-
-**Using a local checkout in an app** — no build needed, point `modules` at
-the source entry:
-
-```ts
-modules: [fileURLToPath(new URL('../virtual-try-on/src/module', import.meta.url))]
-```
 
 **Compressing models** — Draco-compress a directory of GLBs:
 

@@ -1,7 +1,7 @@
 import { onBeforeUnmount, ref, shallowRef, type Ref } from 'vue'
-import { useTryOnLogger } from './useTryOnLogger'
+import type { WebcamError } from '../../types/tryon-experience'
 
-export type WebcamError = 'unsupported' | 'denied' | 'unavailable'
+export type { WebcamError }
 
 /**
  * Front-camera stream lifecycle for the virtual try-on.
@@ -20,11 +20,13 @@ export function useWebcamStream() {
   const isActive = ref(false)
   const isStarting = ref(false)
   const error: Ref<WebcamError | null> = ref(null)
-  const logger = useTryOnLogger()
+  /** Underlying `DOMException` name of the last failure, for host logging. */
+  const errorDetail = ref<string | null>(null)
 
   async function start() {
     if (!import.meta.client || isActive.value || isStarting.value) return
     error.value = null
+    errorDetail.value = null
 
     if (!navigator.mediaDevices?.getUserMedia) {
       error.value = 'unsupported'
@@ -60,7 +62,7 @@ export function useWebcamStream() {
         name === 'NotAllowedError' || name === 'SecurityError'
           ? 'denied'
           : 'unavailable'
-      logger.warn('[useWebcamStream] getUserMedia failed', { name })
+      errorDetail.value = name || String(err)
     } finally {
       isStarting.value = false
     }
@@ -75,5 +77,14 @@ export function useWebcamStream() {
 
   onBeforeUnmount(stop)
 
-  return { videoRef, stream, isActive, isStarting, error, start, stop }
+  return {
+    videoRef,
+    stream,
+    isActive,
+    isStarting,
+    error,
+    errorDetail,
+    start,
+    stop
+  }
 }

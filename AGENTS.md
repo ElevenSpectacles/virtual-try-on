@@ -14,27 +14,26 @@ Key facts:
   sibling host checkout) consume the source entry `src/module.ts` directly,
   no build needed.
 - No app entry point at the repo root. **Import everything explicitly** —
-  `ref`/`computed`/`onBeforeUnmount` from `vue`, `useI18n` from `vue-i18n`,
-  VueUse from `@vueuse/core`, Nuxt composables from `#imports`, sibling
+  `ref`/`computed`/`onBeforeUnmount` from `vue`, VueUse from `@vueuse/core`, Nuxt composables from `#imports`, sibling
   components/composables by relative path. The host disables auto-imports
-  project-wide. Logging goes through `useTryOnLogger()`, which returns the
-  host's `$tryOnLogger` (provided from a host plugin) or a console fallback —
-  never import host paths like `~/composables/*`.
+  project-wide. Never import host paths like `~/composables/*`.
+- **The module never logs.** Failures surface as slot state and a
+  `TRY_ON_ERROR` `track` event carrying `source` and `message`; the host
+  does all logging from its `track` handler. Do not add `console.*` calls or
+  a logger injection point.
 - `"type": "module"`; all source is TypeScript / Vue 3
   `<script setup lang="ts">` SFCs.
 - Runtime dependencies are `peerDependencies` provided by the host: `nuxt` ^4,
-  `vue` ^3, `@nuxt/ui`, `@nuxtjs/i18n`, `@tresjs/nuxt` + `@tresjs/cientos`,
-  `three`, `@vueuse/core`, `@mediapipe/tasks-vision`, `vue-i18n`. The only
+  `vue` ^3, `@tresjs/nuxt` + `@tresjs/core`, `three`,
+  `@vueuse/core`, `@mediapipe/tasks-vision`. The only
   `dependency` is `@nuxt/kit` (imported by the module entry).
 
 ## Repository layout
 
 - `src/module.ts` — Nuxt module entry (`defineNuxtModule` via `@nuxt/kit`).
-  Registers `components/`, `composables/` + `utils/` auto-imports, Tailwind
-  v4 source scanning (a vite transform appends `@source` to Tailwind CSS
-  entries), i18n messages via the `i18n:registerModule` hook, vite
-  dev-server `fs.allow`, and an `optimizeDeps.exclude` for the package. Also
-  re-exports the public types (`TryOnModel`, `TryOnLogger`, calibration
+  Registers `components/`, `composables/` + `utils/` auto-imports,
+  `resolve.dedupe` for the shared peers, vite dev-server `fs.allow`, and an `optimizeDeps.exclude` for the package. Also
+  re-exports the public types (`TryOnModel`, calibration and slot/state
   types). Hosts add one `modules` entry; nothing else.
 - `build.config.ts` — module-builder (unbuild) hook that rewrites the worker
   URL in the built `useFaceLandmarker.js` from `.ts` to `.js` (mkdist
@@ -44,12 +43,16 @@ Key facts:
   relative to it.
 - `components/` — the entire public surface, exactly two SFCs:
   - `VirtualTryOnExperience.vue` — the main entry (props: `models:
-    TryOnModel[]`, `calibration-url`, plus tuning/self-hosting overrides;
-    `v-model:model`; emits `track`). Renders the camera consent screen, the
-    mirrored video + tracked frame, and optional tuning sliders. The host
-    owns all surrounding UI (modal, page layout) — the module deliberately
-    ships no container chrome.
+    TryOnModel[]`, `calibration-url`, `auto-start`, tuning/self-hosting
+    overrides; `v-model:model`; emits `track`). **Headless**: renders only
+    the mirrored video + tracked frame, filling its container, with
+    structural scoped CSS. Consent, errors, guide hints and controls are the
+    host's, built from the default scoped slot (`status`, `error`,
+    `faceError`, `hasFace`, `guideHint`, `start`, `stop`; also exposed on
+    the ref). Never add UI copy, icons, a UI library or utility classes.
   - `TryOnScene.vue` — the TresJS scene (GLB loading, occluder, environment).
+    Uses three's own `GLTFLoader`/`DRACOLoader`/`HDRLoader`, not
+    `@tresjs/cientos` — cientos does not tree-shake, so keep it out.
 - `composables/tryon/` — stateful logic:
   - `useFaceLandmarker.ts` — worker-backed MediaPipe integration, rAF detect
     loop, pose/confidence exposure.
@@ -58,7 +61,6 @@ Key facts:
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
     per-model calibration.
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
-  - `useTryOnLogger.ts` — `$tryOnLogger ?? defaultTryOnLogger`.
 - `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` in a
   dedicated **classic** Web Worker (see constraints).
   `face-landmarker.worker.types.ts` holds the request/response types consumed
@@ -69,15 +71,13 @@ Key facts:
   face-mesh occluder: the tracked 468-point face surface rendered depth-only,
   so frame parts behind the skin are hidden exactly where the real head hides
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
-  `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-logger.ts`
-  (`TryOnLogger` contract + console default).
+  `tryon-pose.ts` (matrix → face-pose decomposition).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
-- `i18n/` — translations (`bg`, `de`, `en`, `es`, `fr`, `it`, `nl`) under the
-  `virtualTryOn.*` key, registered by `src/module.ts` (`.ts` in source,
-  `.js` in `dist/` — the module picks the extension that exists). Only keys used by
-  `components/` live here — playground-only strings live in
-  `playground/locales/en.ts` (deep-merged at runtime).
+- `types/tryon-experience.ts` — slot/state types (`TryOnStatus`,
+  `TryOnGuideHint`, `WebcamError`, `FaceLandmarkerError`), re-exported by
+  `src/module.ts`.
+- No i18n layer and no UI copy — do not add `vue-i18n` / `@nuxtjs/i18n`.
 - `playground/` — standalone dev-only Nuxt app (`npm run playground`, port
   4000). Consumes this repo through `src/module.ts` itself (dogfooding the exact
   host integration), mounts `playground/components/VirtualTryOnPrototype.vue`
@@ -96,8 +96,8 @@ Key facts:
     GLBs. Only ever run against `public/models/virtual-try-on`, **never**
     `public/models/original` or `public/models/compressed`.
   - `verify-playground.mjs` — playground smoke test (build + boot + asset
-    checks). Its Tailwind-injection sentinel is `aspect-3/4`, which appears
-    only in `VirtualTryOnExperience.vue` — update it if that class changes.
+    checks). Renders the shipped component via the playground's
+    `?view=experience` and looks for its `vto-stage` class.
 - `tests/unit/` — Vitest unit tests (run from this repo). `tests/nuxt/` —
   Nuxt-environment tests, run from the host project.
 
@@ -134,17 +134,17 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 
 - Host adds `'@eleven.spectacles/virtual-try-on'` (or the local
   `src/module` path) to `modules`; the module self-registers everything else.
-- Host provides `@nuxt/ui` components (`UButton`, `UAlert`, `USlider`, `UIcon`),
-  `@nuxtjs/i18n`, and `@tresjs/nuxt` — no local stubs. `U*` components stay
-  globally registered; `useI18n` is imported explicitly from `vue-i18n`.
-- Optional: host routes module logs by providing `$tryOnLogger` from a Nuxt
-  plugin (`provide: { tryOnLogger: useLogger() }`).
+- Host provides `@tresjs/nuxt` (+ three, VueUse, MediaPipe) and
+  builds all UI around the component from its slot — the module depends on
+  no UI library. `@nuxt/ui` is a playground-only devDependency.
+- Host logs failures from its `track` handler (`TRY_ON_ERROR` events); the
+  module has no logger.
 - Host supplies GLB assets and a generated `calibration.json` at a
   host-controlled URL, passes `models` + `calibration-url`, and consumes the
   `track` event (all analytics stay in the host).
-- Host owns the container UI: modal/overlay, close button, and any
-  frame-suggestion UI are the host's job — the module renders only the
-  try-on view itself.
+- Host owns all UI: consent, error states, guide hints, modal/overlay,
+  close button and frame picker. The host also sizes the component (it fills
+  its container).
 
 ## Code style and conventions
 
@@ -188,7 +188,7 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 ## Security and privacy
 
 - Camera frames are processed **entirely on-device**; no video leaves the
-  browser. The i18n copy promises this (`virtualTryOn.consent`) — never
+  browser. Hosts promise this in their consent copy — never
   introduce network transmission of imagery.
 - All analytics flow through the `track` event to the host; the module sends
   nothing.

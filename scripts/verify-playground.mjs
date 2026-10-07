@@ -85,18 +85,14 @@ async function main() {
       html.includes('Virtual Try-On · Playground')
     )
 
-    // The module injects Tailwind v4 @source scanning for its own
-    // components; `aspect-3/4` appears only in a module component
-    // (VirtualTryOnExperience), so its generated utility proves the
-    // injection survived the production build.
-    const cssText = (
-      await Promise.all(
-        [...html.matchAll(/href="([^"]+\.css[^"]*)"/g)].map((m) =>
-          fetch(new URL(m[1], BASE)).then((r) => r.text())
-        )
-      )
-    ).join('\n')
-    check('module component CSS generated', cssText.includes('aspect-3'))
+    // The shipped headless component must build and render behind
+    // `?view=experience` (the default view is the tuning prototype).
+    const experience = await fetch(`${BASE}/?view=experience`)
+    check(
+      'headless experience renders',
+      experience.status === 200 &&
+        (await experience.text()).includes('vto-stage')
+    )
 
     const calibrationRes = await fetch(`${BASE}/models/calibration.json`)
     const calibration = await calibrationRes.json().catch(() => null)
