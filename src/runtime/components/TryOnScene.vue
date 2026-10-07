@@ -23,7 +23,6 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 import { useTres } from '@tresjs/core'
-import { useTryOnLogger } from '../composables/tryon/useTryOnLogger'
 import {
   TRYON_CAMERA,
   type EnvPreset,
@@ -114,7 +113,15 @@ const props = withDefaults(
   }
 )
 
-const logger = useTryOnLogger()
+// Load failures go to the parent, which reports them through `track` —
+// the module itself never logs.
+const emit = defineEmits<{
+  error: [source: 'model' | 'environment', message: string]
+}>()
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
 
 // Same decoder build cientos defaulted to, so self-hosting paths carry over.
 const DEFAULT_DRACO_DECODER_PATH =
@@ -144,7 +151,7 @@ watch(
       const gltf = await gltfLoader.loadAsync(src)
       if (id === modelLoadId) model.value = gltf
     } catch (err) {
-      if (id === modelLoadId) logger.error('[TryOnScene] GLB load failed', src, err)
+      if (id === modelLoadId) emit('error', 'model', `${src}: ${errorMessage(err)}`)
     }
   },
   { immediate: true }
@@ -194,7 +201,7 @@ watch(
       envTexture = texture
       scene.value.environment = texture
     } catch (err) {
-      if (id === envLoadId) logger.warn('[TryOnScene] environment HDR failed', err)
+      if (id === envLoadId) emit('error', 'environment', errorMessage(err))
     }
   },
   { immediate: true }

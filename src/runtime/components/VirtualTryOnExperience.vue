@@ -121,6 +121,7 @@ const {
   isActive,
   isStarting,
   error,
+  errorDetail: cameraErrorDetail,
   start: startStream,
   stop
 } = useWebcamStream()
@@ -298,6 +299,7 @@ const manualRotation = computed(() => ({
 
 const {
   error: faceError,
+  errorDetail: faceErrorDetail,
   hasFace,
   confidence,
   landmarks: faceLandmarks,
@@ -517,15 +519,31 @@ watch(error, (err) => {
   if (err === 'denied') {
     trackTryOn('TRY_ON_CAMERA_DENIED')
   } else if (err) {
-    trackTryOn('TRY_ON_ERROR', { errorType: err, source: 'camera' })
+    trackTryOn('TRY_ON_ERROR', {
+      errorType: err,
+      source: 'camera',
+      message: cameraErrorDetail.value
+    })
   }
 })
 
 watch(faceError, (err) => {
   if (err) {
-    trackTryOn('TRY_ON_ERROR', { errorType: err, source: 'face_landmarker' })
+    trackTryOn('TRY_ON_ERROR', {
+      errorType: err,
+      source: 'face_landmarker',
+      message: faceErrorDetail.value
+    })
   }
 })
+
+function onSceneError(source: 'model' | 'environment', message: string) {
+  trackTryOn('TRY_ON_ERROR', {
+    errorType: 'load_failed',
+    source,
+    message
+  })
+}
 
 watch(hasFace, (detected) => {
   if (detected && !hasReportedFaceDetected.value) {
@@ -599,6 +617,7 @@ watch(model, (value) => {
             :occluder-position="occluderPosition"
             :occluder-radius="occluderGeometry"
             :occluder-rotation="smoothedEuler"
+            @error="onSceneError"
           />
         </TresCanvas>
       </div>

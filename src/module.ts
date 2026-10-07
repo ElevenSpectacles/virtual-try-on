@@ -1,7 +1,6 @@
 import { addComponentsDir, addImportsDir, createResolver, defineNuxtModule } from '@nuxt/kit'
 
 export type { TryOnModel, TryOnModelFamily } from './runtime/composables/tryon/useTryOnModels'
-export type { TryOnLogger } from './runtime/utils/tryon-logger'
 export type {
   TryOnCalibrationFile,
   TryOnFrameCalibration,

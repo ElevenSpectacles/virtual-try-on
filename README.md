@@ -215,7 +215,7 @@ module reports anything. Every payload has this shape:
 | `TRY_ON_CAMERA_DENIED` | Camera permission refused | — |
 | `TRY_ON_FACE_DETECTED` | First face detected in the session | `confidence` |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
-| `TRY_ON_ERROR` | Camera or tracker failure | `errorType`, `source` (`camera` \| `face_landmarker`) |
+| `TRY_ON_ERROR` | Camera, tracker or asset failure | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment`), `message` |
 
 ### Exported types
 
@@ -223,7 +223,6 @@ module reports anything. Every payload has this shape:
 import type {
   TryOnModel,
   TryOnModelFamily,
-  TryOnLogger,
   TryOnCalibrationFile,
   TryOnModelCalibration,
   TryOnFrameCalibration,
@@ -240,17 +239,27 @@ your own picker UI (see the auto-imported `getTryOnModelFamilies()`).
 
 ## Configuration
 
-### Logging
+### Errors and logging
 
-Module logs go to the console. To route them into your own logger, provide
-`$tryOnLogger` — any object with `info`, `warn` and `error`:
+The module never logs. Every failure is reported as a `TRY_ON_ERROR`
+`track` event, so log it from your handler:
 
 ```ts
-// app/plugins/tryon-logger.ts
-export default defineNuxtPlugin(() => ({
-  provide: { tryOnLogger: useLogger() }
-}))
+function onTrack(event: string, payload: Record<string, unknown>) {
+  if (event === 'TRY_ON_ERROR') console.error('[virtual-try-on]', payload)
+  // forward to your analytics
+}
 ```
+
+| `source` | `errorType` | Effect |
+| --- | --- | --- |
+| `camera` | `'unsupported'` \| `'unavailable'` | No feed; slot `error` is set. `message` is the `DOMException` name. |
+| `face_landmarker` | `'unsupported'` \| `'load_failed'` \| `'runtime_failed'` | Feed shows, no tracking; slot `faceError` is set. |
+| `model` | `'load_failed'` | The GLB failed to load; `message` starts with its URL. |
+| `environment` | `'load_failed'` | Reflections lost; the frame still renders. |
+
+A denied camera permission is reported as `TRY_ON_CAMERA_DENIED`, not as an
+error.
 
 ### Self-hosting third-party assets
 

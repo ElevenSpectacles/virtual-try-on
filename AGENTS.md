@@ -16,9 +16,11 @@ Key facts:
 - No app entry point at the repo root. **Import everything explicitly** —
   `ref`/`computed`/`onBeforeUnmount` from `vue`, VueUse from `@vueuse/core`, Nuxt composables from `#imports`, sibling
   components/composables by relative path. The host disables auto-imports
-  project-wide. Logging goes through `useTryOnLogger()`, which returns the
-  host's `$tryOnLogger` (provided from a host plugin) or a console fallback —
-  never import host paths like `~/composables/*`.
+  project-wide. Never import host paths like `~/composables/*`.
+- **The module never logs.** Failures surface as slot state and a
+  `TRY_ON_ERROR` `track` event carrying `source` and `message`; the host
+  does all logging from its `track` handler. Do not add `console.*` calls or
+  a logger injection point.
 - `"type": "module"`; all source is TypeScript / Vue 3
   `<script setup lang="ts">` SFCs.
 - Runtime dependencies are `peerDependencies` provided by the host: `nuxt` ^4,
@@ -31,7 +33,7 @@ Key facts:
 - `src/module.ts` — Nuxt module entry (`defineNuxtModule` via `@nuxt/kit`).
   Registers `components/`, `composables/` + `utils/` auto-imports,
   `resolve.dedupe` for the shared peers, vite dev-server `fs.allow`, and an `optimizeDeps.exclude` for the package. Also
-  re-exports the public types (`TryOnModel`, `TryOnLogger`, calibration
+  re-exports the public types (`TryOnModel`, calibration and slot/state
   types). Hosts add one `modules` entry; nothing else.
 - `build.config.ts` — module-builder (unbuild) hook that rewrites the worker
   URL in the built `useFaceLandmarker.js` from `.ts` to `.js` (mkdist
@@ -59,7 +61,6 @@ Key facts:
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
     per-model calibration.
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
-  - `useTryOnLogger.ts` — `$tryOnLogger ?? defaultTryOnLogger`.
 - `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` in a
   dedicated **classic** Web Worker (see constraints).
   `face-landmarker.worker.types.ts` holds the request/response types consumed
@@ -70,8 +71,7 @@ Key facts:
   face-mesh occluder: the tracked 468-point face surface rendered depth-only,
   so frame parts behind the skin are hidden exactly where the real head hides
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
-  `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-logger.ts`
-  (`TryOnLogger` contract + console default).
+  `tryon-pose.ts` (matrix → face-pose decomposition).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
 - `types/tryon-experience.ts` — slot/state types (`TryOnStatus`,
@@ -137,8 +137,8 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 - Host provides `@tresjs/nuxt` (+ three, VueUse, MediaPipe) and
   builds all UI around the component from its slot — the module depends on
   no UI library. `@nuxt/ui` is a playground-only devDependency.
-- Optional: host routes module logs by providing `$tryOnLogger` from a Nuxt
-  plugin (`provide: { tryOnLogger: useLogger() }`).
+- Host logs failures from its `track` handler (`TRY_ON_ERROR` events); the
+  module has no logger.
 - Host supplies GLB assets and a generated `calibration.json` at a
   host-controlled URL, passes `models` + `calibration-url`, and consumes the
   `track` event (all analytics stay in the host).
