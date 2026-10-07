@@ -83,7 +83,7 @@ const props = withDefaults(
     mediapipeModelAssetPath?: string | undefined
     /** Whether the GLB loader wires up Draco decompression support. */
     draco?: boolean
-    /** Draco decoder path override — omit to use TresJS's CDN default. */
+    /** Draco decoder path override — omit to use the gstatic CDN default. */
     dracoDecoderPath?: string | undefined
   }>(),
   {

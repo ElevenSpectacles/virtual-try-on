@@ -18,7 +18,7 @@
  * classic way to get a frame that tracks the head backwards.
  */
 
-/** Preset HDRIs shipped by @tresjs/cientos (loaded from the Tresjs/assets CDN). */
+/** Preset HDRIs from the Tresjs/assets CDN (see TryOnScene's ENV_PRESET_FILES). */
 export type EnvPreset =
   | 'studio'
   | 'city'

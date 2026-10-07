@@ -35,7 +35,7 @@ with virtual try-on for every frame in the catalog.
 
 ## Requirements
 
-- **Nuxt 4** with `@tresjs/nuxt` 5.
+- **Nuxt 4** with `@tresjs/nuxt` 5 (which provides `@tresjs/core`).
 - **Browser**: WebAssembly, Web Workers, `createImageBitmap` and
   `getUserMedia` — every current evergreen browser, desktop and mobile.
   Unsupported browsers get an error state instead of a crash.
@@ -50,7 +50,7 @@ npm i @eleven.spectacles/virtual-try-on
 Install the peer dependencies your app doesn't already have:
 
 ```bash
-npm i @tresjs/nuxt @tresjs/cientos three @vueuse/core @mediapipe/tasks-vision
+npm i @tresjs/nuxt three @vueuse/core @mediapipe/tasks-vision
 ```
 
 Register the module after its peers:
@@ -171,7 +171,7 @@ The full types are exported as `TryOnCalibrationFile` and
 | `mediapipeBasePath` | `string` | jsDelivr CDN | Directory of the MediaPipe Wasm fileset, for self-hosting. |
 | `mediapipeModelAssetPath` | `string` | Google Storage | URL of `face_landmarker.task`, for self-hosting. |
 | `draco` | `boolean` | `true` | Enables Draco decompression in the GLB loader. |
-| `dracoDecoderPath` | `string` | TresJS CDN | Draco decoder path, for self-hosting. |
+| `dracoDecoderPath` | `string` | gstatic CDN | Draco decoder path, for self-hosting. |
 
 ### Default slot
 

@@ -73,9 +73,31 @@ export default defineNuxtModule({
       'vue',
       'three',
       '@tresjs/core',
-      '@tresjs/cientos',
       '@vueuse/core'
     )
+
+    // three's DRACOLoader references its bundled decoder via
+    // `new URL(…, import.meta.url)`, so Vite emits ~1.3 MB of decoder files
+    // and Nuxt preloads/prefetches them wherever the try-on chunk renders.
+    // The loader is pointed at `dracoDecoderPath` (gstatic by default) and
+    // never requests them — drop them from the resource hints.
+    const DRACO_ASSET = /(^|\/)draco_(decoder|wasm_wrapper)[.-]/
+    nuxt.hook('build:manifest', (manifest) => {
+      for (const entry of Object.values(manifest)) {
+        if (DRACO_ASSET.test(entry.file)) {
+          entry.preload = false
+          entry.prefetch = false
+        }
+        if (entry.assets) {
+          entry.assets = entry.assets.filter((a) => !DRACO_ASSET.test(a))
+        }
+        if (entry.imports) {
+          entry.imports = entry.imports.filter(
+            (key) => !DRACO_ASSET.test(manifest[key]?.file ?? key)
+          )
+        }
+      }
+    })
 
     // Dev server must be allowed to serve this module's classic worker and
     // component sources from outside the host project root.

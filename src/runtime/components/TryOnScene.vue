@@ -9,17 +9,21 @@ import {
   BufferGeometry,
   Color,
   DoubleSide,
+  EquirectangularReflectionMapping,
   Matrix4,
   Mesh,
   type Material,
-  type MeshStandardMaterial
+  type MeshStandardMaterial,
+  type Texture
 } from 'three'
-// NOTE: `Environment` is imported explicitly (like `useGLTF`) rather than
-// relying on @tresjs/nuxt's auto-registration — that scan only reads the
-// consuming app's dependencies/devDependencies, so an app that provides
-// cientos solely via peerDependencies (e.g. the playground via this repo's
-// package.json) would silently lose every cientos component.
-import { Environment, useGLTF } from '@tresjs/cientos'
+// three's own loaders instead of @tresjs/cientos: cientos ships as one
+// non-tree-shakeable file, so `useGLTF` + `Environment` pulled the whole
+// library (plus three-stdlib and camera-controls) into the host bundle.
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
+import { useTres } from '@tresjs/core'
+import { useTryOnLogger } from '../composables/tryon/useTryOnLogger'
 import {
   TRYON_CAMERA,
   type EnvPreset,
@@ -83,7 +87,7 @@ const props = withDefaults(
      * extension.
      */
     draco?: boolean
-    /** Draco decoder path override — omit to use cientos's CDN default. */
+    /** Draco decoder path override — omit to use the gstatic CDN default. */
     dracoDecoderPath?: string | undefined
   }>(),
   {
@@ -110,17 +114,99 @@ const props = withDefaults(
   }
 )
 
-// Non-blocking loader: `model` is null until the GLB resolves, so a heavy
-// frame download never stalls the whole scene graph.
-const src = computed(() => props.src)
-const { state: model } = useGLTF(src, {
-  draco: props.draco,
-  // UseGLTFOptions is exact under exactOptionalPropertyTypes — omit rather
-  // than pass an explicit undefined so cientos's CDN default applies.
-  ...(props.dracoDecoderPath !== undefined
-    ? { decoderPath: props.dracoDecoderPath }
-    : {})
-})
+const logger = useTryOnLogger()
+
+// Same decoder build cientos defaulted to, so self-hosting paths carry over.
+const DEFAULT_DRACO_DECODER_PATH =
+  'https://www.gstatic.com/draco/versioned/decoders/1.5.6/'
+
+// GLTFLoader only invokes the decoder for meshes carrying
+// KHR_draco_mesh_compression, so wiring it up is harmless otherwise.
+const gltfLoader = new GLTFLoader()
+const dracoLoader = props.draco
+  ? new DRACOLoader().setDecoderPath(
+      props.dracoDecoderPath ?? DEFAULT_DRACO_DECODER_PATH
+    )
+  : null
+if (dracoLoader) gltfLoader.setDRACOLoader(dracoLoader)
+
+// Non-blocking loader: `model` is null until the first GLB resolves, so a
+// heavy frame download never stalls the whole scene graph. On a model switch
+// the previous frame stays up until the next one arrives; responses for a
+// superseded `src` are dropped.
+const model = shallowRef<GLTF | null>(null)
+let modelLoadId = 0
+watch(
+  () => props.src,
+  async (src) => {
+    const id = ++modelLoadId
+    try {
+      const gltf = await gltfLoader.loadAsync(src)
+      if (id === modelLoadId) model.value = gltf
+    } catch (err) {
+      if (id === modelLoadId) logger.error('[TryOnScene] GLB load failed', src, err)
+    }
+  },
+  { immediate: true }
+)
+
+// Image-based lighting from the Tresjs/assets preset HDRs (the files cientos'
+// `<Environment :preset>` used), set as scene.environment — the renderer
+// PMREM-filters equirect environments itself. If the HDR fails to load only
+// reflections are lost; the ambient/directional lights still light the frame.
+const ENV_PRESET_ROOT =
+  'https://raw.githubusercontent.com/Tresjs/assets/main/textures/hdr/'
+const ENV_PRESET_FILES: Record<EnvPreset, string> = {
+  studio: 'studio/poly_haven_studio_1k.hdr',
+  city: 'city/canary_wharf_1k.hdr',
+  sunset: 'venice/venice_sunset_1k.hdr',
+  dawn: 'kiara/kiara_1_dawn_1k.hdr',
+  forest: 'outdoor/mossy_forest_1k.hdr',
+  night: 'outdoor/satara_night_1k.hdr',
+  snow: 'outdoor/snowy_forest_path_01_1k.hdr'
+}
+
+const { scene } = useTres()
+let envTexture: Texture | null = null
+let envLoadId = 0
+
+function clearEnvironment() {
+  if (scene.value.environment === envTexture) scene.value.environment = null
+  envTexture?.dispose()
+  envTexture = null
+}
+
+watch(
+  [() => props.useEnvironment, () => props.envPreset],
+  async ([enabled, preset]) => {
+    const id = ++envLoadId
+    clearEnvironment()
+    if (!enabled) return
+    try {
+      const texture = await new HDRLoader()
+        .setPath(ENV_PRESET_ROOT)
+        .loadAsync(ENV_PRESET_FILES[preset])
+      if (id !== envLoadId) {
+        texture.dispose()
+        return
+      }
+      texture.mapping = EquirectangularReflectionMapping
+      envTexture = texture
+      scene.value.environment = texture
+    } catch (err) {
+      if (id === envLoadId) logger.warn('[TryOnScene] environment HDR failed', err)
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.envIntensity,
+  (intensity) => {
+    scene.value.environmentIntensity = intensity
+  },
+  { immediate: true }
+)
 
 // The catalog's lens materials are authored as metalness ≈ 0.7 with
 // alpha-blend transparency — physically wrong for a dielectric: metalness
@@ -171,13 +257,13 @@ watch(
 // and would double-apply the group transform once the scene is mounted).
 const boundingBoxHelper = computed(() => {
   if (!props.showBoundingBox || !model.value) return null
-  const scene = model.value.scene
-  scene.updateMatrixWorld(true)
-  const sceneInverse = new Matrix4().copy(scene.matrixWorld).invert()
+  const root = model.value.scene
+  root.updateMatrixWorld(true)
+  const sceneInverse = new Matrix4().copy(root.matrixWorld).invert()
   const box = new Box3()
   const meshBox = new Box3()
   const relative = new Matrix4()
-  scene.traverse((obj) => {
+  root.traverse((obj) => {
     if (!(obj instanceof Mesh) || !obj.geometry) return
     obj.geometry.computeBoundingBox()
     relative.multiplyMatrices(sceneInverse, obj.matrixWorld)
@@ -191,6 +277,9 @@ const boundingBoxHelper = computed(() => {
 watch(boundingBoxHelper, (_helper, previous) => previous?.dispose())
 
 onUnmounted(() => {
+  envLoadId++
+  clearEnvironment()
+  dracoLoader?.dispose()
   occluderMeshGeometry.value?.dispose()
   boundingBoxHelper.value?.dispose()
 })
@@ -292,18 +381,6 @@ const occluderRotationVec = computed(
     :fov="TRYON_CAMERA.fovDeg"
     :look-at="cameraTarget"
   />
-
-  <!-- IBL in its own Suspense boundary: if the preset HDR fails to load, only
-       reflections are lost — the ambient/directional lights below still light
-       the frame. -->
-  <Suspense>
-    <Environment
-      v-if="useEnvironment"
-      :preset="envPreset"
-      :environment-intensity="envIntensity"
-      :background="false"
-    />
-  </Suspense>
 
   <TresAmbientLight :intensity="0.55" />
   <TresDirectionalLight :position="lightPosition" :intensity="1.1" />

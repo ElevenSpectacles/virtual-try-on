@@ -48,7 +48,7 @@
   },
   "peerDependencies": {
     "@mediapipe/tasks-vision": "^1.0.0",
-    "@tresjs/cientos": "^5.8.1",
+    "@tresjs/core": "^5.9.0",
     "@tresjs/nuxt": "^5.6.3",
     "@vueuse/core": "^14.4.0",
     "nuxt": "^4.5.1",

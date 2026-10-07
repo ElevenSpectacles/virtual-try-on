@@ -22,7 +22,7 @@ Key facts:
 - `"type": "module"`; all source is TypeScript / Vue 3
   `<script setup lang="ts">` SFCs.
 - Runtime dependencies are `peerDependencies` provided by the host: `nuxt` ^4,
-  `vue` ^3, `@tresjs/nuxt` + `@tresjs/cientos`, `three`,
+  `vue` ^3, `@tresjs/nuxt` + `@tresjs/core`, `three`,
   `@vueuse/core`, `@mediapipe/tasks-vision`. The only
   `dependency` is `@nuxt/kit` (imported by the module entry).
 
@@ -49,6 +49,8 @@ Key facts:
     `faceError`, `hasFace`, `guideHint`, `start`, `stop`; also exposed on
     the ref). Never add UI copy, icons, a UI library or utility classes.
   - `TryOnScene.vue` — the TresJS scene (GLB loading, occluder, environment).
+    Uses three's own `GLTFLoader`/`DRACOLoader`/`HDRLoader`, not
+    `@tresjs/cientos` — cientos does not tree-shake, so keep it out.
 - `composables/tryon/` — stateful logic:
   - `useFaceLandmarker.ts` — worker-backed MediaPipe integration, rAF detect
     loop, pose/confidence exposure.
@@ -132,7 +134,7 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 
 - Host adds `'@eleven.spectacles/virtual-try-on'` (or the local
   `src/module` path) to `modules`; the module self-registers everything else.
-- Host provides `@tresjs/nuxt` (+ cientos, three, VueUse, MediaPipe) and
+- Host provides `@tresjs/nuxt` (+ three, VueUse, MediaPipe) and
   builds all UI around the component from its slot — the module depends on
   no UI library. `@nuxt/ui` is a playground-only devDependency.
 - Optional: host routes module logs by providing `$tryOnLogger` from a Nuxt
