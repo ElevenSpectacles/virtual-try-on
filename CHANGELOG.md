@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.0.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v3.0.0...v3.0.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* publish to npm as a public package ([e417964](https://github.com/ElevenSpectacles/virtual-try-on/commit/e4179649c105da6b819cb693c21edb2b30e70707))
+* publish to npm as a public package ([6a8affa](https://github.com/ElevenSpectacles/virtual-try-on/commit/6a8affaa8b5708c44a3dd1d68cdbee8273c85ad9))
+
 ## [3.0.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v2.0.0...v3.0.0) (2026-10-07)
 
 
