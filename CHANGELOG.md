@@ -1,5 +1,32 @@
 # Changelog
 
+## [4.0.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v3.0.1...v4.0.0) (2026-10-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* $tryOnLogger, useTryOnLogger and the TryOnLogger type are removed. Log TRY_ON_ERROR events from your track handler instead.
+* @tresjs/cientos is no longer a peer dependency; @tresjs/core (provided by @tresjs/nuxt) is.
+* the built-in consent screen, error panel, guide overlay and tuning sliders are gone, simplifiedControls is removed, @nuxt/ui is no longer a peer, and the component fills its container instead of sizing itself. Hosts render their UI in the default slot and call start() (or pass auto-start).
+* @nuxtjs/i18n and vue-i18n are no longer peer dependencies and virtualTryOn.* messages are no longer registered. Hosts that overrode those keys must drop the overrides.
+
+### Features
+
+* drop @tresjs/cientos for three's own loaders ([76a9b72](https://github.com/ElevenSpectacles/virtual-try-on/commit/76a9b729eed4d231712d0e67444cc7123d5e4975))
+* drop i18n, ship English-only copy ([25e0e35](https://github.com/ElevenSpectacles/virtual-try-on/commit/25e0e3569c94dc99f765c5b6ce3ebc0c43bc27ad))
+* drop the logger; report failures through track ([aade811](https://github.com/ElevenSpectacles/virtual-try-on/commit/aade811a7489e22ee487cf287edbf08acab907ec))
+* make VirtualTryOnExperience headless ([036d433](https://github.com/ElevenSpectacles/virtual-try-on/commit/036d433e321b886c3c9cb0cab146b9a360635122))
+
+
+### Bug Fixes
+
+* dedupe vue, three and tres peers to the host's copy ([56943db](https://github.com/ElevenSpectacles/virtual-try-on/commit/56943dbeeab44da9da36c5822ec527c0f79beb7c))
+
+
+### Documentation
+
+* link the Eleven Spectacles website ([710865d](https://github.com/ElevenSpectacles/virtual-try-on/commit/710865de0e929b0588576437488f20ebf8c75580))
+
 ## [3.0.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v3.0.0...v3.0.1) (2026-10-07)
 
 
