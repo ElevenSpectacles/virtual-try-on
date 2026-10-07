@@ -14,8 +14,7 @@ Key facts:
   sibling host checkout) consume the source entry `src/module.ts` directly,
   no build needed.
 - No app entry point at the repo root. **Import everything explicitly** —
-  `ref`/`computed`/`onBeforeUnmount` from `vue`, `useI18n` from `vue-i18n`,
-  VueUse from `@vueuse/core`, Nuxt composables from `#imports`, sibling
+  `ref`/`computed`/`onBeforeUnmount` from `vue`, VueUse from `@vueuse/core`, Nuxt composables from `#imports`, sibling
   components/composables by relative path. The host disables auto-imports
   project-wide. Logging goes through `useTryOnLogger()`, which returns the
   host's `$tryOnLogger` (provided from a host plugin) or a console fallback —
@@ -23,8 +22,8 @@ Key facts:
 - `"type": "module"`; all source is TypeScript / Vue 3
   `<script setup lang="ts">` SFCs.
 - Runtime dependencies are `peerDependencies` provided by the host: `nuxt` ^4,
-  `vue` ^3, `@nuxt/ui`, `@nuxtjs/i18n`, `@tresjs/nuxt` + `@tresjs/cientos`,
-  `three`, `@vueuse/core`, `@mediapipe/tasks-vision`, `vue-i18n`. The only
+  `vue` ^3, `@nuxt/ui`, `@tresjs/nuxt` + `@tresjs/cientos`, `three`,
+  `@vueuse/core`, `@mediapipe/tasks-vision`. The only
   `dependency` is `@nuxt/kit` (imported by the module entry).
 
 ## Repository layout
@@ -32,8 +31,7 @@ Key facts:
 - `src/module.ts` — Nuxt module entry (`defineNuxtModule` via `@nuxt/kit`).
   Registers `components/`, `composables/` + `utils/` auto-imports, Tailwind
   v4 source scanning (a vite transform appends `@source` to Tailwind CSS
-  entries), i18n messages via the `i18n:registerModule` hook, vite
-  dev-server `fs.allow`, and an `optimizeDeps.exclude` for the package. Also
+  entries), vite dev-server `fs.allow`, and an `optimizeDeps.exclude` for the package. Also
   re-exports the public types (`TryOnModel`, `TryOnLogger`, calibration
   types). Hosts add one `modules` entry; nothing else.
 - `build.config.ts` — module-builder (unbuild) hook that rewrites the worker
@@ -73,11 +71,8 @@ Key facts:
   (`TryOnLogger` contract + console default).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
-- `i18n/` — translations (`bg`, `de`, `en`, `es`, `fr`, `it`, `nl`) under the
-  `virtualTryOn.*` key, registered by `src/module.ts` (`.ts` in source,
-  `.js` in `dist/` — the module picks the extension that exists). Only keys used by
-  `components/` live here — playground-only strings live in
-  `playground/locales/en.ts` (deep-merged at runtime).
+- All UI copy is English, inlined in the components. There is no i18n
+  layer — do not add `vue-i18n` / `@nuxtjs/i18n` back.
 - `playground/` — standalone dev-only Nuxt app (`npm run playground`, port
   4000). Consumes this repo through `src/module.ts` itself (dogfooding the exact
   host integration), mounts `playground/components/VirtualTryOnPrototype.vue`
@@ -134,9 +129,9 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 
 - Host adds `'@eleven.spectacles/virtual-try-on'` (or the local
   `src/module` path) to `modules`; the module self-registers everything else.
-- Host provides `@nuxt/ui` components (`UButton`, `UAlert`, `USlider`, `UIcon`),
-  `@nuxtjs/i18n`, and `@tresjs/nuxt` — no local stubs. `U*` components stay
-  globally registered; `useI18n` is imported explicitly from `vue-i18n`.
+- Host provides `@nuxt/ui` components (`UButton`, `UAlert`, `USlider`, `UIcon`)
+  and `@tresjs/nuxt` — no local stubs. `U*` components stay globally
+  registered.
 - Optional: host routes module logs by providing `$tryOnLogger` from a Nuxt
   plugin (`provide: { tryOnLogger: useLogger() }`).
 - Host supplies GLB assets and a generated `calibration.json` at a
@@ -188,7 +183,7 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 ## Security and privacy
 
 - Camera frames are processed **entirely on-device**; no video leaves the
-  browser. The i18n copy promises this (`virtualTryOn.consent`) — never
+  browser. The consent copy in `VirtualTryOnExperience.vue` promises this — never
   introduce network transmission of imagery.
 - All analytics flow through the `track` event to the host; the module sends
   nothing.

@@ -11,14 +11,13 @@ the frame, and everything runs on-device.
 Built by [Eleven Spectacles](https://elevenspectacles.com) — luxury eyewear,
 with virtual try-on for every frame in the catalog.
 
-- **One `modules` entry** — components, composables, Tailwind v4 scanning and
-  i18n messages register themselves.
+- **One `modules` entry** — components, composables and Tailwind v4
+  scanning register themselves.
 - **Private by design** — camera frames never leave the browser.
 - **Accurate fit** — metric scaling from the user's face width, per-frame
   calibration, and a face-mesh occluder that hides temples behind the head.
 - **Smooth** — One-Euro filtering on landmarks and pose; detection runs off
   the main thread.
-- **7 languages** — `bg`, `de`, `en`, `es`, `fr`, `it`, `nl`.
 
 ## Contents
 
@@ -35,7 +34,7 @@ with virtual try-on for every frame in the catalog.
 
 ## Requirements
 
-- **Nuxt 4** with `@nuxt/ui` 4, `@nuxtjs/i18n` 10 and `@tresjs/nuxt` 5.
+- **Nuxt 4** with `@nuxt/ui` 4 and `@tresjs/nuxt` 5.
 - **Browser**: WebAssembly, Web Workers, `createImageBitmap` and
   `getUserMedia` — every current evergreen browser, desktop and mobile.
   Unsupported browsers get an error state instead of a crash.
@@ -50,7 +49,7 @@ npm i @eleven.spectacles/virtual-try-on
 Install the peer dependencies your app doesn't already have:
 
 ```bash
-npm i @nuxt/ui @nuxtjs/i18n vue-i18n @tresjs/nuxt @tresjs/cientos three @vueuse/core @mediapipe/tasks-vision
+npm i @nuxt/ui @tresjs/nuxt @tresjs/cientos three @vueuse/core @mediapipe/tasks-vision
 ```
 
 Register the module after its peers:
@@ -60,7 +59,6 @@ Register the module after its peers:
 export default defineNuxtConfig({
   modules: [
     '@nuxt/ui',
-    '@nuxtjs/i18n',
     '@tresjs/nuxt',
     '@eleven.spectacles/virtual-try-on'
   ]
@@ -68,8 +66,7 @@ export default defineNuxtConfig({
 ```
 
 That's all the wiring. The module registers its components and
-composables, adds its components to Tailwind v4 scanning, and merges the
-`virtualTryOn.*` messages into every matching i18n locale.
+composables and adds its components to Tailwind v4 scanning.
 
 ## Usage
 
@@ -222,10 +219,10 @@ CSP or offline use), serve the files yourself and pass
 `mediapipe-base-path`, `mediapipe-model-asset-path` and
 `draco-decoder-path`.
 
-### Translations and icons
+### Copy and icons
 
-All copy lives under the `virtualTryOn.*` i18n key. Override any message by
-defining the same key in your app's locale files. The UI uses Heroicons via
+All copy is English and built in; the module has no i18n dependency. The UI
+uses Heroicons via
 `@nuxt/ui`; install `@iconify-json/heroicons` to bundle them locally instead
 of fetching them from the Iconify API.
 
@@ -251,13 +248,6 @@ npm run build        # dist/ via @nuxt/module-builder
 (`?model=<file>`, `?debug_tryon=true`). It serves GLBs and
 `calibration.json` from a sibling host checkout — set `TRYON_MODELS_DIR` if
 yours live elsewhere.
-
-**Using a local checkout in an app** — no build needed, point `modules` at
-the source entry:
-
-```ts
-modules: [fileURLToPath(new URL('../virtual-try-on/src/module', import.meta.url))]
-```
 
 **Compressing models** — Draco-compress a directory of GLBs:
 

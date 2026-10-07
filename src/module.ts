@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs'
 import { addComponentsDir, addImportsDir, createResolver, defineNuxtModule } from '@nuxt/kit'
 
 export type { TryOnModel, TryOnModelFamily } from './runtime/composables/tryon/useTryOnModels'
@@ -21,8 +20,6 @@ export type {
  *   outside the host root, so they are invisible to default scanning —
  *   a tiny vite transform appends an `@source` directive to every CSS
  *   entry that pulls in Tailwind)
- * - `virtualTryOn.*` i18n messages via the `@nuxtjs/i18n`
- *   `i18n:registerModule` hook (a no-op when i18n isn't installed)
  * - Vite dev-server `fs.allow` so the classic face-landmarker worker can
  *   be served from outside the host project root
  *
@@ -89,26 +86,6 @@ export default defineNuxtModule({
           if (code.includes(sourceDir)) return
           return `${code}\n@source "${sourceDir}";\n`
         }
-      })
-    })
-
-    // Merge the module's translations into every matching locale when the
-    // host uses @nuxtjs/i18n. Never fires when it doesn't.
-    // Message files are `.ts` in source and `.js` in the built dist/runtime.
-    const langDir = resolve('./runtime/i18n')
-    const ext = existsSync(`${langDir}/en.ts`) ? 'ts' : 'js'
-    nuxt.hook('i18n:registerModule', (register) => {
-      register({
-        langDir,
-        locales: [
-          { code: 'bg', language: 'bg-BG', file: `bg.${ext}` },
-          { code: 'de', language: 'de-DE', file: `de.${ext}` },
-          { code: 'en', language: 'en-US', file: `en.${ext}` },
-          { code: 'es', language: 'es-ES', file: `es.${ext}` },
-          { code: 'fr', language: 'fr-FR', file: `fr.${ext}` },
-          { code: 'it', language: 'it-IT', file: `it.${ext}` },
-          { code: 'nl', language: 'nl-NL', file: `nl.${ext}` }
-        ]
       })
     })
   }

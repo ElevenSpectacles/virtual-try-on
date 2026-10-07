@@ -37,7 +37,6 @@ import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
 
 import TryOnScene from './TryOnScene.vue'
 import { useRoute } from '#imports'
-import { useI18n } from 'vue-i18n'
 import { computed, ref, watch } from 'vue'
 
 const props = withDefaults(
@@ -72,7 +71,6 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const { t } = useI18n()
 const { getCalibration } = useFrameCalibration(props.calibrationUrl)
 
 const queryModel = route.query.model as string | undefined
@@ -405,7 +403,7 @@ const guideHint = computed<GuideHint>(() =>
 )
 
 const guideHintText = computed(() =>
-  guideHint.value === 'noFace' ? t('virtualTryOn.guide.noFace') : null
+  guideHint.value === 'noFace' ? 'Position your face inside the outline' : null
 )
 
 const guideVisible = ref(true)
@@ -425,14 +423,19 @@ watch(guideHint, (hint) => {
   guideVisible.value = true
 })
 
+const DENIED_MESSAGE =
+  'Please allow camera access in your browser settings to use Virtual Try-On.'
+const NO_CAMERA_MESSAGE =
+  'This device does not have a usable camera, or your browser blocks camera access.'
+
 const errorMessage = computed(() => {
   switch (error.value) {
     case 'denied':
-      return t('virtualTryOn.denied.body')
+      return DENIED_MESSAGE
     case 'unsupported':
-      return t('virtualTryOn.noCamera.body')
+      return NO_CAMERA_MESSAGE
     case 'unavailable':
-      return t('virtualTryOn.noCamera.body')
+      return NO_CAMERA_MESSAGE
     default:
       return null
   }
@@ -441,11 +444,11 @@ const errorMessage = computed(() => {
 const faceErrorMessage = computed(() => {
   switch (faceError.value) {
     case 'unsupported':
-      return t('virtualTryOn.noCamera.body')
+      return NO_CAMERA_MESSAGE
     case 'load_failed':
-      return t('virtualTryOn.denied.body')
+      return DENIED_MESSAGE
     case 'runtime_failed':
-      return t('virtualTryOn.denied.body')
+      return DENIED_MESSAGE
     default:
       return null
   }
@@ -656,28 +659,28 @@ watch(model, (value) => {
               <h3
                 class="text-sm font-medium uppercase tracking-wide text-white"
               >
-                {{ t('virtualTryOn.consent.title') }}
+                Virtual Try-On
               </h3>
               <p class="text-xs font-light leading-5 text-white/90">
-                {{ t('virtualTryOn.consent.subtitle') }}
+                See how this frame looks on you in real time.
               </p>
             </div>
             <ul class="text-left text-xs font-light leading-5 text-white/80">
               <li class="flex items-center gap-2">
                 <UIcon name="i-heroicons-check" class="h-3 w-3" />
-                {{ t('virtualTryOn.consent.cameraUse') }}
+                Uses your front camera
               </li>
               <li class="flex items-center gap-2">
                 <UIcon name="i-heroicons-check" class="h-3 w-3" />
-                {{ t('virtualTryOn.consent.privacy') }}
+                Your video never leaves your device
               </li>
               <li class="flex items-center gap-2">
                 <UIcon name="i-heroicons-check" class="h-3 w-3" />
-                {{ t('virtualTryOn.consent.noStorage') }}
+                No recordings are stored
               </li>
               <li class="flex items-center gap-2">
                 <UIcon name="i-heroicons-check" class="h-3 w-3" />
-                {{ t('virtualTryOn.consent.localProcessing') }}
+                Face tracking runs locally in your browser
               </li>
             </ul>
             <UButton
@@ -687,7 +690,7 @@ watch(model, (value) => {
               size="sm"
               @click="onConsent"
             >
-              {{ t('virtualTryOn.consent.cta') }}
+              Allow camera access
             </UButton>
           </template>
 
@@ -697,7 +700,7 @@ watch(model, (value) => {
               class="h-8 w-8 text-white/90"
             />
             <p class="text-xs font-light tracking-wider text-white/90">
-              {{ errorMessage ?? t('virtualTryOn.noCamera.body') }}
+              {{ errorMessage ?? NO_CAMERA_MESSAGE }}
             </p>
             <UButton
               :loading="isStarting"
@@ -708,8 +711,8 @@ watch(model, (value) => {
             >
               {{
                 error
-                  ? t('virtualTryOn.retryCamera')
-                  : t('virtualTryOn.startCamera')
+                  ? 'Retry camera'
+                  : 'Start camera'
               }}
             </UButton>
           </template>
@@ -736,14 +739,14 @@ watch(model, (value) => {
       >
         <div class="flex flex-col gap-5">
           <UFormField
-            :label="`${t('virtualTryOn.exposure')} · ${exposure.toFixed(2)}`"
+            :label="`Exposure · ${exposure.toFixed(2)}`"
             size="xs"
           >
             <USlider v-model="exposure" :min="0.4" :max="1.8" :step="0.05" />
           </UFormField>
 
           <UFormField
-            :label="`${t('virtualTryOn.frameScale')} · ${fineTuneScale.toFixed(2)}`"
+            :label="`Frame scale · ${fineTuneScale.toFixed(2)}`"
             size="xs"
           >
             <USlider
@@ -755,7 +758,7 @@ watch(model, (value) => {
           </UFormField>
 
           <UFormField
-            :label="`${t('virtualTryOn.frameYaw')} · ${rotationDeg}°`"
+            :label="`Frame yaw · ${rotationDeg}°`"
             size="xs"
           >
             <USlider
@@ -768,7 +771,7 @@ watch(model, (value) => {
           </UFormField>
 
           <UFormField
-            :label="`${t('virtualTryOn.templeWidth')} · ${debugTempleBoost.toFixed(2)}`"
+            :label="`Temple width · ${debugTempleBoost.toFixed(2)}`"
             size="xs"
           >
             <USlider
