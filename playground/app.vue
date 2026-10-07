@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { TryOnModel } from '../composables/tryon/useTryOnModels'
+import type { TryOnModel } from '../src/runtime/composables/tryon/useTryOnModels'
 
-import VirtualTryOnPrototype from '../components/VirtualTryOnPrototype.vue'
+import VirtualTryOnPrototype from './components/VirtualTryOnPrototype.vue'
 
 // The full Eleven Spectacles frame catalog, mirroring what the host passes.
 // Served from the host checkout via nitro publicAssets (see nuxt.config.ts).

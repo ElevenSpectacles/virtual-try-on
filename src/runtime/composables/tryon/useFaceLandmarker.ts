@@ -10,7 +10,7 @@ import type {
   FaceLandmarkerWorkerRequest,
   FaceLandmarkerWorkerResponse
 } from '../../workers/face-landmarker.worker.types'
-import { useLogger } from '~/composables/useLogger'
+import { useTryOnLogger } from './useTryOnLogger'
 
 export type FaceLandmarkerError =
   | 'unsupported'
@@ -76,7 +76,7 @@ export function useFaceLandmarker(
   const hasFace = computed(() => landmarks.value.length > 0)
   const noFace = computed(() => isReady.value && !hasFace.value)
   const faceWidth = computed(() => getFaceWidth(landmarks.value))
-  const logger = useLogger()
+  const logger = useTryOnLogger()
 
   // MediaPipe FaceLandmarker does not reliably populate per-landmark
   // visibility in video mode, so confidence is derived from detection

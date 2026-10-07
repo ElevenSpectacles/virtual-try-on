@@ -4,42 +4,52 @@
 
 `@elevenspectacles/virtual-try-on` — a **Nuxt-only module** implementing the
 Eleven Spectacles virtual try-on experience. It composites 3D eyewear GLB
-models over a live front-camera feed using MediaPipe
-`FaceLandmarker` for face tracking and TresJS (Three.js) for rendering.
+models over a live front-camera feed using MediaPipe `FaceLandmarker` for face
+tracking and TresJS (Three.js) for rendering.
 
 Key facts:
 
-- Distributed as a **git submodule** consumed by the Eleven Spectacles Nuxt
-  host project. It is intentionally **not published to npm** and is not
-  designed for reuse outside that host.
-- The module itself has no app entry point at the repo root. **Import
-  everything explicitly** — `ref`/`computed`/`onBeforeUnmount` from `vue`,
-  `useI18n` from `vue-i18n`, VueUse from `@vueuse/core`, Nuxt composables from
-  `#imports`, sibling components/composables by relative path. The host
-  (Eleven Spectacles) disables auto-imports project-wide, so nothing here may
-  rely on a bare global. The host-provided `useLogger()` is the one symbol
-  addressed through the embedding app: `~/composables/useLogger` — `~` resolves
-  to the host's `app/`, and to `playground/composables/` in the playground.
-  `playground/` is a self-contained dev-only Nuxt app for local visual tuning
-  (see below).
-- `"type": "module"`; all source is TypeScript / Vue 3 `<script setup lang="ts">` SFCs.
-- Runtime dependencies are declared as `peerDependencies` and provided by the
-  host: `nuxt` ^4, `vue` ^3, `@nuxt/ui`, `@nuxtjs/i18n`, `@tresjs/nuxt` +
-  `@tresjs/cientos`, `three`, `@vueuse/core`, `@mediapipe/tasks-vision`.
+- Published to npm as `@elevenspectacles/virtual-try-on`, built with
+  `@nuxt/module-builder` (`dist/`). Local checkouts (the playground, a
+  sibling host checkout) consume the source entry `src/module.ts` directly,
+  no build needed.
+- No app entry point at the repo root. **Import everything explicitly** —
+  `ref`/`computed`/`onBeforeUnmount` from `vue`, `useI18n` from `vue-i18n`,
+  VueUse from `@vueuse/core`, Nuxt composables from `#imports`, sibling
+  components/composables by relative path. The host disables auto-imports
+  project-wide. Logging goes through `useTryOnLogger()`, which returns the
+  host's `$tryOnLogger` (provided from a host plugin) or a console fallback —
+  never import host paths like `~/composables/*`.
+- `"type": "module"`; all source is TypeScript / Vue 3
+  `<script setup lang="ts">` SFCs.
+- Runtime dependencies are `peerDependencies` provided by the host: `nuxt` ^4,
+  `vue` ^3, `@nuxt/ui`, `@nuxtjs/i18n`, `@tresjs/nuxt` + `@tresjs/cientos`,
+  `three`, `@vueuse/core`, `@mediapipe/tasks-vision`, `vue-i18n`. The only
+  `dependency` is `@nuxt/kit` (imported by the module entry).
 
 ## Repository layout
 
-- `module.ts` — Nuxt module entry (`defineNuxtModule` via `@nuxt/kit`, no
-  build step). Registers `components/`, `composables/` + `utils/`
-  auto-imports, Tailwind v4 source scanning (vite transform appending
-  `@source` to Tailwind CSS entries), i18n messages via the
-  `i18n:registerModule` hook, and vite dev-server `fs.allow`. Hosts add this
-  repo's local path to their `modules` array; nothing else.
-- `components/` — Vue SFCs. `VirtualTryOnExperience.vue` is the main entry
-  component (props: `models: TryOnModel[]`, `calibration-url`; emits `track`).
-  `VirtualTryOnModal.vue`, `VirtualTryOnSuggestions.vue` are supporting UI;
-  `TryOnScene.vue` is the TresJS scene (GLB loading, occluder, environment);
-  `VirtualTryOnPrototype.vue` is a tuning/demo playground.
+- `src/module.ts` — Nuxt module entry (`defineNuxtModule` via `@nuxt/kit`).
+  Registers `components/`, `composables/` + `utils/` auto-imports, Tailwind
+  v4 source scanning (a vite transform appends `@source` to Tailwind CSS
+  entries), i18n messages via the `i18n:registerModule` hook, vite
+  dev-server `fs.allow`, and an `optimizeDeps.exclude` for the package. Also
+  re-exports the public types (`TryOnModel`, `TryOnLogger`, calibration
+  types). Hosts add one `modules` entry; nothing else.
+- `build.config.ts` — module-builder (unbuild) hook that rewrites the worker
+  URL in the built `useFaceLandmarker.js` from `.ts` to `.js` (mkdist
+  transpiles the worker but not the `new URL()` string). Fails the build if
+  the reference moves.
+- `src/runtime/` — everything shipped to the host app. Paths below are
+  relative to it.
+- `components/` — the entire public surface, exactly two SFCs:
+  - `VirtualTryOnExperience.vue` — the main entry (props: `models:
+    TryOnModel[]`, `calibration-url`, plus tuning/self-hosting overrides;
+    `v-model:model`; emits `track`). Renders the camera consent screen, the
+    mirrored video + tracked frame, and optional tuning sliders. The host
+    owns all surrounding UI (modal, page layout) — the module deliberately
+    ships no container chrome.
+  - `TryOnScene.vue` — the TresJS scene (GLB loading, occluder, environment).
 - `composables/tryon/` — stateful logic:
   - `useFaceLandmarker.ts` — worker-backed MediaPipe integration, rAF detect
     loop, pose/confidence exposure.
@@ -47,119 +57,107 @@ Key facts:
   - `useTryOnSmoothing.ts` — One-Euro filtering of landmarks/pose.
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
     per-model calibration.
-  - `useTryOnModels.ts` — model list types/helpers.
-- `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` running in
-  a dedicated **classic** Web Worker (see constraints below).
+  - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
+  - `useTryOnLogger.ts` — `$tryOnLogger ?? defaultTryOnLogger`.
+- `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` in a
+  dedicated **classic** Web Worker (see constraints).
   `face-landmarker.worker.types.ts` holds the request/response types consumed
   by the main thread.
 - `utils/` — pure, unit-testable math: `tryon.ts` (landmark→NDC/world
   remapping, metric/IPD scaling, occluder geometry, One-Euro filter,
   `TRYON_CAMERA` constants), `tryon-occluder.ts` (per-frame landmark-built
   face-mesh occluder: the tracked 468-point face surface rendered depth-only,
-  so frame parts behind the skin — temple arms, far lens at profile — are
-  hidden exactly where the real head hides them),
-  `face-mesh-triangles.ts` (generated canonical-model triangulation), and
-  `tryon-pose.ts` (transformation matrix → face-pose decomposition).
+  so frame parts behind the skin are hidden exactly where the real head hides
+  them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
+  `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-logger.ts`
+  (`TryOnLogger` contract + console default).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
-- `i18n/` — default translations (`bg`, `de`, `en`, `es`, `fr`, `it`, `nl`) under
-  the `virtualTryOn.*` key; registered into the host's i18n config by
-  `module.ts` (no manual merging needed).
+- `i18n/` — translations (`bg`, `de`, `en`, `es`, `fr`, `it`, `nl`) under the
+  `virtualTryOn.*` key, registered by `src/module.ts` (`.ts` in source,
+  `.js` in `dist/` — the module picks the extension that exists). Only keys used by
+  `components/` live here — playground-only strings live in
+  `playground/locales/en.ts` (deep-merged at runtime).
 - `playground/` — standalone dev-only Nuxt app (`npm run playground`, port
-  4000) that mounts `VirtualTryOnPrototype` with the full frame catalog for
-  local visual tuning. It consumes this repo through `module.ts` itself
-  (dogfooding the exact host integration), provides a console-backed
-  `useLogger` stand-in (playground-only — the module source still assumes
-  the host's logger), and serves GLBs + `calibration.json` from the host
-  checkout via nitro `publicAssets` (override with `TRYON_MODELS_DIR`). Not
-  part of the shipped module.
-- `scripts/generate-calibration.ts` — CLI that scans a directory of GLBs and
-  emits `calibration.json` (bounding-box recentring + scale normalization
-  against a reference model).
-- `scripts/compress-models.ts` — CLI that Draco-compresses a directory of
-  GLBs via `@gltf-transform/functions`' `draco()` transform. Run before
-  `generate-calibration` on the compressed output, since compression can
-  shift bounding boxes by float rounding.
-- `scripts/trim-temple-tips.ts` — CLI that shortens the catalog GLBs' curled
-  ear-hook temple tips (dropping geometry past a local-X threshold on the
-  `pt2` node) and tilts the remaining straight shaft upward around the hinge,
-  so it reads as resting over the ear rather than poking past it. Re-run
-  against `public/models/virtual-try-on` whenever that catalog is
-  regenerated from source GLBs with the full ear-hook geometry — the
-  checked-in catalog already has this applied. **Do not** run it against
-  `public/models/original` or `public/models/compressed` (see below) — those
-  feed the product page's `<model-viewer>`, which should show the
-  untrimmed, true-to-source frame.
-- `tests/unit/` — Vitest unit tests (run from this repo).
-- `tests/nuxt/` — Nuxt-environment tests (run from the host project).
+  4000). Consumes this repo through `src/module.ts` itself (dogfooding the exact
+  host integration), mounts `playground/components/VirtualTryOnPrototype.vue`
+  (tuning UI: model picker, sliders, occluder/bounding-box debug views,
+  `?model=` + `?debug_tryon=true`), and serves GLBs + `calibration.json` from
+  the host checkout via nitro `publicAssets` (override with
+  `TRYON_MODELS_DIR`). Not part of the shipped module.
+- `scripts/` — CLIs:
+  - `generate-calibration.ts` — scans a GLB directory and emits
+    `calibration.json` (bounding-box recentring + scale normalization against
+    a reference model).
+  - `compress-models.ts` — Draco-compresses GLBs via `@gltf-transform`. Run
+    `generate-calibration` against the compressed output (compression shifts
+    bounding boxes by float rounding).
+  - `trim-temple-tips.ts` — shortens curled ear-hook temple tips on catalog
+    GLBs. Only ever run against `public/models/virtual-try-on`, **never**
+    `public/models/original` or `public/models/compressed`.
+  - `verify-playground.mjs` — playground smoke test (build + boot + asset
+    checks). Its Tailwind-injection sentinel is `aspect-3/4`, which appears
+    only in `VirtualTryOnExperience.vue` — update it if that class changes.
+- `tests/unit/` — Vitest unit tests (run from this repo). `tests/nuxt/` —
+  Nuxt-environment tests, run from the host project.
 
 ## Build and test commands
 
-There is no build step; the module is consumed as source. Useful commands:
+Local consumers load source; `npm run build` (also `prepack`) emits `dist/`
+for npm.
 
 ```bash
-npm install                     # only needed when working standalone
-npx vitest                      # run unit tests (tests/unit only, per vitest.config.ts)
-npx vitest run                  # single run (CI-style)
-npm run playground              # standalone dev playground on :4000 (visual tuning)
-npm run typecheck               # vue-tsc against the playground's generated tsconfig
-npm run verify                  # vitest + playground build + booted-server smoke test
-npx tsx scripts/generate-calibration.ts \
-  --input public/models/virtual-try-on \
-  --output public/models/virtual-try-on/calibration.json \
-  --reference iris-bronze       # regenerate the calibration manifest
-npm run compress-models -- \
-  --input public/models/virtual-try-on \
-  --output public/models/virtual-try-on   # Draco-compress a GLB directory in place
-npx tsx scripts/trim-temple-tips.ts \
-  --input public/models/virtual-try-on \
-  --output public/models/virtual-try-on   # trim + upward-tilt temple tips in place
-                                           # (--threshold, --tilt-degrees to override)
+npm install            # only needed when working standalone
+npx vitest run         # unit tests (tests/unit only, per vitest.config.ts)
+npm run playground     # dev playground on :4000
+npm run typecheck      # vue-tsc against the playground's generated tsconfig
+npm run verify         # vitest + playground build + booted-server smoke test
+npm run build          # dist/ via nuxt-module-build
+npm pack --dry-run     # tarball must hold only dist/, CHANGELOG.md, README.md, package.json
 ```
 
-Testing strategy:
+Releases run only through release-please
+(`.github/workflows/release-please.yml`, `release-please-config.json`,
+`.release-please-manifest.json`): pushes to `main` maintain a release PR;
+merging it tags, creates the GitHub Release and publishes to npm. Never
+hand-edit the version, the manifest or `CHANGELOG.md`; keep commit messages conventional
+(`feat:` / `fix:` / `chore(deps):` …) since they *are* the changelog.
 
-- `vitest.config.ts` includes only `tests/unit/**/*.test.ts`. Unit tests
-  target the pure functions in `utils/` and worker-independent composable
-  logic (e.g. `useFrameCalibration`) — no camera, GPU, or real MediaPipe.
-- `tests/nuxt/**/*.nuxt.test.ts` (e.g. `useFaceLandmarker.nuxt.test.ts`)
-  needs the Nuxt test environment and is **run from the host project**, which
-  includes this directory in its own Vitest config. It fakes the worker with
-  a `FakeWorker` class that records `postMessage` and drives responses back
-  through `onmessage`.
-- New pure logic should go in `utils/` and get a unit test; worker-dependent
-  composables get a `FakeWorker`-style nuxt test.
+Testing strategy: unit tests target the pure functions in `utils/` and
+worker-independent composable logic — no camera, GPU, or real MediaPipe.
+`tests/nuxt/**/*.nuxt.test.ts` needs the Nuxt test environment and runs from
+the host, faking the worker with a `FakeWorker` class. New pure logic goes in
+`utils/` and gets a unit test; worker-dependent composables get a
+`FakeWorker`-style nuxt test.
 
 ## Host integration contract
 
-When changing public surfaces, keep the host contract in mind (documented in
-`README.md`):
-
-- Host adds this repo's local path to their `modules` array; `module.ts`
-  self-registers components, composables/utils, Tailwind source scanning,
-  i18n messages, and worker `fs.allow`.
-- Host provides `@nuxt/ui` components (`UButton`, `UModal`, `USlider`, …),
-  `@nuxtjs/i18n`, `@tresjs/nuxt`, and a host-defined `useLogger()` composable —
-  do not add local stubs for them. `U*` and `<NuxtLinkLocale>` stay globally
-  registered by their modules; `useI18n` (from `vue-i18n`) and `useLogger`
-  (from `~/composables/useLogger`) must be imported explicitly.
+- Host adds `'@elevenspectacles/virtual-try-on'` (or the local
+  `src/module` path) to `modules`; the module self-registers everything else.
+- Host provides `@nuxt/ui` components (`UButton`, `UAlert`, `USlider`, `UIcon`),
+  `@nuxtjs/i18n`, and `@tresjs/nuxt` — no local stubs. `U*` components stay
+  globally registered; `useI18n` is imported explicitly from `vue-i18n`.
+- Optional: host routes module logs by providing `$tryOnLogger` from a Nuxt
+  plugin (`provide: { tryOnLogger: useLogger() }`).
 - Host supplies GLB assets and a generated `calibration.json` at a
-  host-controlled URL, passes `models` + `calibration-url` props, and consumes
-  the `track` event (all analytics stay in the host).
+  host-controlled URL, passes `models` + `calibration-url`, and consumes the
+  `track` event (all analytics stay in the host).
+- Host owns the container UI: modal/overlay, close button, and any
+  frame-suggestion UI are the host's job — the module renders only the
+  try-on view itself.
 
 ## Code style and conventions
 
-- English is the project language for code, comments, and docs.
+- English for code, comments, and docs.
 - Vue 3 Composition API with `<script setup lang="ts">`, typed props via
-  `defineProps<{…}>` + `withDefaults`, typed composable options/return types.
+  `defineProps<{…}>` + `withDefaults`, typed composable options/returns.
 - Composables return plain refs/computed; SSR-safe guards via
   `import.meta.client` around browser-only work.
-- Heavy doc comments are the norm: coordinate conventions, MediaPipe
-  quirks, and the reasoning behind non-obvious decisions are documented
-  inline at the top of files/functions. Keep these comments accurate when
-  changing behavior.
-- Pure math lives in `utils/` (no Vue/Nuxt imports) so it stays unit-testable
-  without a camera/GPU; composables and components hold the stateful glue.
+- Heavy doc comments are the norm: coordinate conventions, MediaPipe quirks,
+  and reasoning behind non-obvious decisions are documented inline. Keep them
+  accurate when changing behavior.
+- Pure math lives in `utils/` (no Vue/Nuxt imports) so it stays unit-testable;
+  composables and components hold the stateful glue.
 
 ## Critical constraints (do not break)
 
@@ -167,53 +165,31 @@ When changing public surfaces, keep the host contract in mind (documented in
   contain no static `import`/`export` syntax — esbuild would emit a module
   marker that is a SyntaxError in a classic worker, and MediaPipe's WASM
   loader relies on synchronous `importScripts`, which module workers don't
-  support. Worker message types are therefore duplicated inline; the source
-  of truth for the main thread is `face-landmarker.worker.types.ts` — keep
-  both in sync.
-- **Mirror-once convention**: the front-camera preview is mirrored via
+  support. Worker message types are duplicated inline; the main-thread source
+  of truth is `face-landmarker.worker.types.ts` — keep both in sync.
+- **Works from both layouts**: `src/module.ts` must resolve everything via
+  `createResolver` against `./runtime/…` and never assume `.ts` files exist —
+  from npm it runs as `dist/module.mjs` next to transpiled `.js` runtime.
+  Verify publish-affecting changes by installing the `npm pack` tarball into
+  the playground (`modules: ['@elevenspectacles/virtual-try-on']`).
+- **Mirror-once convention**: the camera preview is mirrored via
   `scaleX(-1)` on the `<video>` only; landmark `x` is flipped in
-  `landmarkToNdc` to match. Never mirror the canvas/scene too — that makes
-  the frame track the head backwards.
-- **One in-flight detection**: `useFaceLandmarker` allows a single
-  outstanding detect request (`pendingRequestId`); stale responses are
-  discarded by request id. Preserve this throttling behavior.
-- **VIDEO mode only**: the `FaceLandmarker` instance is created in VIDEO
-  running mode and never switches — the live camera is the only input
-  source (the photo-upload path was removed).
-- MediaPipe WASM and the face model are loaded from CDNs (jsdelivr /
-  Google storage) at runtime by default — network access is required at
-  first load unless the host overrides `mediapipeBasePath` /
-  `mediapipeModelAssetPath` (see below) to self-hosted paths.
+  `landmarkToNdc` to match. Never mirror the canvas/scene too.
+- **One in-flight detection**: `useFaceLandmarker` allows a single outstanding
+  detect request (`pendingRequestId`); stale responses are discarded by
+  request id.
+- **VIDEO mode only**: the `FaceLandmarker` runs in VIDEO running mode and
+  never switches — the live camera is the only input source.
+- MediaPipe WASM and the face model load from CDNs (jsdelivr / Google
+  storage) by default — first load needs network unless the host passes
+  `mediapipeBasePath` / `mediapipeModelAssetPath` self-hosted overrides (also
+  `dracoDecoderPath` for the Draco decoder).
 
-## Security and privacy considerations
+## Security and privacy
 
-- Camera frames are processed **entirely on-device**;
-  face tracking runs locally in the worker and no video leaves the
-  browser. The i18n copy makes this promise to users (`virtualTryOn.consent`)
-  — do not introduce network transmission of imagery.
-- All analytics flow through the `track` event to the host; the module itself
-  sends nothing.
-- Secrets/config (`.env`, `*.local`) are git-ignored; the module holds no
-  credentials.
-
-## Known production gaps
-
-The module supports compression and self-hosting overrides; applying them
-is host-repo work:
-
-- **GLB asset size** (resolved): the host's `public/models/virtual-try-on`
-  catalog is Draco-compressed (~1.2MB per model, down from ~5.8MB
-  uncompressed). Whenever that catalog is regenerated from source GLBs,
-  re-run `scripts/compress-models.ts` and then `generate-calibration` against
-  the compressed output; `TryOnScene`'s loader decodes Draco meshes (`draco`
-  prop, default `true`).
-- **MediaPipe / Draco CDN dependency**: by default
-  `workers/face-landmarker.worker.ts` loads WASM and model weights from
-  `cdn.jsdelivr.net` / `storage.googleapis.com`, and `TryOnScene`'s Draco
-  decoder from TresJS's gstatic CDN default. A CDN outage or breaking
-  upstream release takes down try-on entirely beyond the existing
-  "unsupported" error state. Pass `mediapipeBasePath` /
-  `mediapipeModelAssetPath` / `dracoDecoderPath` to `VirtualTryOnExperience`
-  with self-hosted paths to remove the dependency — hosting the actual files
-  (copied from `@mediapipe/tasks-vision`'s `wasm/` dir, the model-zoo `.task`
-  file, and `three`'s `examples/jsm/libs/draco/`) is host-repo work.
+- Camera frames are processed **entirely on-device**; no video leaves the
+  browser. The i18n copy promises this (`virtualTryOn.consent`) — never
+  introduce network transmission of imagery.
+- All analytics flow through the `track` event to the host; the module sends
+  nothing.
+- The module holds no credentials; `.env` / `*.local` are git-ignored.

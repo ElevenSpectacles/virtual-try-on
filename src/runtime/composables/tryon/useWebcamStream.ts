@@ -1,5 +1,5 @@
 import { onBeforeUnmount, ref, shallowRef, type Ref } from 'vue'
-import { useLogger } from '~/composables/useLogger'
+import { useTryOnLogger } from './useTryOnLogger'
 
 export type WebcamError = 'unsupported' | 'denied' | 'unavailable'
 
@@ -20,7 +20,7 @@ export function useWebcamStream() {
   const isActive = ref(false)
   const isStarting = ref(false)
   const error: Ref<WebcamError | null> = ref(null)
-  const logger = useLogger()
+  const logger = useTryOnLogger()
 
   async function start() {
     if (!import.meta.client || isActive.value || isStarting.value) return
