@@ -37,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write # npm trusted publishing (OIDC) — no NPM_TOKEN
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,13 +49,16 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
+      # Trusted publishing needs npm >= 11.5.1; Node 22 bundles npm 10.
+      - run: npm install -g npm@latest
+
       - run: npm ci
 
       - run: npm run verify:unit
 
       - run: npm run typecheck
 
-      # prepack runs `nuxt-module-build build`.
+      # prepack runs `nuxt-module-build build`. Auth is OIDC via the npm
+      # Trusted Publisher configured for this workflow file; npm attaches a
+      # provenance attestation automatically (public repo + public package).
       - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
