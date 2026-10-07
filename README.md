@@ -280,9 +280,14 @@ Releases are automated with
 2. Merging the release PR tags `vX.Y.Z`, creates the GitHub Release and
    publishes to npm.
 
-The publish job needs an `NPM_TOKEN` repository secret (granular token,
-read + write on `@eleven.spectacles`, 2FA bypass) and the repo setting
-**Allow GitHub Actions to create and approve pull requests**. Check what
+Publishing uses npm
+[Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC): the
+package trusts `ElevenSpectacles/virtual-try-on` →
+`.github/workflows/release-please.yml`, so no npm token is stored and every
+version gets a provenance attestation. Renaming that workflow file breaks
+publishing until the trusted publisher on npmjs.com is updated. The repo
+also needs **Allow GitHub Actions to create and approve pull requests**
+enabled. Check what
 ships with `npm pack --dry-run` — only `dist/`, `CHANGELOG.md`,
 `README.md` and `package.json`.
 
