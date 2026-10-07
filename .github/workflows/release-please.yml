@@ -1,0 +1,60 @@
+name: Release Please
+
+# On every push to main, release-please opens/updates a release PR that bumps
+# package.json + package-lock.json and prepends CHANGELOG.md from the
+# conventional commits since the last release (feat → minor, fix → patch,
+# `!` / BREAKING CHANGE → major). Merging that PR tags vX.Y.Z and creates the
+# GitHub Release; the publish job then ships that version to npm.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    name: Publish to npm
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - run: npm run verify:unit
+
+      - run: npm run typecheck
+
+      # prepack runs `nuxt-module-build build`.
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

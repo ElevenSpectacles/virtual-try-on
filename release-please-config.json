@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "b411764f667ad1968a20a6bd0b9750097c80a722",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "@elevenspectacles/virtual-try-on",
+      "changelog-path": "CHANGELOG.md",
+      "include-v-in-tag": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Bug Fixes" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "revert", "section": "Reverts" },
+        { "type": "deps", "section": "Dependencies" },
+        { "type": "docs", "section": "Documentation" },
+        { "type": "refactor", "section": "Refactoring" },
+        { "type": "chore", "section": "Miscellaneous", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "ci", "section": "CI", "hidden": true },
+        { "type": "build", "section": "Build", "hidden": true },
+        { "type": "style", "section": "Style", "hidden": true }
+      ]
+    }
+  }
+}

@@ -120,19 +120,20 @@ from the host checkout; override with `TRYON_MODELS_DIR`.
 
 ## Releasing
 
-Releases are cut from GitHub: **Actions → Release → Run workflow** (on
-`main`). Pick `auto` (bump derived from conventional commits: `feat` → minor,
-`fix` → patch, breaking → major) or force `patch` / `minor` / `major`. The
-workflow runs the tests, bumps `package.json`, prepends
-[`CHANGELOG.md`](./CHANGELOG.md), publishes to npm, pushes the
-`chore(release)` commit + `vX.Y.Z` tag, and creates a GitHub Release from the
-same changelog section.
+Releases are managed by [release-please](https://github.com/googleapis/release-please).
+Every push to `main` opens or updates a **release PR** that bumps
+`package.json` / `package-lock.json` and prepends
+[`CHANGELOG.md`](./CHANGELOG.md) from the conventional commits since the
+last release (`feat` → minor, `fix` → patch, `!` / `BREAKING CHANGE` →
+major). **Merging that PR is the release**: it tags `vX.Y.Z`, creates the
+GitHub Release, and the workflow publishes the tagged version to npm.
 
-One-time setup: an npm automation token with publish rights on the
-`@elevenspectacles` org, stored as the `NPM_TOKEN` repository secret. If
-`main` is branch-protected, allow `github-actions[bot]` to push.
+One-time setup:
 
-Preview the next changelog locally with `npm run changelog`.
+- npm granular access token (read + write on `@elevenspectacles`, bypass
+  2FA) stored as the `NPM_TOKEN` repository secret.
+- Settings → Actions → General → enable **Allow GitHub Actions to create and
+  approve pull requests**.
 
 `publishConfig.access` is `restricted` (private scoped package, needs a paid
 org); change it to `public` to publish openly. Check the tarball with

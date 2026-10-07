@@ -114,13 +114,13 @@ npm run typecheck      # vue-tsc against the playground's generated tsconfig
 npm run verify         # vitest + playground build + booted-server smoke test
 npm run build          # dist/ via nuxt-module-build
 npm pack --dry-run     # tarball must hold only dist/, CHANGELOG.md, README.md, package.json
-npm run changelog      # preview the next changelog entry (changelogen)
 ```
 
-Releases run only from `.github/workflows/release.yml` (manual dispatch on
-`main`): changelogen bumps the version from conventional commits and writes
-`CHANGELOG.md`, then npm publish, push, GitHub Release. Never hand-edit the
-version or `CHANGELOG.md`; keep commit messages conventional
+Releases run only through release-please
+(`.github/workflows/release-please.yml`, `release-please-config.json`,
+`.release-please-manifest.json`): pushes to `main` maintain a release PR;
+merging it tags, creates the GitHub Release and publishes to npm. Never
+hand-edit the version, the manifest or `CHANGELOG.md`; keep commit messages conventional
 (`feat:` / `fix:` / `chore(deps):` …) since they *are* the changelog.
 
 Testing strategy: unit tests target the pure functions in `utils/` and
