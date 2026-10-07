@@ -135,8 +135,8 @@ One-time setup:
 - Settings → Actions → General → enable **Allow GitHub Actions to create and
   approve pull requests**.
 
-`publishConfig.access` is `restricted` (private scoped package, needs a paid
-org); change it to `public` to publish openly. Check the tarball with
+The package is public on npm (`publishConfig.access: public`) but
+`UNLICENSED`: installable and readable, not licensed for reuse. Check the tarball with
 `npm pack --dry-run` — it should contain only `dist/`, `CHANGELOG.md`,
 `README.md` and `package.json`.
 

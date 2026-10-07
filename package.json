@@ -28,7 +28,7 @@
   ],
   "sideEffects": false,
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "scripts": {
     "build": "nuxt-module-build build",
