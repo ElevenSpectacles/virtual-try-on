@@ -3,6 +3,7 @@
   "version": "3.0.1",
   "description": "Nuxt module: virtual try-on for 3D eyewear over a live camera feed (MediaPipe + TresJS).",
   "license": "UNLICENSED",
+  "homepage": "https://elevenspectacles.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ElevenSpectacles/virtual-try-on.git"
