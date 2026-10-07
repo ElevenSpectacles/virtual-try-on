@@ -2,14 +2,14 @@
 
 ## Project overview
 
-`@elevenspectacles/virtual-try-on` — a **Nuxt-only module** implementing the
+`@eleven.spectacles/virtual-try-on` — a **Nuxt-only module** implementing the
 Eleven Spectacles virtual try-on experience. It composites 3D eyewear GLB
 models over a live front-camera feed using MediaPipe `FaceLandmarker` for face
 tracking and TresJS (Three.js) for rendering.
 
 Key facts:
 
-- Published to npm as `@elevenspectacles/virtual-try-on`, built with
+- Published to npm as `@eleven.spectacles/virtual-try-on`, built with
   `@nuxt/module-builder` (`dist/`). Local checkouts (the playground, a
   sibling host checkout) consume the source entry `src/module.ts` directly,
   no build needed.
@@ -132,7 +132,7 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 
 ## Host integration contract
 
-- Host adds `'@elevenspectacles/virtual-try-on'` (or the local
+- Host adds `'@eleven.spectacles/virtual-try-on'` (or the local
   `src/module` path) to `modules`; the module self-registers everything else.
 - Host provides `@nuxt/ui` components (`UButton`, `UAlert`, `USlider`, `UIcon`),
   `@nuxtjs/i18n`, and `@tresjs/nuxt` — no local stubs. `U*` components stay
@@ -171,7 +171,7 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
   `createResolver` against `./runtime/…` and never assume `.ts` files exist —
   from npm it runs as `dist/module.mjs` next to transpiled `.js` runtime.
   Verify publish-affecting changes by installing the `npm pack` tarball into
-  the playground (`modules: ['@elevenspectacles/virtual-try-on']`).
+  the playground (`modules: ['@eleven.spectacles/virtual-try-on']`).
 - **Mirror-once convention**: the camera preview is mirrored via
   `scaleX(-1)` on the `<video>` only; landmark `x` is flipped in
   `landmarkToNdc` to match. Never mirror the canvas/scene too.

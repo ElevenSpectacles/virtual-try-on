@@ -1,4 +1,4 @@
-# @elevenspectacles/virtual-try-on
+# @eleven.spectacles/virtual-try-on
 
 Nuxt module that renders 3D eyewear (GLB models) over a live front-camera
 feed — MediaPipe `FaceLandmarker` tracking in a Web Worker, TresJS (Three.js)
@@ -10,7 +10,7 @@ can also be consumed from a local checkout.
 ## Setup
 
 ```bash
-npm i @elevenspectacles/virtual-try-on
+npm i @eleven.spectacles/virtual-try-on
 ```
 
 The host Nuxt app provides the peer dependencies: `@nuxt/ui`, `@nuxtjs/i18n`
@@ -24,7 +24,7 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@nuxtjs/i18n',
     '@tresjs/nuxt',
-    '@elevenspectacles/virtual-try-on'
+    '@eleven.spectacles/virtual-try-on'
   ]
 })
 ```
@@ -57,7 +57,7 @@ renders just the camera view with the tracked frame:
 
 ```vue
 <script setup lang="ts">
-import type { TryOnModel } from '@elevenspectacles/virtual-try-on'
+import type { TryOnModel } from '@eleven.spectacles/virtual-try-on'
 
 const models: TryOnModel[] = [
   { label: 'Iris · Bronze', file: 'iris-bronze', family: 'iris', color: 'Bronze', colorClass: 'bg-amber-700' }
@@ -130,7 +130,7 @@ GitHub Release, and the workflow publishes the tagged version to npm.
 
 One-time setup:
 
-- npm granular access token (read + write on `@elevenspectacles`, bypass
+- npm granular access token (read + write on `@eleven.spectacles`, bypass
   2FA) stored as the `NPM_TOKEN` repository secret.
 - Settings → Actions → General → enable **Allow GitHub Actions to create and
   approve pull requests**.
