@@ -4,6 +4,9 @@ Nuxt module that renders 3D eyewear (GLB models) over a live front-camera
 feed — MediaPipe `FaceLandmarker` tracking in a Web Worker, TresJS (Three.js)
 rendering, all processing on-device.
 
+Built by [Eleven Spectacles](https://elevenspectacles.com) — luxury eyewear,
+with virtual try-on for every frame in the catalog.
+
 Published to npm as a scoped package (built with `@nuxt/module-builder`);
 can also be consumed from a local checkout.
 
