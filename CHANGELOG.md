@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.4.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.2.0...v4.4.0) (2026-10-08)
+
+
+### Features
+
+* render the frame only on a tracked face and drop the VueUse peer ([127c6ef](https://github.com/ElevenSpectacles/virtual-try-on/commit/127c6efab3ba89f4ee3e521200be3b79ffbb8edf))
+* render the frame only on a tracked face and drop the VueUse peer ([d29f869](https://github.com/ElevenSpectacles/virtual-try-on/commit/d29f86961a0b8608c557917c32a1dac67d7af3bc))
+
+
+### Bug Fixes
+
+* **deps:** update nuxt kit, TresJS and dev tooling to latest minors ([e2ec4c0](https://github.com/ElevenSpectacles/virtual-try-on/commit/e2ec4c093c76a64e3e920fadace77bc576ce6c1e))
+* **deps:** update nuxt kit, TresJS and dev tooling to latest minors ([c2be24f](https://github.com/ElevenSpectacles/virtual-try-on/commit/c2be24fd59151977e497747fdc587233c22ba2cc))
+
 ## [4.2.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.1.0...v4.2.0) (2026-10-08)
 
 
