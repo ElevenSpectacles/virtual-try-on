@@ -23,10 +23,12 @@ Key facts:
   a logger injection point.
 - `"type": "module"`; all source is TypeScript / Vue 3
   `<script setup lang="ts">` SFCs.
-- Runtime dependencies are `peerDependencies` provided by the host: `nuxt` ^4,
-  `vue` ^3, `@tresjs/nuxt` + `@tresjs/core`, `three`,
-  `@vueuse/core` — libraries the host must share a single copy of.
-  `dependencies` are `@nuxt/kit` (module entry) and `@mediapipe/tasks-vision`,
+- `peerDependencies` are only what the host already owns: `nuxt` ^4,
+  `vue` ^3, `@vueuse/core`. `dependencies` are `@nuxt/kit` (module entry),
+  `@tresjs/nuxt` + `@tresjs/core` + `three` (the module installs
+  `@tresjs/nuxt` through `moduleDependencies`, so hosts never list or
+  install them; `resolve.dedupe` keeps one copy if a host also imports
+  three), and `@mediapipe/tasks-vision`,
   pinned to an exact version: only the worker uses it, and its JS must match
   the WASM version in the worker's `DEFAULT_WASM_BASE_PATH`
   (`tests/unit/mediapipe-version.test.ts` enforces it). Bump both together.
@@ -34,7 +36,7 @@ Key facts:
 ## Repository layout
 
 - `src/module.ts` — Nuxt module entry (`defineNuxtModule` via `@nuxt/kit`).
-  Registers `components/`, `composables/` + `utils/` auto-imports,
+  Installs `@tresjs/nuxt` (`moduleDependencies`), registers `components/`, `composables/` + `utils/` auto-imports,
   `resolve.dedupe` for the shared peers, vite dev-server `fs.allow`, and an `optimizeDeps.exclude` for the package. Also
   re-exports the public types (`TryOnModel`, calibration and slot/state
   types). Hosts add one `modules` entry; nothing else.
@@ -151,7 +153,7 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 
 - Host adds `'@eleven.spectacles/virtual-try-on'` (or the local
   `src/module` path) to `modules`; the module self-registers everything else.
-- Host provides `@tresjs/nuxt` (+ three, VueUse) and
+- Host provides VueUse (TresJS and three ship with the module) and
   builds all UI around the component from its slot — the module depends on
   no UI library. `@nuxt/ui` is a playground-only devDependency.
 - Host logs failures from its `track` handler (`TRY_ON_ERROR` events); the

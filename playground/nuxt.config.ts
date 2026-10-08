@@ -19,7 +19,7 @@ export default defineNuxtConfig({
   // Dogfooding: consume this repo through its own Nuxt module entry so the
   // auto-registration (components, composables/utils, Tailwind @source,
   // worker fs.allow) is exercised exactly like a host's.
-  modules: ['@nuxt/ui', '@tresjs/nuxt', r('../src/module')],
+  modules: ['@nuxt/ui', r('../src/module')],
 
   css: ['~/assets/css/main.css'],
 
