@@ -307,6 +307,34 @@ export function computeAnchorCentroid(
 export const FRAME_FIT_SCALE_BOOST = 1.12
 
 /**
+ * How far in front of the tracked anchor (≈ landmark 168, on the skin
+ * between the brows) a worn frame's front sits: the bridge rests on nose
+ * pads, standing off the face. Applied along the head's own forward axis —
+ * frontal it only moves the frame toward the camera, but at yaw it shifts
+ * the frame toward the nose, where the real one is. Without it the frame
+ * pivots about the skin and drifts toward the ear on turned heads.
+ * Fitted on the face fixtures (see tests/e2e/render.spec.ts).
+ */
+export const FRAME_BRIDGE_STANDOFF_METERS = 0.012
+
+/**
+ * `(0, 0, distance)` in head space rotated into world space by a three.js
+ * `XYZ`-order Euler (the frame group's rotation), i.e. `distance` along the
+ * head's forward axis.
+ */
+export function headForwardOffset(
+  euler: { x: number; y: number; z: number },
+  distance: number
+): { x: number; y: number; z: number } {
+  const cosY = Math.cos(euler.y)
+  return {
+    x: distance * Math.sin(euler.y),
+    y: -distance * Math.sin(euler.x) * cosY,
+    z: distance * Math.cos(euler.x) * cosY
+  }
+}
+
+/**
  * Inter-pupillary distance in normalized image units, from the iris-center
  * landmarks. Returns 0 when the model did not emit iris landmarks (e.g. a
  * 468-point result), letting callers fall back to the face-width path.
