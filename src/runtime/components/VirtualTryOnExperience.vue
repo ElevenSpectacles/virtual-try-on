@@ -9,11 +9,6 @@
  */
 import { NeutralToneMapping, Euler, Vector3 } from 'three'
 import {
-  useElementSize,
-  usePreferredReducedMotion,
-  useRafFn
-} from '@vueuse/core'
-import {
   landmarkToWorld,
   computeMetricBaseScale,
   computeMetricScaleFromMeasure,
@@ -44,6 +39,7 @@ import {
   type TryOnModel
 } from '../composables/tryon/useTryOnModels'
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
+import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -71,7 +67,10 @@ const props = withDefaults(
     exposure?: number
     /** Multiplier on the computed frame scale. */
     frameScale?: number
-    /** Manual frame yaw in degrees, used only while no face is tracked. */
+    /**
+     * @deprecated No effect since 4.4.0 — the frame renders only on a
+     * tracked face, which supplies its rotation. Removed in 5.0.
+     */
     frameYaw?: number
     /** Multiplier on the calibrated temple-width boost. */
     templeWidth?: number
@@ -127,10 +126,9 @@ const {
   start: startStream,
   stop
 } = useWebcamStream()
-const prefersReducedMotion = usePreferredReducedMotion()
 
 const stageRef = ref<HTMLElement | null>(null)
-const { width: stageWidth, height: stageHeight } = useElementSize(stageRef)
+const { width: stageWidth, height: stageHeight } = useTryOnElementSize(stageRef)
 
 const aspect = computed(() =>
   stageHeight.value > 0 ? stageWidth.value / stageHeight.value : 3 / 4
@@ -165,7 +163,6 @@ const DEFAULT_ANCHOR_Y_OFFSET = 0
 const debugYOffset = ref(0)
 const debugZOffset = ref(0)
 const debugScaleBoost = ref(1)
-const rotationY = computed(() => (props.frameYaw * Math.PI) / 180)
 const mirrorLandmarks = true
 const useFaceTracking = ref(true)
 const occluderEnabled = ref(false)
@@ -197,8 +194,8 @@ function poseCompensated(measure: number): number {
 
 // GLBs are authored in metres — derive scale metrically from the tracked
 // ear-to-ear width (what a frame's temple arms actually span), falling back
-// to cheek width, to IPD, and to the static reference width in pointer/idle
-// mode. Same chain as VirtualTryOnPrototype, so playground tuning transfers
+// to cheek width, to IPD, and to the static reference width while no face
+// is tracked. Same chain as VirtualTryOnPrototype, so playground tuning transfers
 // 1:1.
 const scaleSource = computed<'ear' | 'width' | 'ipd' | 'manual'>(() => {
   if (!hasFace.value) return 'manual'
@@ -293,9 +290,11 @@ const faceRotation = computed(() => {
   }
 })
 
-const manualRotation = computed(() => ({
+// Rotation target while no face is tracked — the frame is hidden then, so
+// this only keeps the smoothing filters fed with a sane value.
+const restingRotation = computed(() => ({
   x: calibration.value.rotation.x,
-  y: rotationY.value + calibration.value.rotation.y,
+  y: calibration.value.rotation.y,
   z: calibration.value.rotation.z
 }))
 
@@ -336,42 +335,27 @@ const templeScaleBoost = computed(
   () => calibration.value.templeWidthBoost * props.templeWidth
 )
 
-const pointerActive = ref(false)
-const landmark = ref<NormalizedLandmark>({ x: 0.5, y: 0.45 })
-
-const idlePhase = ref(0)
-useRafFn(
-  ({ delta }) => {
-    if (prefersReducedMotion.value === 'reduce' || pointerActive.value) return
-    idlePhase.value += delta / 1000
-  },
-  { immediate: true }
-)
+// Anchor target while no face is tracked (hidden frame, see above).
+const RESTING_ANCHOR: NormalizedLandmark = { x: 0.5, y: 0.45 }
 
 const effectiveLandmark = computed<NormalizedLandmark>(() => {
   if (useFaceTracking.value && hasFace.value && correctedFaceAnchor.value) {
     return correctedFaceAnchor.value
   }
-  if (pointerActive.value) return landmark.value
-  if (prefersReducedMotion.value === 'reduce') return { x: 0.5, y: 0.45 }
-  return {
-    x: 0.5 + 0.06 * Math.sin(idlePhase.value),
-    y: 0.45 + 0.03 * Math.sin(idlePhase.value * 0.7)
-  }
+  return RESTING_ANCHOR
 })
 
-// Hide the frame while camera tracking has momentarily lost the face (head
-// turned past the tracker's yaw range, face out of frame). Without this the
-// glasses freeze mid-air or drift on the idle animation over a live video of
-// a face they no longer follow. Pointer mode is unaffected.
-const frameVisible = computed(() => {
-  if (useFaceTracking.value && isActive.value) return hasFace.value
-  return true
-})
+// The frame renders only on a tracked face: never before the camera starts
+// (the host owns that screen — consent, previews), and not while tracking
+// has momentarily lost the face (head turned past the tracker's yaw range,
+// face out of frame), where it would freeze mid-air over the live video.
+const frameVisible = computed(
+  () => isActive.value && useFaceTracking.value && hasFace.value
+)
 
 const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
   targetAnchor: effectiveLandmark,
-  targetEuler: computed(() => faceRotation.value ?? manualRotation.value),
+  targetEuler: computed(() => faceRotation.value ?? restingRotation.value),
   targetScale: calibratedScale,
   isTracking: computed(() => useFaceTracking.value && hasFace.value),
   latencyMs: faceLatencyMs,
@@ -387,7 +371,7 @@ const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
 // comes from the SMOOTHED anchor/euler/scale the glasses render with — the
 // mesh and frame move as one rigid body and occluder edges never shimmer
 // against the glasses. Null when no face is tracked → the scene falls back
-// to the ellipsoid proxy (pointer/idle mode).
+// to the ellipsoid proxy.
 const occluderPositions = computed(() => {
   if (
     !useFaceTracking.value ||
@@ -442,23 +426,6 @@ const status = computed<TryOnStatus>(() => {
   if (error.value) return 'error'
   return 'idle'
 })
-
-function onPointerMove(event: PointerEvent) {
-  const el = stageRef.value
-  if (!el) return
-  const rect = el.getBoundingClientRect()
-  const px = (event.clientX - rect.left) / rect.width
-  const py = (event.clientY - rect.top) / rect.height
-  pointerActive.value = true
-  landmark.value = {
-    x: 1 - Math.min(Math.max(px, 0), 1),
-    y: Math.min(Math.max(py, 0), 1)
-  }
-}
-
-function onPointerLeave() {
-  pointerActive.value = false
-}
 
 function trackTryOn(
   event:
@@ -570,12 +537,7 @@ watch(model, (value) => {
 </script>
 
 <template>
-  <div
-    ref="stageRef"
-    class="vto-stage"
-    @pointermove="onPointerMove"
-    @pointerleave="onPointerLeave"
-  >
+  <div ref="stageRef" class="vto-stage">
     <!-- Always mounted so the webcam stream has an element to attach to;
          hidden until the stream is active. Mirrored here and only here
          (see landmarkToNdc). -->
@@ -652,7 +614,6 @@ watch(model, (value) => {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  touch-action: none;
 }
 
 .vto-video {

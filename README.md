@@ -35,7 +35,7 @@ with virtual try-on for every frame in the catalog.
 
 ## Requirements
 
-- **Nuxt 4** and `@vueuse/core` 14.
+- **Nuxt 4**.
 - **Browser**: WebAssembly, Web Workers, `createImageBitmap` and
   `getUserMedia` — every current evergreen browser, desktop and mobile.
   Unsupported browsers get an error state instead of a crash.
@@ -45,12 +45,6 @@ with virtual try-on for every frame in the catalog.
 
 ```bash
 npm i @eleven.spectacles/virtual-try-on
-```
-
-Install `@vueuse/core` if your app doesn't already have it:
-
-```bash
-npm i @vueuse/core
 ```
 
 TresJS (`@tresjs/nuxt`, `@tresjs/core`), `three` and MediaPipe
@@ -168,7 +162,7 @@ The full types are exported as `TryOnCalibrationFile` and
 | `autoStart` | `boolean` | `false` | Starts the camera on mount. Use when your app already collected consent. |
 | `exposure` | `number` | `1` | Renderer tone-mapping exposure. |
 | `frameScale` | `number` | `1` | Multiplier on the computed frame scale. |
-| `frameYaw` | `number` | `0` | Manual frame yaw in degrees, used only while no face is tracked. |
+| `frameYaw` | `number` | `0` | **Deprecated**, no effect since 4.4.0 — the frame renders only on a tracked face. Removed in 5.0. |
 | `templeWidth` | `number` | `1` | Multiplier on the calibrated temple width. |
 | `mediapipeBasePath` | `string` | jsDelivr CDN | Directory of the MediaPipe Wasm fileset, for self-hosting. |
 | `mediapipeModelAssetPath` | `string` | Google Storage | URL of `face_landmarker.task`, for self-hosting. |

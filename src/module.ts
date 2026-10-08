@@ -88,12 +88,7 @@ export default defineNuxtModule({
     // (duplicate renderer state, broken reactivity, ~600 KB extra).
     nuxt.options.vite.resolve ??= {}
     nuxt.options.vite.resolve.dedupe ??= []
-    nuxt.options.vite.resolve.dedupe.push(
-      'vue',
-      'three',
-      '@tresjs/core',
-      '@vueuse/core'
-    )
+    nuxt.options.vite.resolve.dedupe.push('vue', 'three', '@tresjs/core')
 
     // three's DRACOLoader references its bundled decoder via
     // `new URL(…, import.meta.url)`, so Vite emits ~1.3 MB of decoder files
