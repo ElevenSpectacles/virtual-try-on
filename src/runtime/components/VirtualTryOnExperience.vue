@@ -48,7 +48,7 @@ import type {
 } from '../types/tryon-experience'
 
 import TryOnScene from './TryOnScene.vue'
-import { useRoute } from '#imports'
+import { useRoute, useRuntimeConfig } from '#imports'
 import { computed, onMounted, ref, watch } from 'vue'
 
 const props = withDefaults(
@@ -86,6 +86,12 @@ const props = withDefaults(
     draco?: boolean
     /** Draco decoder path override — omit to use the gstatic CDN default. */
     dracoDecoderPath?: string | undefined
+    /**
+     * Hide frame parts behind the head (the far temple) with the face-mesh
+     * occluder. Omit to use the module option `virtualTryOn.occluder`
+     * (default `true`).
+     */
+    occluder?: boolean | undefined
   }>(),
   {
     modelBaseUrl: '/models/virtual-try-on',
@@ -94,7 +100,10 @@ const props = withDefaults(
     frameScale: 1,
     frameYaw: 0,
     templeWidth: 1,
-    draco: true
+    draco: true,
+    // Explicit undefined, not Vue's absent-boolean `false`, so an omitted
+    // prop falls through to the module option.
+    occluder: undefined
   }
 )
 
@@ -165,7 +174,10 @@ const debugZOffset = ref(0)
 const debugScaleBoost = ref(1)
 const mirrorLandmarks = true
 const useFaceTracking = ref(true)
-const occluderEnabled = ref(false)
+const runtimeConfig = useRuntimeConfig()
+const occluderEnabled = computed(
+  () => props.occluder ?? runtimeConfig.public.virtualTryOn?.occluder ?? true
+)
 
 // Normalized inter-pupillary distance from the iris landmarks — varies far
 // less between people than cheek-to-cheek width, so it stays the fallback
