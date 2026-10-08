@@ -39,8 +39,9 @@ export default defineNuxtConfig({
     }
   },
 
+  // Same URL as the host and the component's `modelBaseUrl` default.
   nitro: {
-    publicAssets: [{ dir: modelsDir, baseURL: 'models' }]
+    publicAssets: [{ dir: modelsDir, baseURL: 'models/virtual-try-on' }]
   },
 
   devtools: { enabled: true }

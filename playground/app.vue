@@ -46,8 +46,7 @@ function onTrack(event: string, payload: Record<string, unknown>) {
       >
         <VirtualTryOnExperience
           :models="models"
-          calibration-url="/models/calibration.json"
-          model-base-url="/models"
+          calibration-url="/models/virtual-try-on/calibration.json"
           @track="onTrack"
         >
           <template #default="{ status, error, faceError, guideHint, isStarting, start }">

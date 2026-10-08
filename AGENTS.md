@@ -25,8 +25,11 @@ Key facts:
   `<script setup lang="ts">` SFCs.
 - Runtime dependencies are `peerDependencies` provided by the host: `nuxt` ^4,
   `vue` ^3, `@tresjs/nuxt` + `@tresjs/core`, `three`,
-  `@vueuse/core`, `@mediapipe/tasks-vision`. The only
-  `dependency` is `@nuxt/kit` (imported by the module entry).
+  `@vueuse/core` — libraries the host must share a single copy of.
+  `dependencies` are `@nuxt/kit` (module entry) and `@mediapipe/tasks-vision`,
+  pinned to an exact version: only the worker uses it, and its JS must match
+  the WASM version in the worker's `DEFAULT_WASM_BASE_PATH`
+  (`tests/unit/mediapipe-version.test.ts` enforces it). Bump both together.
 
 ## Repository layout
 
@@ -134,7 +137,7 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 
 - Host adds `'@eleven.spectacles/virtual-try-on'` (or the local
   `src/module` path) to `modules`; the module self-registers everything else.
-- Host provides `@tresjs/nuxt` (+ three, VueUse, MediaPipe) and
+- Host provides `@tresjs/nuxt` (+ three, VueUse) and
   builds all UI around the component from its slot — the module depends on
   no UI library. `@nuxt/ui` is a playground-only devDependency.
 - Host logs failures from its `track` handler (`TRY_ON_ERROR` events); the
