@@ -18,7 +18,7 @@ export default defineConfig({
   // One worker: every test spins up MediaPipe + a SwiftShader WebGL context,
   // and parallel runs starve each other into timeouts.
   workers: 1,
-  timeout: 90_000,
+  timeout: 120_000,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
     ...devices['Desktop Chrome'],

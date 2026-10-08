@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { Euler, Vector3 } from 'three'
 import {
   mirrorNormalizedX,
   landmarkToNdc,
@@ -8,6 +9,7 @@ import {
   getFaceWidth,
   estimateDistanceScale,
   worldPlaneWidth,
+  headForwardOffset,
   computeMetricBaseScale,
   computeHeadOccluderGeometry,
   objectCoverWindow,
@@ -480,6 +482,30 @@ describe('try-on compositing helpers', () => {
       )
       expect(mapped.z).toBe(0.1)
       expect(mapped.visibility).toBe(0.9)
+    })
+  })
+
+  describe('headForwardOffset', () => {
+    it('points straight at the camera on a frontal head', () => {
+      const offset = headForwardOffset({ x: 0, y: 0, z: 0 }, 0.5)
+      expect(offset.x).toBeCloseTo(0)
+      expect(offset.y).toBeCloseTo(0)
+      expect(offset.z).toBeCloseTo(0.5)
+    })
+
+    it('matches three.js XYZ Euler rotation of the forward axis', () => {
+      for (const euler of [
+        { x: 0.2, y: 0.45, z: -0.1 },
+        { x: -0.3, y: -0.6, z: 0.25 }
+      ]) {
+        const expected = new Vector3(0, 0, 0.7).applyEuler(
+          new Euler(euler.x, euler.y, euler.z)
+        )
+        const offset = headForwardOffset(euler, 0.7)
+        expect(offset.x).toBeCloseTo(expected.x)
+        expect(offset.y).toBeCloseTo(expected.y)
+        expect(offset.z).toBeCloseTo(expected.z)
+      }
     })
   })
 })

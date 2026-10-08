@@ -24,6 +24,8 @@ import {
   ASSUMED_EAR_WIDTH_METERS,
   ASSUMED_IPD_METERS,
   FRAME_FIT_SCALE_BOOST,
+  FRAME_BRIDGE_STANDOFF_METERS,
+  headForwardOffset,
   type NormalizedLandmark
 } from '../../src/runtime/utils/tryon'
 import { faceEulerToThree } from '../../src/runtime/utils/tryon-pose'
@@ -210,7 +212,7 @@ const occluderPosition = computed(() => {
   return {
     x: position.x + back.x,
     y: position.y + back.y,
-    z: framePosition.value.z + back.z
+    z: debugZOffset.value + back.z
   }
 })
 const rotationDeg = ref(0)
@@ -382,10 +384,16 @@ const framePosition = computed(() => {
   const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
     mirror: mirrorLandmarks
   })
+  // The frame front stands off the face along the head's forward axis
+  // (see FRAME_BRIDGE_STANDOFF_METERS).
+  const standoff = headForwardOffset(
+    smoothedEuler.value,
+    FRAME_BRIDGE_STANDOFF_METERS * smoothedScale.value
+  )
   return {
-    x: position.x,
-    y: position.y + DEFAULT_ANCHOR_Y_OFFSET + debugYOffset.value,
-    z: debugZOffset.value
+    x: position.x + standoff.x,
+    y: position.y + standoff.y + DEFAULT_ANCHOR_Y_OFFSET + debugYOffset.value,
+    z: standoff.z + debugZOffset.value
   }
 })
 

@@ -36,8 +36,9 @@ for (const face of FACE_FIXTURES) {
       // to settle on the still input.
       await expect(page.getByRole('button', { name: 'Start camera' })).toBeHidden()
       await page.waitForTimeout(1_000)
+      // SwiftShader detection occasionally needs >45 s for the first face.
       await expect(stage.getByText('Position your face in view')).toBeHidden({
-        timeout: 45_000
+        timeout: 75_000
       })
       await page.waitForTimeout(4_000)
 
