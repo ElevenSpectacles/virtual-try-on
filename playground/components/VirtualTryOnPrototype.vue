@@ -18,7 +18,7 @@ import {
   mapLandmarkToObjectCover,
   getFaceWidth,
   getEarWidth,
-  isBlinking,
+  shouldHoldScaleForBlink,
   getEyeAspectRatio,
   ASSUMED_FACE_WIDTH_METERS,
   ASSUMED_EAR_WIDTH_METERS,
@@ -248,6 +248,7 @@ const {
   confidence,
   landmarks: faceLandmarks,
   pose: facePose,
+  blinkScore: faceBlinkScore,
   anchor: faceAnchor,
   latencyMs: faceLatencyMs,
   init: initFaceLandmarker
@@ -298,6 +299,7 @@ if (import.meta.client && route.query.harness === 'true') {
       results,
       frameIntervals,
       latencyMs: () => faceLatencyMs.value,
+      blink: () => faceBlinkScore.value,
       pose: () => facePose.value?.euler ?? null
     }
   })
@@ -377,7 +379,13 @@ const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
   targetScale: calibratedScale,
   isTracking: computed(() => useFaceTracking.value && hasFace.value),
   latencyMs: faceLatencyMs,
-  holdScale: computed(() => isBlinking(faceLandmarks.value, mediaAspect.value || 1))
+  holdScale: computed(() =>
+    shouldHoldScaleForBlink(
+      faceBlinkScore.value,
+      faceLandmarks.value,
+      mediaAspect.value || 1
+    )
+  )
 })
 
 const framePosition = computed(() => {
@@ -468,7 +476,7 @@ useRafFn(
     const lines = [
       `faceWidth: ${correctedFaceWidth.value.toFixed(3)}`,
       `ipd: ${correctedIpd.value.toFixed(3)}`,
-      `ear: ${getEyeAspectRatio(faceLandmarks.value, mediaAspect.value || 1).toFixed(3)} blink: ${isBlinking(faceLandmarks.value, mediaAspect.value || 1)}`,
+      `ear: ${getEyeAspectRatio(faceLandmarks.value, mediaAspect.value || 1).toFixed(3)} blink: ${faceBlinkScore.value?.toFixed(2) ?? 'n/a'} hold: ${shouldHoldScaleForBlink(faceBlinkScore.value, faceLandmarks.value, mediaAspect.value || 1)}`,
       `scaleSource: ${scaleSource.value}`,
       `autoMetricScale: ${autoMetricScale.value.toFixed(3)}`,
       `effectiveScale: ${calibratedScale.value.toFixed(2)}`,

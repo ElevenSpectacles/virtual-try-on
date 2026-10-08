@@ -45,7 +45,7 @@
     "verify:e2e": "playwright test --pass-with-no-tests"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "1.0.1",
+    "@mediapipe/tasks-vision": "1.1.0",
     "@nuxt/kit": "^4.6.0",
     "@tresjs/core": "^5.9.3",
     "@tresjs/nuxt": "^5.7.3",

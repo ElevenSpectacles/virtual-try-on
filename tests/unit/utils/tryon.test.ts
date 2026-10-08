@@ -10,6 +10,8 @@ import {
   estimateDistanceScale,
   worldPlaneWidth,
   headForwardOffset,
+  shouldHoldScaleForBlink,
+  BLINK_SCORE_THRESHOLD,
   computeMetricBaseScale,
   computeHeadOccluderGeometry,
   objectCoverWindow,
@@ -506,6 +508,19 @@ describe('try-on compositing helpers', () => {
         expect(offset.y).toBeCloseTo(expected.y)
         expect(offset.z).toBeCloseTo(expected.z)
       }
+    })
+  })
+
+  describe('shouldHoldScaleForBlink', () => {
+    it('follows the blendshape score when the model provides one', () => {
+      expect(shouldHoldScaleForBlink(0.9, [])).toBe(true)
+      expect(shouldHoldScaleForBlink(0.1, [])).toBe(false)
+      expect(shouldHoldScaleForBlink(BLINK_SCORE_THRESHOLD, [])).toBe(false)
+    })
+
+    it('falls back to the eyelid heuristic without blendshapes', () => {
+      expect(shouldHoldScaleForBlink(null, landmarksWithEyeOpening(0.001))).toBe(true)
+      expect(shouldHoldScaleForBlink(null, landmarksWithEyeOpening(0.05))).toBe(false)
     })
   })
 })
