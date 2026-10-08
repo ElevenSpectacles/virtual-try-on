@@ -4,6 +4,7 @@ import {
   FACE_MESH_OCCLUDER_INDEX,
   FACE_MESH_OCCLUDER_VERTEX_COUNT,
   buildFaceMeshOccluderPositions,
+  nearSideWeight,
   type FaceMeshOccluderOptions
 } from '../../../src/runtime/utils/tryon-occluder'
 import { FACE_MESH_VERTEX_COUNT } from '../../../src/runtime/utils/face-mesh-triangles'
@@ -187,5 +188,25 @@ describe('face-mesh occluder', () => {
     expect(front.x).toBeCloseTo(back.x)
     expect(front.y).toBeCloseTo(back.y)
     expect(front.z - back.z).toBeCloseTo(0.1 * SCALE)
+  })
+})
+
+describe('nearSideWeight', () => {
+  const MID = 0.02
+
+  it('is zero on a frontal head', () => {
+    expect(nearSideWeight(0.06, 0, MID)).toBe(0)
+    expect(nearSideWeight(-0.06, 0, MID)).toBe(0)
+  })
+
+  it('weights only the camera-facing cheek of a turned head', () => {
+    const turned = Math.sin(0.6)
+    expect(nearSideWeight(0.06, turned, MID)).toBe(1)
+    expect(nearSideWeight(-0.06, turned, MID)).toBe(0)
+    expect(nearSideWeight(-0.06, -turned, MID)).toBe(1)
+  })
+
+  it('leaves the midline (nose, bridge) occluding', () => {
+    expect(nearSideWeight(0.01, Math.sin(0.6), MID)).toBe(0)
   })
 })
