@@ -286,7 +286,8 @@ through the `track` event, so your app decides what is sent.
 ```bash
 npm install
 npm run playground   # tuning playground on http://localhost:4000
-npm run verify       # unit tests + playground build + smoke test
+npm run verify       # unit tests + playground smoke test + face-fixture e2e
+npm run verify:e2e   # tracking + golden screenshots on fake-camera face clips
 npm run typecheck
 npm run build        # dist/ via @nuxt/module-builder
 ```
@@ -296,6 +297,14 @@ npm run build        # dist/ via @nuxt/module-builder
 (`?model=<file>`, `?debug_tryon=true`). It serves GLBs and
 `calibration.json` from a sibling host checkout — set `TRYON_MODELS_DIR` if
 yours live elsewhere.
+
+**Face-fixture tests** — `verify:e2e` feeds portraits from
+`tests/fixtures/faces/` to Chromium as a fake camera (rendered to video with
+`ffmpeg`), asserts detection rate and landmark jitter, and compares the
+fitted frame against golden screenshots in `tests/e2e/__screenshots__/`.
+After an intended visual change, run
+`npm run verify:e2e -- --update-snapshots` and review the new images. It
+skips when `ffmpeg` or the models directory is missing.
 
 **Compressing models** — Draco-compress a directory of GLBs:
 

@@ -265,6 +265,42 @@ const correctedFaceWidth = computed(() =>
   getFaceWidth(correctedFaceLandmarks.value)
 )
 
+// Face-fixture harness (tests/e2e/tracking.spec.ts): `?harness=true` exposes
+// the raw tracking stream on `window.__tryOnHarness` so Playwright can assert
+// detection rate and landmark jitter. Records every detector result, with
+// landmarks in stage pixels, plus rAF frame intervals.
+if (import.meta.client && route.query.harness === 'true') {
+  const results: { at: number; landmarks: [number, number][] }[] = []
+  const frameIntervals: number[] = []
+  watch(
+    faceLandmarks,
+    () => {
+      results.push({
+        at: performance.now(),
+        landmarks: correctedFaceLandmarks.value.map((lm) => [
+          lm.x * stageWidth.value,
+          lm.y * stageHeight.value
+        ])
+      })
+    },
+    { flush: 'sync' }
+  )
+  let lastFrame = performance.now()
+  useRafFn(() => {
+    const now = performance.now()
+    frameIntervals.push(now - lastFrame)
+    lastFrame = now
+  })
+  Object.assign(window, {
+    __tryOnHarness: {
+      results,
+      frameIntervals,
+      latencyMs: () => faceLatencyMs.value,
+      pose: () => facePose.value?.euler ?? null
+    }
+  })
+}
+
 // Same guide behavior as VirtualTryOnExperience: blurred surround +
 // corner-bracket rectangle while no face is found, fading out once a face is
 // tracked. No distance hints — the metric scale adapts to any workable
