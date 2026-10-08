@@ -41,7 +41,7 @@ writeFileSync(
       dependencies: {
         nuxt: '^4.5.1',
         vue: '^3.5.0',
-        '@vueuse/core': '^14.4.0',
+        '@vueuse/core': '^15.0.0',
         '@eleven.spectacles/virtual-try-on': `file:./${tarball}`
       }
     },

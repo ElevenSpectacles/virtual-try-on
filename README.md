@@ -35,7 +35,7 @@ with virtual try-on for every frame in the catalog.
 
 ## Requirements
 
-- **Nuxt 4** and `@vueuse/core` 14.
+- **Nuxt 4** and `@vueuse/core` 15.
 - **Browser**: WebAssembly, Web Workers, `createImageBitmap` and
   `getUserMedia` — every current evergreen browser, desktop and mobile.
   Unsupported browsers get an error state instead of a crash.

@@ -52,7 +52,7 @@
     "three": "^0.186.1"
   },
   "peerDependencies": {
-    "@vueuse/core": "^14.4.0",
+    "@vueuse/core": "^15.0.0",
     "nuxt": "^4.5.1",
     "vue": "^3.0.0"
   },
@@ -67,6 +67,7 @@
     "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.4",
     "@types/three": "^0.186.0",
+    "@vueuse/core": "^15.0.0",
     "draco3dgltf": "^1.5.7",
     "husky": "^9.1.7",
     "tsx": "^4.23.15",

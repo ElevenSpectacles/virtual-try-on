@@ -24,7 +24,7 @@ Key facts:
 - `"type": "module"`; all source is TypeScript / Vue 3
   `<script setup lang="ts">` SFCs.
 - `peerDependencies` are only what the host already owns: `nuxt` ^4,
-  `vue` ^3, `@vueuse/core`. `dependencies` are `@nuxt/kit` (module entry),
+  `vue` ^3, `@vueuse/core` ^15 (the bundled TresJS requires 15). `dependencies` are `@nuxt/kit` (module entry),
   `@tresjs/nuxt` + `@tresjs/core` + `three` (the module installs
   `@tresjs/nuxt` through `moduleDependencies`, so hosts never list or
   install them; `resolve.dedupe` keeps one copy if a host also imports
