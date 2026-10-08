@@ -149,6 +149,25 @@ the host, faking the worker with a `FakeWorker` class. New pure logic goes in
 `utils/` and gets a unit test; worker-dependent composables get a
 `FakeWorker`-style nuxt test.
 
+## Agent skills
+
+Skills live once in `.agents/skills/<name>/` (read directly by OpenCode and
+other agents); `.claude/skills/<name>` are symlinks to them for Claude Code.
+Add or remove third-party skills with `npx skills add|remove … -a
+claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
+
+- Project skills (written here, keep them true when the workflow changes):
+  `fit-check` (measure frame fit on the face fixtures before tuning),
+  `release-smoke` (tarball → bare Nuxt host → build + SSR check, required
+  for publish-affecting changes), `add-face-fixture`.
+- Third-party, locked: `nuxt-modules` (onmax/nuxt-skills), `playwright-cli`.
+  `nuxt-modules` suggests changelogen/manual release workflows — ignore
+  them; releases here go only through release-please.
+- Vendored and patched, so not in the lock (an update would revert the
+  patches): `threejs-fundamentals`, `-geometry`, `-loaders`, `-materials`
+  from cloudai-x/threejs-skills, moved to three r186 (`three/addons`,
+  `HDRLoader`). Rendering still goes through TresJS — the rules above win.
+
 ## Host integration contract
 
 - Host adds `'@eleven.spectacles/virtual-try-on'` (or the local
