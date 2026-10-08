@@ -179,6 +179,39 @@ export interface FaceMeshOccluderOptions {
    * to actually reach past the ear instead of just behind the cheek.
    */
   collarFlare?: number
+  /**
+   * Extra push-back, in metres, for the side of the head turned toward the
+   * camera (see `nearSideWeight`). There the temple arm runs along the
+   * visible side of the head, millimetres off the skin — `inflate` and
+   * `collarFlare` would wrap the occluder over it and cut it off behind the
+   * hinge. Nothing of the frame is truly behind the near cheek, so that side
+   * drops both (its collar collapses onto the oval) and steps back; the far
+   * side keeps them to hide its temple.
+   */
+  nearSideSetbackMeters?: number
+}
+
+/**
+ * 0 → 1 weight for how much a head-local vertex sits on the camera-facing
+ * side of the head: zero near the midline (nose, bridge — must keep
+ * occluding the far lens) and on a frontal head, one on the outer cheek of a
+ * head turned ≳ 20°. `camLocalX` is the x component of the unit
+ * camera direction in head-local space (≈ sin(yaw)).
+ */
+export function nearSideWeight(
+  localX: number,
+  camLocalX: number,
+  midlineHalfWidth: number
+): number {
+  const facing = Math.sign(localX) * camLocalX
+  const turn = smoothstep(0.1, 0.35, facing)
+  const lateral = smoothstep(midlineHalfWidth, midlineHalfWidth * 2.5, Math.abs(localX))
+  return turn * lateral
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1)
+  return t * t * (3 - 2 * t)
 }
 
 const tmpVec = new Vector3()
@@ -208,7 +241,8 @@ export function buildFaceMeshOccluderPositions(
     skinSetbackMeters = 0.006,
     inflate = 1.04,
     collarDepthMeters = 0.2,
-    collarFlare = 1.35
+    collarFlare = 1.35,
+    nearSideSetbackMeters = 0.03
   } = options
 
   if (scale <= 0 || landmarks.length < FACE_MESH_VERTEX_COUNT) return null
@@ -239,6 +273,11 @@ export function buildFaceMeshOccluderPositions(
     qSmooth
   )
 
+  // Camera direction in the raw head-local frame, and the half-width of the
+  // midline band (nose, bridge) that always keeps occluding — 2 cm.
+  const camLocalX = new Vector3(0, 0, 1).applyQuaternion(qRawInv).x
+  const midlineHalfWidth = 0.02 * scale
+
   const positions = new Float32Array(FACE_MESH_OCCLUDER_VERTEX_COUNT * 3)
 
   for (let i = 0; i < FACE_MESH_VERTEX_COUNT; i++) {
@@ -255,15 +294,21 @@ export function buildFaceMeshOccluderPositions(
       -((landmark.z ?? 0) - anchorZ) * zWorldPerNorm
     )
     tmpVec.applyQuaternion(qRawInv)
-    tmpVec.x *= inflate
-    tmpVec.y *= inflate
+    const near = nearSideWeight(tmpVec.x, camLocalX, midlineHalfWidth)
+    const vertexInflate = inflate + (1 - inflate) * near
+    tmpVec.x *= vertexInflate
+    tmpVec.y *= vertexInflate
+    tmpVec.z -= near * nearSideSetbackMeters * scale
 
     const ovalSlot = OVAL_SLOT.get(i)
     if (ovalSlot !== undefined) {
+      // The near side's collar collapses onto the oval: from the camera's
+      // side of the head it would only wall off the visible temple.
       backVec.copy(tmpVec)
       backVec.x *= collarFlare
       backVec.y *= collarFlare
       backVec.z -= collarDepthMeters * scale
+      backVec.lerp(tmpVec, near)
       backVec.applyQuaternion(qSmooth)
       backVec.x += smoothedAnchorWorld.x + setback.x
       backVec.y += smoothedAnchorWorld.y + setback.y

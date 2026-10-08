@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
  *   under movement. Yaw/pitch can't be synthesised from one photo.
  */
 
-export const FACE_FIXTURES = ['iris-moss', 'pteron-azure'] as const
+export const FACE_FIXTURES = ['iris-moss', 'pteron-azure', 'kairos-amber'] as const
 export type FaceFixture = (typeof FACE_FIXTURES)[number]
 export type ClipKind = 'still' | 'motion'
 

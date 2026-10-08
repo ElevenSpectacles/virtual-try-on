@@ -27,8 +27,8 @@ const SAMPLE_MS = 6_000
 async function runTracking(page: Page, model: string) {
   await page.goto(`/?model=${model}&harness=true`)
   await page.waitForFunction(() => '__tryOnHarness' in window)
+  // The prototype switches tracking on by itself once the camera is live.
   await page.getByRole('button', { name: 'Allow camera access' }).click()
-  await page.getByRole('switch', { name: /track my face/i }).click()
 
   // Measure from the first detection: MediaPipe's Wasm + model download is
   // load time, not tracking quality.
