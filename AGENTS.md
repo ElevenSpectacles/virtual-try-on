@@ -14,7 +14,7 @@ Key facts:
   sibling host checkout) consume the source entry `src/module.ts` directly,
   no build needed.
 - No app entry point at the repo root. **Import everything explicitly** —
-  `ref`/`computed`/`onBeforeUnmount` from `vue`, VueUse from `@vueuse/core`, Nuxt composables from `#imports`, sibling
+  `ref`/`computed`/`onBeforeUnmount` from `vue`, Nuxt composables from `#imports`, sibling
   components/composables by relative path. The host disables auto-imports
   project-wide. Never import host paths like `~/composables/*`.
 - **The module never logs.** Failures surface as slot state and a
@@ -24,7 +24,10 @@ Key facts:
 - `"type": "module"`; all source is TypeScript / Vue 3
   `<script setup lang="ts">` SFCs.
 - `peerDependencies` are only what the host already owns: `nuxt` ^4,
-  `vue` ^3, `@vueuse/core`. `dependencies` are `@nuxt/kit` (module entry),
+  `vue` ^3. The runtime does not use VueUse (its rAF loop and element size
+  are `useTryOnFrameLoop` / `useTryOnElementSize`), so hosts never have to
+  match the VueUse major the bundled TresJS pulls in — keep it that way;
+  VueUse is a playground-only devDependency. `dependencies` are `@nuxt/kit` (module entry),
   `@tresjs/nuxt` + `@tresjs/core` + `three` (the module installs
   `@tresjs/nuxt` through `moduleDependencies`, so hosts never list or
   install them; `resolve.dedupe` keeps one copy if a host also imports
@@ -63,6 +66,8 @@ Key facts:
     loop, pose/confidence exposure.
   - `useWebcamStream.ts` — webcam lifecycle (`getUserMedia`).
   - `useTryOnSmoothing.ts` — One-Euro filtering of landmarks/pose.
+  - `useTryOnFrameLoop.ts` / `useTryOnElementSize.ts` — rAF loop and
+    ResizeObserver size, the module's own stand-ins for VueUse.
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
     per-model calibration.
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
@@ -172,7 +177,7 @@ claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
 
 - Host adds `'@eleven.spectacles/virtual-try-on'` (or the local
   `src/module` path) to `modules`; the module self-registers everything else.
-- Host provides VueUse (TresJS and three ship with the module) and
+- Host provides only `nuxt` and `vue` (TresJS and three ship with the module) and
   builds all UI around the component from its slot — the module depends on
   no UI library. `@nuxt/ui` is a playground-only devDependency.
 - Host logs failures from its `track` handler (`TRY_ON_ERROR` events); the

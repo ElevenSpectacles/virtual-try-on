@@ -21,8 +21,7 @@ What it does:
 1. `npm run build` and `npm pack` in the repo.
 2. Creates a fresh `os.tmpdir()/vto-release-smoke-*` host whose only
    module is `@eleven.spectacles/virtual-try-on` (plus `@tresjs/nuxt` with
-   `--with-tres`) and whose only deps are the peers: `nuxt`, `vue`,
-   `@vueuse/core`.
+   `--with-tres`) and whose only deps are the peers: `nuxt`, `vue`.
 3. Installs, `nuxt build`s, serves on :3311 and requires HTTP 200 plus the
    component's `vto-stage` class in the SSR HTML.
 
