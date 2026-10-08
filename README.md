@@ -50,8 +50,11 @@ npm i @eleven.spectacles/virtual-try-on
 Install the peer dependencies your app doesn't already have:
 
 ```bash
-npm i @tresjs/nuxt three @vueuse/core @mediapipe/tasks-vision
+npm i @tresjs/nuxt three @vueuse/core
 ```
+
+MediaPipe (`@mediapipe/tasks-vision`) is a regular dependency of the module,
+pinned to the version its Wasm build matches — your app doesn't need it.
 
 Register the module after its peers:
 
@@ -267,7 +270,9 @@ By default the MediaPipe Wasm, the face model and the Draco decoder load
 from public CDNs on first use. To remove those dependencies (for a strict
 CSP or offline use), serve the files yourself and pass
 `mediapipe-base-path`, `mediapipe-model-asset-path` and
-`draco-decoder-path`.
+`draco-decoder-path`. Serve the Wasm fileset from the same
+`@mediapipe/tasks-vision` version the module pins (see its `package.json`) —
+mixed versions are unsupported.
 
 ## Privacy
 

@@ -63,6 +63,19 @@ export default defineNuxtModule({
     nuxt.options.vite.optimizeDeps.exclude ??= []
     nuxt.options.vite.optimizeDeps.exclude.push('@eleven.spectacles/virtual-try-on')
 
+    // MediaPipe is a dependency of this module, reachable only through the
+    // worker's dynamic import(), which Vite's dep scanner never crawls —
+    // pre-bundle it up front so the first try-on doesn't trigger a dev
+    // re-optimisation + full reload. Installed from npm it may sit nested
+    // under this package, hence the `parent > dep` form; local checkouts
+    // resolve it from their own node_modules.
+    nuxt.options.vite.optimizeDeps.include ??= []
+    nuxt.options.vite.optimizeDeps.include.push(
+      import.meta.url.includes('/node_modules/')
+        ? '@eleven.spectacles/virtual-try-on > @mediapipe/tasks-vision'
+        : '@mediapipe/tasks-vision'
+    )
+
     // Peers must resolve to the host's single copy: a sibling checkout with
     // its own node_modules would otherwise bundle a second vue/three
     // (duplicate renderer state, broken reactivity, ~600 KB extra).

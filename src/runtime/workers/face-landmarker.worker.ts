@@ -52,8 +52,10 @@ function post(message: FaceLandmarkerWorkerResponse) {
 // fallback rather than a hard requirement, since FilesetResolver.forVisionTasks
 // accepts any basePath (see docs on the class) and modelAssetPath is just a
 // URL/path string.
+// The WASM must match the bundled JS exactly: keep this version equal to the
+// pinned `@mediapipe/tasks-vision` dependency (enforced by a unit test).
 const DEFAULT_WASM_BASE_PATH =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.0/wasm'
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm'
 const DEFAULT_MODEL_ASSET_PATH =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
 
