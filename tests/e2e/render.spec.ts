@@ -32,15 +32,18 @@ for (const face of FACE_FIXTURES) {
 
       const stage = page.locator('.vto-stage')
       // Camera live → the slot shows "Position your face" until MediaPipe has
-      // loaded and found the face; then give the One-Euro smoothing a moment
-      // to settle on the still input.
+      // loaded and found the face; then let the smoothing settle.
       await expect(page.getByRole('button', { name: 'Start camera' })).toBeHidden()
       await page.waitForTimeout(1_000)
       // SwiftShader detection occasionally needs >45 s for the first face.
       await expect(stage.getByText('Position your face in view')).toBeHidden({
         timeout: 75_000
       })
-      await page.waitForTimeout(4_000)
+      // SwiftShader renders a few frames a second, so the smoothed frame
+      // pose and the occluder take seconds to settle onto the face — shoot
+      // earlier and the depth-only occluder can still be in front of the
+      // lenses (a real GPU settles in a few frames).
+      await page.waitForTimeout(20_000)
 
       await expect(stage).toHaveScreenshot(`${face}.png`, { timeout: 20_000 })
     })

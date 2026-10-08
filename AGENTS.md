@@ -177,6 +177,11 @@ claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
 
 - Host adds `'@eleven.spectacles/virtual-try-on'` (or the local
   `src/module` path) to `modules`; the module self-registers everything else.
+- Module options (`virtualTryOn` in `nuxt.config`) become
+  `runtimeConfig.public.virtualTryOn`; component props override them per
+  instance (`occluder` — default `true` — is the only one so far). Optional
+  boolean props that fall back to a module option need an explicit
+  `undefined` default, or Vue casts an omitted prop to `false`.
 - Host provides only `nuxt` and `vue` (TresJS and three ship with the module) and
   builds all UI around the component from its slot — the module depends on
   no UI library. `@nuxt/ui` is a playground-only devDependency.

@@ -13,6 +13,22 @@ export type {
   WebcamError
 } from './runtime/types/tryon-experience'
 
+/** Module options — `virtualTryOn` in the host's `nuxt.config`. */
+export interface ModuleOptions {
+  /**
+   * Hide the parts of the frame the head would hide (the far temple behind
+   * the face) with the tracked face-mesh occluder. On by default; the
+   * component's `occluder` prop overrides it per instance.
+   */
+  occluder: boolean
+}
+
+declare module 'nuxt/schema' {
+  interface PublicRuntimeConfig {
+    virtualTryOn: { occluder: boolean }
+  }
+}
+
 /**
  * Nuxt module wrapper around the virtual try-on experience.
  *
@@ -20,6 +36,7 @@ export type {
  * `nuxt.config.ts`:
  *
  * - `@tresjs/nuxt` (a dependency, installed via `moduleDependencies`)
+ * - `runtimeConfig.public.virtualTryOn` from the module options
  * - `components/` (unprefixed auto-imported component names)
  * - `composables/` + `utils/` auto-imports
  * - Vite dev-server `fs.allow` so the classic face-landmarker worker can
@@ -37,7 +54,7 @@ export type {
  * })
  * ```
  */
-export default defineNuxtModule({
+export default defineNuxtModule<ModuleOptions>({
   meta: {
     name: '@eleven.spectacles/virtual-try-on',
     configKey: 'virtualTryOn',
@@ -49,8 +66,17 @@ export default defineNuxtModule({
   moduleDependencies: {
     '@tresjs/nuxt': {}
   },
-  setup(_options, nuxt) {
+  defaults: {
+    occluder: true
+  },
+  setup(options, nuxt) {
     const { resolve } = createResolver(import.meta.url)
+
+    // Global defaults the component reads at runtime (also overridable with
+    // NUXT_PUBLIC_VIRTUAL_TRY_ON_OCCLUDER).
+    nuxt.options.runtimeConfig.public.virtualTryOn = {
+      occluder: options.occluder
+    }
     const componentsDir = resolve('./runtime/components')
 
     addComponentsDir({ path: componentsDir, pathPrefix: false })

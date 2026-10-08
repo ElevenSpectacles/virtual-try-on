@@ -168,6 +168,7 @@ The full types are exported as `TryOnCalibrationFile` and
 | `mediapipeModelAssetPath` | `string` | Google Storage | URL of `face_landmarker.task`, for self-hosting. |
 | `draco` | `boolean` | `true` | Enables Draco decompression in the GLB loader. |
 | `dracoDecoderPath` | `string` | gstatic CDN | Draco decoder path, for self-hosting. |
+| `occluder` | `boolean` | module option (`true`) | Hides frame parts behind the head (the far temple). Overrides `virtualTryOn.occluder` for this instance. |
 
 ### Default slot
 
@@ -234,6 +235,22 @@ import type {
 your own picker UI (see the auto-imported `getTryOnModelFamilies()`).
 
 ## Configuration
+
+### Module options
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: ['@eleven.spectacles/virtual-try-on'],
+  virtualTryOn: {
+    occluder: true // default
+  }
+})
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `occluder` | `true` | Hides the parts of the frame the head would hide — the far temple behind the face — using the tracked face mesh. The `occluder` prop overrides it per component; `NUXT_PUBLIC_VIRTUAL_TRY_ON_OCCLUDER=false` overrides it at runtime. |
 
 ### Errors and logging
 
