@@ -94,7 +94,7 @@ async function main() {
         (await experience.text()).includes('vto-stage')
     )
 
-    const calibrationRes = await fetch(`${BASE}/models/calibration.json`)
+    const calibrationRes = await fetch(`${BASE}/models/virtual-try-on/calibration.json`)
     const calibration = await calibrationRes.json().catch(() => null)
     const modelIds = calibration ? Object.keys(calibration.models ?? {}) : []
     check(
@@ -104,7 +104,7 @@ async function main() {
     )
 
     if (modelIds.length > 0) {
-      const glb = await fetch(`${BASE}/models/${modelIds[0]}.glb`)
+      const glb = await fetch(`${BASE}/models/virtual-try-on/${modelIds[0]}.glb`)
       const size = Number(glb.headers.get('content-length') ?? 0)
       check(
         `GLB serves (${modelIds[0]})`,
