@@ -25,6 +25,12 @@ const models: TryOnModel[] = [
 // host UI built from its slot; the default view is the tuning prototype.
 const route = useRoute()
 const showExperience = computed(() => route.query.view === 'experience')
+// `?tier=low|mid|high` pins the capability tier (disables the step-down) so
+// the experience can be checked at a given tier.
+const tierParam = computed(() => {
+  const value = route.query.tier
+  return value === 'low' || value === 'mid' || value === 'high' ? value : undefined
+})
 
 function onTrack(event: string, payload: Record<string, unknown>) {
   console.info('[track]', event, payload)
@@ -47,6 +53,7 @@ function onTrack(event: string, payload: Record<string, unknown>) {
         <VirtualTryOnExperience
           :models="models"
           calibration-url="/models/virtual-try-on/calibration.json"
+          :tier="tierParam"
           @track="onTrack"
         >
           <template #default="{ status, error, faceError, guideHint, isStarting, start }">

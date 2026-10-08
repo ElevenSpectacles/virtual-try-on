@@ -40,6 +40,8 @@ import {
 } from '../composables/tryon/useTryOnModels'
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
 import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
+import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
+import type { TryOnTier } from '../utils/tryon-capability'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -92,6 +94,13 @@ const props = withDefaults(
      * (default `true`).
      */
     occluder?: boolean | undefined
+    /**
+     * Pin the device capability tier (`low` | `mid` | `high`). Omit to
+     * classify the device and step down under sustained frame-time load.
+     * Forcing a tier disables the step-down, so tests and goldens stay
+     * deterministic.
+     */
+    tier?: TryOnTier | undefined
   }>(),
   {
     modelBaseUrl: '/models/virtual-try-on',
@@ -103,7 +112,8 @@ const props = withDefaults(
     draco: true,
     // Explicit undefined, not Vue's absent-boolean `false`, so an omitted
     // prop falls through to the module option.
-    occluder: undefined
+    occluder: undefined,
+    tier: undefined
   }
 )
 
@@ -175,8 +185,12 @@ const debugScaleBoost = ref(1)
 const mirrorLandmarks = true
 const useFaceTracking = ref(true)
 const runtimeConfig = useRuntimeConfig()
+// Each feature runs only when the host opted in AND the device tier allows
+// it. Opt-in comes from the prop, then the module option, then `true`.
 const occluderEnabled = computed(
-  () => props.occluder ?? runtimeConfig.public.virtualTryOn?.occluder ?? true
+  () =>
+    (props.occluder ?? runtimeConfig.public.virtualTryOn?.occluder ?? true) &&
+    capability.allows('occluder')
 )
 
 // Normalized inter-pupillary distance from the iris landmarks — varies far
@@ -330,6 +344,25 @@ const {
     : {})
 })
 
+// Frames count toward the step-down only while a face is tracked, so idle
+// camera time never looks like a slow device.
+const capability = useCapabilityTier({
+  forcedTier: props.tier,
+  sampling: () => isActive.value && hasFace.value,
+  onChange: (change) => {
+    // The initial classification is reported with TRY_ON_FACE_DETECTED,
+    // which fires after consent. Only step-downs need an event of their own.
+    if (change.previousTier === null) return
+    trackTryOn('TRY_ON_TIER', {
+      tier: change.tier,
+      previousTier: change.previousTier,
+      p95Ms: change.p95Ms,
+      maxTextureSize: change.signals?.maxTextureSize,
+      deviceMemoryGb: change.signals?.deviceMemoryGb
+    })
+  }
+})
+
 const correctedFaceLandmarks = computed(() =>
   faceLandmarks.value.map((lm) =>
     mapLandmarkToObjectCover(lm, coverWindow.value)
@@ -451,6 +484,7 @@ function trackTryOn(
     | 'TRY_ON_CAMERA_DENIED'
     | 'TRY_ON_FACE_DETECTED'
     | 'TRY_ON_FRAME_CHANGED'
+    | 'TRY_ON_TIER'
     | 'TRY_ON_ERROR',
   extra: Record<string, unknown> = {}
 ) {
@@ -541,12 +575,15 @@ watch(hasFace, (detected) => {
   if (detected && !hasReportedFaceDetected.value) {
     hasReportedFaceDetected.value = true
     trackTryOn('TRY_ON_FACE_DETECTED', {
-      confidence: confidence.value
+      confidence: confidence.value,
+      tier: capability.tier.value
     })
   }
 })
 
 watch(model, (value) => {
+  // A new GLB compiles its shaders on the next frames: warm up again.
+  capability.resetWarmup()
   if (hasConsented.value) {
     trackTryOn('TRY_ON_FRAME_CHANGED', { model: value })
   }

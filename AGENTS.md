@@ -71,6 +71,9 @@ Key facts:
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
     per-model calibration.
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
+  - `useCapabilityTier.ts` — device probe (WebGL2, max texture size,
+    `deviceMemory`) and the frame-time step-down; exposes the tier and
+    `allows(feature)`. Samples only while a face is tracked.
 - `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` in a
   dedicated **classic** Web Worker (see constraints).
   `face-landmarker.worker.types.ts` holds the request/response types consumed
@@ -81,7 +84,9 @@ Key facts:
   face-mesh occluder: the tracked 468-point face surface rendered depth-only,
   so frame parts behind the skin are hidden exactly where the real head hides
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
-  `tryon-pose.ts` (matrix → face-pose decomposition).
+  `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-capability.ts`
+  (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
+  pure step-down sampler).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
 - `types/tryon-experience.ts` — slot/state types (`TryOnStatus`,
