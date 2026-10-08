@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.5.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.4.0...v4.5.0) (2026-10-08)
+
+
+### Features
+
+* enable the face-mesh occluder by default, configurable globally ([2f6a1c8](https://github.com/ElevenSpectacles/virtual-try-on/commit/2f6a1c803e6a1e9c03ca804def433ee88b664c50))
+* enable the face-mesh occluder by default, configurable globally ([e80c8b6](https://github.com/ElevenSpectacles/virtual-try-on/commit/e80c8b6a9a5d79942c08d37e95095a17260af4bb))
+* hold frame scale on MediaPipe blink blendshapes; bump MediaPipe to 1.1.0 ([769878d](https://github.com/ElevenSpectacles/virtual-try-on/commit/769878dbef0c03e03a3d165f601d83877e4bc0f9))
+* hold frame scale on MediaPipe blink blendshapes; bump MediaPipe to 1.1.0 ([6293095](https://github.com/ElevenSpectacles/virtual-try-on/commit/629309524f2cb648e31400216d8191c95cbdfb15)), closes [#7](https://github.com/ElevenSpectacles/virtual-try-on/issues/7)
+
 ## [4.4.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.2.0...v4.4.0) (2026-10-08)
 
 
