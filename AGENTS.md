@@ -103,6 +103,19 @@ Key facts:
     `?view=experience` and looks for its `vto-stage` class.
 - `tests/unit/` — Vitest unit tests (run from this repo). `tests/nuxt/` —
   Nuxt-environment tests, run from the host project.
+- `tests/e2e/` — Playwright face-fixture harness (`npm run verify:e2e`,
+  `playwright.config.ts`). `tests/fixtures/faces/<model>.jpg` are portraits
+  of a person wearing that catalog frame; `fixtures.ts` renders them with
+  ffmpeg into still/motion Y4M clips for Chromium's fake camera.
+  `tracking.spec.ts` drives the playground prototype through its
+  `?harness=true` hook (`window.__tryOnHarness`) and asserts detection rate
+  and still-input jitter; `render.spec.ts` screenshots the shipped component
+  (`?view=experience`) against goldens in `tests/e2e/__screenshots__/`.
+  Tracking runs on the real GPU (MediaPipe's GPU delegate is unusably slow on
+  SwiftShader); goldens run on SwiftShader so pixels match across machines.
+  Local-only like `verify:playground`: skips when the models dir or ffmpeg
+  is missing. After an intended visual change, run
+  `npm run verify:e2e -- --update-snapshots` and review the PNG diffs.
 
 ## Build and test commands
 
@@ -114,7 +127,8 @@ npm install            # only needed when working standalone
 npx vitest run         # unit tests (tests/unit only, per vitest.config.ts)
 npm run playground     # dev playground on :4000
 npm run typecheck      # vue-tsc against the playground's generated tsconfig
-npm run verify         # vitest + playground build + booted-server smoke test
+npm run verify:e2e     # face-fixture tracking + golden screenshots (needs ffmpeg)
+npm run verify         # vitest + playground smoke test + face-fixture e2e
 npm run build          # dist/ via nuxt-module-build
 npm pack --dry-run     # tarball must hold only dist/, CHANGELOG.md, README.md, package.json
 ```

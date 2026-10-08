@@ -40,8 +40,9 @@
     "typecheck": "nuxt typecheck playground",
     "verify:unit": "npx vitest run",
     "verify:playground": "node scripts/verify-playground.mjs",
-    "verify": "npm run verify:unit && npm run verify:playground",
-    "prepare": "husky"
+    "verify": "npm run verify:unit && npm run verify:playground && npm run verify:e2e",
+    "prepare": "husky",
+    "verify:e2e": "playwright test --pass-with-no-tests"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.0.1",
@@ -63,6 +64,7 @@
     "@iconify-json/lucide": "^1.2.137",
     "@nuxt/module-builder": "^1.0.3",
     "@nuxt/ui": "^4.10.0",
+    "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.3",
     "@types/three": "^0.186.0",
     "draco3dgltf": "^1.5.7",
