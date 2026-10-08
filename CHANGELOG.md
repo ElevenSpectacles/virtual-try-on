@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.2.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.1.0...v4.2.0) (2026-10-08)
+
+
+### Features
+
+* ship TresJS and three with the module ([b30f2f2](https://github.com/ElevenSpectacles/virtual-try-on/commit/b30f2f2346fc43d44b4bb0be89edc4c1e30a8991))
+* ship TresJS and three with the module ([6d07391](https://github.com/ElevenSpectacles/virtual-try-on/commit/6d073912a69affa9675bff32755a0147fdbbfc73))
+
+
+### Bug Fixes
+
+* stand the frame off the face so it tracks turned heads ([f1f3671](https://github.com/ElevenSpectacles/virtual-try-on/commit/f1f3671cf42d853e4413f372b7d190d52df98f97))
+* stand the frame off the face so it tracks turned heads ([46b1a82](https://github.com/ElevenSpectacles/virtual-try-on/commit/46b1a82f55544325cd60ebaa2a4fae275f4ebf4b))
+* stop the occluder cutting off the near temple on turned heads ([0c55ac4](https://github.com/ElevenSpectacles/virtual-try-on/commit/0c55ac4fd4314215d76a31c0ca539b9a0d92dfe7))
+* stop the occluder cutting off the near temple on turned heads ([6ec70ce](https://github.com/ElevenSpectacles/virtual-try-on/commit/6ec70ce85cff6a6ecd5c59ce0fa08feb7b7ace34))
+
 ## [4.1.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.0.0...v4.1.0) (2026-10-08)
 
 
