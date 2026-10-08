@@ -20,7 +20,7 @@ import {
   mapLandmarkToObjectCover,
   getFaceWidth,
   getEarWidth,
-  isBlinking,
+  shouldHoldScaleForBlink,
   ASSUMED_FACE_WIDTH_METERS,
   ASSUMED_EAR_WIDTH_METERS,
   ASSUMED_IPD_METERS,
@@ -317,6 +317,7 @@ const {
   confidence,
   landmarks: faceLandmarks,
   pose: facePose,
+  blinkScore: faceBlinkScore,
   anchor: faceAnchor,
   latencyMs: faceLatencyMs,
   init: initFaceLandmarker
@@ -374,7 +375,11 @@ const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
   // Iris landmarks drift while the eyelid covers the iris — freeze scale
   // for the blink instead of letting the frame visibly change size.
   holdScale: computed(() =>
-    isBlinking(faceLandmarks.value, mediaAspect.value || 1)
+    shouldHoldScaleForBlink(
+      faceBlinkScore.value,
+      faceLandmarks.value,
+      mediaAspect.value || 1
+    )
   )
 })
 

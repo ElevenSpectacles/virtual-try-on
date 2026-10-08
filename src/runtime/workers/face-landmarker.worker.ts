@@ -26,8 +26,13 @@ type FaceLandmarkerWorkerResponse =
       id: number
       landmarks: { x: number; y: number; z: number }[]
       transformationMatrix: number[] | null
+      blink: number | null
     }
   | { type: 'detect_failed'; id: number; message: string }
+
+interface BlendshapeClassifications {
+  categories: { categoryName: string; score: number }[]
+}
 
 interface FaceLandmarkerInstance {
   detectForVideo(
@@ -36,6 +41,7 @@ interface FaceLandmarkerInstance {
   ): {
     faceLandmarks?: { x: number; y: number; z: number }[][]
     facialTransformationMatrixes?: { data: Float32Array }[]
+    faceBlendshapes?: BlendshapeClassifications[]
   }
   close?(): void
 }
@@ -55,7 +61,7 @@ function post(message: FaceLandmarkerWorkerResponse) {
 // The WASM must match the bundled JS exactly: keep this version equal to the
 // pinned `@mediapipe/tasks-vision` dependency (enforced by a unit test).
 const DEFAULT_WASM_BASE_PATH =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm'
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm'
 const DEFAULT_MODEL_ASSET_PATH =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
 
@@ -76,7 +82,9 @@ async function init(basePath?: string, modelAssetPath?: string) {
       baseOptions: { ...baseOptions, delegate },
       runningMode: 'VIDEO' as const,
       numFaces: 1,
-      outputFaceBlendshapes: false,
+      // Only eyeBlinkLeft/Right are read (see `blinkScore`): calibrated
+      // blink scores that stay valid while the eyelid hides the iris.
+      outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: true,
       minFacePresenceConfidence: 0.3,
       minTrackingConfidence: 0.3
@@ -113,12 +121,23 @@ async function init(basePath?: string, modelAssetPath?: string) {
   }
 }
 
+// Stronger of the two eye-blink blendshapes (0 open … 1 closed), or null
+// when the model emitted no blendshapes (e.g. a self-hosted model without
+// the blendshape head) — callers fall back to the landmark heuristic.
+function blinkScore(blendshapes?: BlendshapeClassifications): number | null {
+  if (!blendshapes) return null
+  let score: number | null = null
+  for (const { categoryName, score: value } of blendshapes.categories) {
+    if (categoryName === 'eyeBlinkLeft' || categoryName === 'eyeBlinkRight') {
+      score = Math.max(score ?? 0, value)
+    }
+  }
+  return score
+}
+
 function toResult(
   id: number,
-  raw: {
-    faceLandmarks?: { x: number; y: number; z: number }[][]
-    facialTransformationMatrixes?: { data: Float32Array }[]
-  }
+  raw: ReturnType<FaceLandmarkerInstance['detectForVideo']>
 ): FaceLandmarkerWorkerResponse {
   const landmarks = raw.faceLandmarks?.[0] ?? []
   const matrixData = raw.facialTransformationMatrixes?.[0]?.data
@@ -126,7 +145,8 @@ function toResult(
     type: 'result',
     id,
     landmarks,
-    transformationMatrix: matrixData ? Array.from(matrixData) : null
+    transformationMatrix: matrixData ? Array.from(matrixData) : null,
+    blink: blinkScore(raw.faceBlendshapes?.[0])
   }
 }
 

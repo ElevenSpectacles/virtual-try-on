@@ -417,6 +417,27 @@ export function isBlinking(
 }
 
 /**
+ * Blendshape blink score (max of `eyeBlinkLeft`/`eyeBlinkRight`) above
+ * which a frame counts as a blink. MediaPipe's blendshape scores are
+ * calibrated probabilities, so 0.5 is the natural cut.
+ */
+export const BLINK_SCORE_THRESHOLD = 0.5
+
+/**
+ * Whether to hold the frame's scale for this result: the blendshape blink
+ * score when the model provides it, else the eyelid-landmark heuristic
+ * (`isBlinking`) — e.g. a self-hosted model without blendshapes.
+ */
+export function shouldHoldScaleForBlink(
+  blinkScore: number | null,
+  landmarks: NormalizedLandmark[],
+  aspect: number = 1
+): boolean {
+  if (blinkScore !== null) return blinkScore > BLINK_SCORE_THRESHOLD
+  return isBlinking(landmarks, aspect)
+}
+
+/**
  * Undo the perspective foreshortening of a projected horizontal facial
  * measure (IPD, face width) when the head is rotated. The projected width of
  * a rigid horizontal segment shrinks by ~cos(yaw)·cos(roll is irrelevant,

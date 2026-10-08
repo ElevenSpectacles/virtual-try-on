@@ -50,13 +50,15 @@ async function runTracking(page: Page, model: string) {
           results: HarnessResult[]
           frameIntervals: number[]
           latencyMs: () => number
+          blink: () => number | null
         }
       }
     ).__tryOnHarness
     return {
       results: h.results.filter((r) => r.at >= from),
       frameIntervals: h.frameIntervals.slice(-200),
-      latencyMs: h.latencyMs()
+      latencyMs: h.latencyMs(),
+      blink: h.blink()
     }
   }, start)
 }
@@ -96,7 +98,7 @@ for (const face of FACE_FIXTURES) {
       test.use({ clip: skipReason ? '' : faceClip(face, kind) })
 
       test('tracks the face', async ({ cameraPage: page }, testInfo) => {
-        const { results, frameIntervals, latencyMs } = await runTracking(
+        const { results, frameIntervals, latencyMs, blink } = await runTracking(
           page,
           face
         )
@@ -110,12 +112,13 @@ for (const face of FACE_FIXTURES) {
           description:
             `${results.length} results · detection ${(rate * 100).toFixed(1)}% · ` +
             `jitter ${jitter.toFixed(2)} px · frame p95 ${frameP95.toFixed(1)} ms · ` +
-            `latency ${latencyMs.toFixed(0)} ms`
+            `latency ${latencyMs.toFixed(0)} ms · blink ${blink?.toFixed(2) ?? 'n/a'}`
         })
         console.log(`  ${face} · ${kind}: ${testInfo.annotations.at(-1)!.description}`)
 
         expect(results.length, 'detector produced results').toBeGreaterThan(10)
         expect(rate, 'detection rate').toBeGreaterThanOrEqual(MIN_DETECTION_RATE)
+        expect(blink, 'blendshape blink score').not.toBeNull()
         if (kind === 'still') {
           expect(jitter, 'still-input jitter (px)').toBeLessThanOrEqual(
             MAX_STILL_JITTER_PX

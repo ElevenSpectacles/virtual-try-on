@@ -33,5 +33,10 @@ export type FaceLandmarkerWorkerResponse =
       id: number
       landmarks: { x: number; y: number; z: number }[]
       transformationMatrix: number[] | null
+      /**
+       * max(eyeBlinkLeft, eyeBlinkRight) blendshape score, 0 open … 1
+       * closed; null when the model emits no blendshapes.
+       */
+      blink: number | null
     }
   | { type: 'detect_failed'; id: number; message: string }

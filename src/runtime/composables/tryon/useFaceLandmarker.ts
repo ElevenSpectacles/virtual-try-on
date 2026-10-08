@@ -76,6 +76,8 @@ export function useFaceLandmarker(
   const landmarks = ref<NormalizedLandmark[]>([])
   const transformationMatrixes = ref<Float32Array[]>([])
   const pose = ref<FacePose | null>(null)
+  /** Blendshape blink score of the latest result (0 open … 1 closed), or null. */
+  const blinkScore = ref<number | null>(null)
   const hasFace = computed(() => landmarks.value.length > 0)
   const noFace = computed(() => isReady.value && !hasFace.value)
   const faceWidth = computed(() => getFaceWidth(landmarks.value))
@@ -129,9 +131,11 @@ export function useFaceLandmarker(
 
   function applyResult(
     landmarksResult: NormalizedLandmark[],
-    matrix: number[] | null
+    matrix: number[] | null,
+    blink: number | null
   ) {
     landmarks.value = landmarksResult
+    blinkScore.value = blink
     transformationMatrixes.value = matrix ? [Float32Array.from(matrix)] : []
     pose.value = matrix ? matrixToFacePose(matrix) : null
 
@@ -168,7 +172,11 @@ export function useFaceLandmarker(
         if (message.id !== pendingRequestId) return
         pendingRequestId = null
         recordLatency(pendingSentAt)
-        applyResult(message.landmarks, message.transformationMatrix)
+        applyResult(
+          message.landmarks,
+          message.transformationMatrix,
+          message.blink ?? null
+        )
         break
 
       case 'detect_failed':
@@ -251,6 +259,7 @@ export function useFaceLandmarker(
     landmarks.value = []
     transformationMatrixes.value = []
     pose.value = null
+    blinkScore.value = null
     detectionHistory.value = []
     pendingRequestId = null
     pendingSentAt = 0
@@ -401,6 +410,7 @@ export function useFaceLandmarker(
     landmarks,
     transformationMatrixes,
     pose,
+    blinkScore,
     anchor,
     latencyMs,
     init,
