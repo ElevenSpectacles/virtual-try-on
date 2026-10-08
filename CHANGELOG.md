@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.1.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.0.0...v4.1.0) (2026-10-08)
+
+
+### Features
+
+* ship @mediapipe/tasks-vision as a pinned dependency ([ff9fbc0](https://github.com/ElevenSpectacles/virtual-try-on/commit/ff9fbc009869ff15063578230344d57fdd6ed099))
+* ship @mediapipe/tasks-vision as a pinned dependency ([42d2d39](https://github.com/ElevenSpectacles/virtual-try-on/commit/42d2d39acfeb9458ba54e7f06e3d7027050d22eb))
+
+
+### Documentation
+
+* title the README Virtual Try-On ([22cbcef](https://github.com/ElevenSpectacles/virtual-try-on/commit/22cbcefc71d3fedb4691480d92a38fab9b4c0dbb))
+
 ## [4.0.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v3.0.1...v4.0.0) (2026-10-07)
 
 
