@@ -35,7 +35,7 @@ with virtual try-on for every frame in the catalog.
 
 ## Requirements
 
-- **Nuxt 4** with `@tresjs/nuxt` 5 (which provides `@tresjs/core`).
+- **Nuxt 4** and `@vueuse/core` 14.
 - **Browser**: WebAssembly, Web Workers, `createImageBitmap` and
   `getUserMedia` — every current evergreen browser, desktop and mobile.
   Unsupported browsers get an error state instead of a crash.
@@ -47,28 +47,27 @@ with virtual try-on for every frame in the catalog.
 npm i @eleven.spectacles/virtual-try-on
 ```
 
-Install the peer dependencies your app doesn't already have:
+Install `@vueuse/core` if your app doesn't already have it:
 
 ```bash
-npm i @tresjs/nuxt three @vueuse/core
+npm i @vueuse/core
 ```
 
-MediaPipe (`@mediapipe/tasks-vision`) is a regular dependency of the module,
-pinned to the version its Wasm build matches — your app doesn't need it.
+TresJS (`@tresjs/nuxt`, `@tresjs/core`), `three` and MediaPipe
+(`@mediapipe/tasks-vision`) are regular dependencies of the module — your
+app doesn't install them. The module registers `@tresjs/nuxt` itself;
+listing it in your own `modules` too is harmless.
 
-Register the module after its peers:
+Register the module:
 
 ```ts
 // nuxt.config.ts
 export default defineNuxtConfig({
-  modules: [
-    '@tresjs/nuxt',
-    '@eleven.spectacles/virtual-try-on'
-  ]
+  modules: ['@eleven.spectacles/virtual-try-on']
 })
 ```
 
-That's all the wiring. The module registers its components and
+That's all the wiring. The module registers TresJS, its components and
 composables.
 
 ## Usage

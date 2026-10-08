@@ -19,6 +19,7 @@ export type {
  * Registers everything a host previously had to wire by hand in its
  * `nuxt.config.ts`:
  *
+ * - `@tresjs/nuxt` (a dependency, installed via `moduleDependencies`)
  * - `components/` (unprefixed auto-imported component names)
  * - `composables/` + `utils/` auto-imports
  * - Vite dev-server `fs.allow` so the classic face-landmarker worker can
@@ -41,6 +42,12 @@ export default defineNuxtModule({
     name: '@eleven.spectacles/virtual-try-on',
     configKey: 'virtualTryOn',
     compatibility: { nuxt: '>=4.0.0' }
+  },
+  // TresJS (and three) ship with this module: Nuxt installs @tresjs/nuxt
+  // before setup, so hosts add only this module. A host that also lists
+  // @tresjs/nuxt itself still gets a single installation.
+  moduleDependencies: {
+    '@tresjs/nuxt': {}
   },
   setup(_options, nuxt) {
     const { resolve } = createResolver(import.meta.url)
