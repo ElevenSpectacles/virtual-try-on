@@ -9,6 +9,8 @@ import type { Page } from '@playwright/test'
 export interface HarnessResult {
   at: number
   landmarks: [number, number][]
+  /** Head pose in degrees; undefined or null when the tracker returned none. */
+  pose?: { yaw: number; pitch: number; roll: number } | null
 }
 
 export const MIN_DETECTION_RATE = 0.95
@@ -17,7 +19,7 @@ export const MIN_DETECTION_RATE = 0.95
 export const MAX_STILL_JITTER_PX = 0.75
 export const SAMPLE_MS = 6_000
 
-export async function runTracking(page: Page, model: string) {
+export async function runTracking(page: Page, model: string, sampleMs = SAMPLE_MS) {
   await page.goto(`/?model=${model}&harness=true`)
   await page.waitForFunction(() => '__tryOnHarness' in window)
   // The prototype switches tracking on by itself once the camera is live.
@@ -34,7 +36,7 @@ export async function runTracking(page: Page, model: string) {
     { timeout: 45_000 }
   )
   const start = await page.evaluate(() => performance.now())
-  await page.waitForTimeout(SAMPLE_MS)
+  await page.waitForTimeout(sampleMs)
 
   return page.evaluate((from) => {
     const h = (

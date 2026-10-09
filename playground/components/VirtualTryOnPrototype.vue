@@ -273,7 +273,12 @@ const correctedFaceWidth = computed(() =>
 // detection rate and landmark jitter. Records every detector result, with
 // landmarks in stage pixels, plus rAF frame intervals.
 if (import.meta.client && route.query.harness === 'true') {
-  const results: { at: number; landmarks: [number, number][] }[] = []
+  const results: {
+    at: number
+    landmarks: [number, number][]
+    /** Head pose in degrees, null when the tracker returned no matrix. */
+    pose?: { yaw: number; pitch: number; roll: number } | null
+  }[] = []
   const frameIntervals: number[] = []
   watch(
     faceLandmarks,
@@ -285,6 +290,24 @@ if (import.meta.client && route.query.harness === 'true') {
           lm.y * stageHeight.value
         ])
       })
+    },
+    { flush: 'sync' }
+  )
+  // The detector sets landmarks before the pose in the same update, so the
+  // pose watcher runs after the landmark watcher has pushed this result.
+  watch(
+    facePose,
+    (pose) => {
+      const last = results.at(-1)
+      if (!last) return
+      const toDeg = 180 / Math.PI
+      last.pose = pose
+        ? {
+            yaw: pose.euler.yaw * toDeg,
+            pitch: pose.euler.pitch * toDeg,
+            roll: pose.euler.roll * toDeg
+          }
+        : null
     },
     { flush: 'sync' }
   )
