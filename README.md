@@ -169,6 +169,10 @@ The full types are exported as `TryOnCalibrationFile` and
 | `draco` | `boolean` | `true` | Enables Draco decompression in the GLB loader. |
 | `dracoDecoderPath` | `string` | gstatic CDN | Draco decoder path, for self-hosting. |
 | `occluder` | `boolean` | module option (`true`) | Hides frame parts behind the head (the far temple). Overrides `virtualTryOn.occluder` for this instance. |
+| `tier` | `'low' \| 'mid' \| 'high'` | — | Pins the device capability tier. Omit to classify the device and step down under sustained frame-time load. A pinned tier never steps down. |
+| `adaptiveLighting` | `boolean` | `true` | Lights the frame from the room the camera sees. Needs the `mid` tier or higher. |
+| `contactShadow` | `boolean` | `true` | Soft shadow of the frame on the tracked skin under the bridge and lenses. Needs the face-mesh occluder and the `mid` tier or higher. |
+| `reportMetrics` | `boolean` | `false` | Emits the `metrics` event (see below). Off means nothing is measured. |
 
 ### Default slot
 
@@ -210,9 +214,36 @@ module reports anything. Every payload has this shape:
 | `TRY_ON_OPENED` | First `start()` call (or mount with `autoStart`) | `entryPoint`: `'camera_consent'` \| `'auto_start'` |
 | `TRY_ON_CAMERA_GRANTED` | Camera stream started | — |
 | `TRY_ON_CAMERA_DENIED` | Camera permission refused | — |
-| `TRY_ON_FACE_DETECTED` | First face detected in the session | `confidence` |
+| `TRY_ON_FACE_DETECTED` | First face detected in the session | `confidence`, `tier` (device tier at that moment) |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
+| `TRY_ON_TIER` | The device tier stepped down under sustained frame-time load | `tier`, `previousTier`, `p95Ms`, `maxTextureSize`, `deviceMemoryGb` |
 | `TRY_ON_ERROR` | Camera, tracker or asset failure | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment`), `message` |
+
+### `metrics` event
+
+`(payload: TryOnSessionMetrics)`, emitted only with `reportMetrics`: every
+30 s of camera-on time, and once more when the camera stops or the component
+unmounts (`final: true`). Each report covers the session so far.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `activeMs` | `number` | Camera-on time. Frame stalls over 500 ms are excluded. |
+| `timeToFirstTrackMs` | `number \| null` | Camera-on time until the first tracked face. `null` if none. |
+| `trackUptimePct` | `number` | Share of camera-on time with a tracked face, 0–100. |
+| `trackLossPerMin` | `number` | Tracked-to-lost transitions per camera-on minute. |
+| `detectLatencyMeanMs` / `detectLatencyP95Ms` | `number \| null` | Camera-to-result detection latency over the last ~1000 detections. |
+| `renderFpsMean` | `number \| null` | Mean render frame rate over camera-on time. |
+| `modelSwitches` | `number` | Frame changes in the session. |
+| `tierChanges` | `number` | Capability tier step-downs in the session. |
+| `tier` | `'low' \| 'mid' \| 'high' \| null` | Current device capability tier. |
+| `endedWithoutTrack` | `boolean` | No face was tracked and the frame was never changed. The "looked broken" proxy. |
+| `final` | `boolean` | `true` on the report sent at stop or unmount. |
+| `model` | `string` | Active frame file. |
+| `features` | `{ occluder, contactShadow, adaptiveLighting }` | Which opt-in features were on at report time. |
+
+No frames, landmarks or other image-derived data are in the payload. It holds
+only these numbers and the frame file name. Forward it to your analytics if
+you want the before/after baseline; the module sends nothing itself.
 
 ### Exported types
 
@@ -226,7 +257,11 @@ import type {
   TryOnStatus,
   TryOnGuideHint,
   WebcamError,
-  FaceLandmarkerError
+  FaceLandmarkerError,
+  TryOnTier,
+  TryOnFeature,
+  TryOnMetrics,
+  TryOnSessionMetrics
 } from '@eleven.spectacles/virtual-try-on'
 ```
 
@@ -289,7 +324,8 @@ mixed versions are unsupported.
 Camera frames are processed entirely in the browser. No video or image data
 is uploaded, and nothing is recorded or stored. The module makes no network
 calls of its own apart from loading the assets above, and all analytics go
-through the `track` event, so your app decides what is sent.
+through the `track` and `metrics` events, so your app decides what is sent.
+The `metrics` payload holds aggregated numbers only.
 
 ## Development
 

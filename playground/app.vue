@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { TryOnModel } from '../src/runtime/composables/tryon/useTryOnModels'
+import type { TryOnSessionMetrics } from '../src/runtime/utils/tryon-metrics'
 
 import { useRoute } from '#imports'
 import { computed } from 'vue'
 
 import VirtualTryOnPrototype from './components/VirtualTryOnPrototype.vue'
+import TryOnFixtureScene from './components/TryOnFixtureScene.vue'
 
 // The full Eleven Spectacles frame catalog, mirroring what the host passes.
 // Served from the host checkout via nitro publicAssets (see nuxt.config.ts).
@@ -25,6 +27,10 @@ const models: TryOnModel[] = [
 // host UI built from its slot; the default view is the tuning prototype.
 const route = useRoute()
 const showExperience = computed(() => route.query.view === 'experience')
+// `?view=scene&shadow=on|off` renders one frozen frame (no camera), for the
+// shadow comparison.
+const showScene = computed(() => route.query.view === 'scene')
+const sceneShadow = computed(() => route.query.shadow !== 'off')
 // `?tier=low|mid|high` pins the capability tier (disables the step-down) so
 // the experience can be checked at a given tier.
 const tierParam = computed(() => {
@@ -34,6 +40,12 @@ const tierParam = computed(() => {
 
 function onTrack(event: string, payload: Record<string, unknown>) {
   console.info('[track]', event, payload)
+}
+
+// `?metrics=true` turns on the metrics event; the e2e spec reads the JSON.
+const reportMetrics = computed(() => route.query.metrics === 'true')
+function onMetrics(payload: TryOnSessionMetrics) {
+  console.info('[metrics]', JSON.stringify(payload))
 }
 </script>
 
@@ -54,9 +66,11 @@ function onTrack(event: string, payload: Record<string, unknown>) {
           :models="models"
           calibration-url="/models/virtual-try-on/calibration.json"
           :tier="tierParam"
+          :report-metrics="reportMetrics"
           @track="onTrack"
+          @metrics="onMetrics"
         >
-          <template #default="{ status, error, faceError, guideHint, isStarting, start }">
+          <template #default="{ status, error, faceError, guideHint, isStarting, start, stop }">
             <div
               v-if="status !== 'active'"
               class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white"
@@ -66,14 +80,26 @@ function onTrack(event: string, payload: Record<string, unknown>) {
                 {{ error ? 'Retry camera' : 'Start camera' }}
               </UButton>
             </div>
+            <UButton
+              v-if="status === 'active' && reportMetrics"
+              class="absolute bottom-4 left-4"
+              color="neutral"
+              size="xs"
+              @click="stop"
+            >
+              Stop camera
+            </UButton>
             <p
-              v-else-if="faceError || guideHint === 'noFace'"
+              v-if="status === 'active' && (faceError || guideHint === 'noFace')"
               class="absolute inset-x-0 bottom-4 text-center text-xs text-white"
             >
               {{ faceError ? `Face tracking error: ${faceError}` : 'Position your face in view' }}
             </p>
           </template>
         </VirtualTryOnExperience>
+      </div>
+      <div v-else-if="showScene" class="mx-auto">
+        <TryOnFixtureScene :shadow="sceneShadow" />
       </div>
       <VirtualTryOnPrototype
         v-else

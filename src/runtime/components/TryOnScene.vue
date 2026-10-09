@@ -495,6 +495,7 @@ const occluderRotationVec = computed(
       :vertex-colors="true"
       :transparent="true"
       :depth-write="false"
+      :side="DoubleSide"
     />
   </TresMesh>
   <TresMesh

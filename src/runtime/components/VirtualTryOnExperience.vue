@@ -44,6 +44,10 @@ import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
 import { useFrameLightingSampler } from '../composables/tryon/useFrameLightingSampler'
 import type { TryOnTier } from '../utils/tryon-capability'
 import {
+  createMetricsAccumulator,
+  type TryOnSessionMetrics
+} from '../utils/tryon-metrics'
+import {
   lightingGain,
   smoothFrameLighting,
   type FrameLighting
@@ -61,7 +65,7 @@ import type {
 
 import TryOnScene from './TryOnScene.vue'
 import { useRoute, useRuntimeConfig } from '#imports'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -122,10 +126,17 @@ const props = withDefaults(
      * lenses. Needs the face-mesh occluder and the `mid` tier or higher.
      */
     contactShadow?: boolean
+    /**
+     * Emit `metrics` events (aggregated session numbers, no image data): every
+     * 30 s while the camera is on, and once more when it stops. Read once at
+     * setup. Off by default, so nothing is measured or emitted.
+     */
+    reportMetrics?: boolean
   }>(),
   {
     adaptiveLighting: true,
     contactShadow: true,
+    reportMetrics: false,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -142,6 +153,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   track: [event: string, payload: Record<string, unknown>]
+  metrics: [payload: TryOnSessionMetrics]
 }>()
 
 const route = useRoute()
@@ -374,6 +386,7 @@ const {
   ...(props.mediapipeModelAssetPath !== undefined
     ? { mediapipeModelAssetPath: props.mediapipeModelAssetPath }
     : {}),
+  onLatency: (ms) => metrics?.onLatency(ms),
   onFrame: (bitmap) => {
     if (!lightingEnabled.value) return
     const sampled = lightingSampler.sample(bitmap)
@@ -383,12 +396,37 @@ const {
   }
 })
 
+// Session metrics (opt-in). With reportMetrics off there is no accumulator
+// and no extra frame loop, so there is no cost to hosts that don't use it.
+const metrics = props.reportMetrics ? createMetricsAccumulator() : null
+
+function emitMetrics(final: boolean) {
+  if (!metrics) return
+  emit('metrics', {
+    ...metrics.snapshot(),
+    final,
+    model: model.value ?? '',
+    features: {
+      occluder: occluderEnabled.value,
+      contactShadow: contactShadowEnabled.value,
+      adaptiveLighting: lightingEnabled.value
+    }
+  })
+}
+
+if (metrics) {
+  useTryOnFrameLoop((deltaMs) => {
+    if (metrics.onFrame(deltaMs, isActive.value, hasFace.value)) emitMetrics(false)
+  })
+}
+
 // Frames count toward the step-down only while a face is tracked, so idle
 // camera time never looks like a slow device.
 const capability = useCapabilityTier({
   forcedTier: props.tier,
   sampling: () => isActive.value && hasFace.value,
   onChange: (change) => {
+    metrics?.onTierChange(change.tier, change.previousTier !== null)
     // The initial classification is reported with TRY_ON_FACE_DETECTED,
     // which fires after consent. Only step-downs need an event of their own.
     if (change.previousTier === null) return
@@ -653,7 +691,20 @@ watch(hasFace, (detected) => {
   }
 })
 
+// Camera stopped: send the session's final report and start the next session fresh.
+watch(isActive, (active, wasActive) => {
+  if (!active && wasActive && metrics) {
+    emitMetrics(true)
+    metrics.reset()
+  }
+})
+
+onBeforeUnmount(() => {
+  if (metrics && isActive.value) emitMetrics(true)
+})
+
 watch(model, (value) => {
+  metrics?.onModelSwitch()
   // A new GLB compiles its shaders on the next frames: warm up again.
   capability.resetWarmup()
   if (hasConsented.value) {
