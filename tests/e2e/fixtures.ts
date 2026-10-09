@@ -25,6 +25,13 @@ export type ClipKind = 'still' | 'motion'
 const FACES_DIR = fileURLToPath(new URL('../fixtures/faces', import.meta.url))
 const CLIPS_DIR = join(tmpdir(), 'virtual-try-on-face-clips')
 
+/**
+ * Optional real-footage clip (a Y4M file, e.g. converted from a stock video)
+ * run through the same tracking path. Not committed: set `TRYON_VIDEO_CLIP`
+ * to its absolute path.
+ */
+export const VIDEO_CLIP = process.env.TRYON_VIDEO_CLIP ?? ''
+
 export const MODELS_DIR =
   process.env.TRYON_MODELS_DIR ??
   fileURLToPath(
