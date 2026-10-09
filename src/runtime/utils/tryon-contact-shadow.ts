@@ -1,4 +1,5 @@
 import { FACE_MESH_VERTEX_COUNT } from './face-mesh-triangles'
+import { FRAME_BRIDGE_STANDOFF_METERS, headForwardOffset } from './tryon'
 
 /**
  * Soft contact shadow of the frame on the skin, as per-vertex colours on the
@@ -50,12 +51,27 @@ export function computeContactShadowColors(
  */
 export const CONTACT_SHADOW_DROP = 0.6
 
+/**
+ * Where the frame touches the skin at the bridge, in the same world units as the
+ * occluder. The frame stands off the face along the head's forward axis
+ * (FRAME_BRIDGE_STANDOFF_METERS), so the contact is the frame position minus that
+ * offset. The occluder centre is not the contact: it is pushed back into the head.
+ */
+export function bridgeContact(
+  framePosition: { x: number; y: number },
+  euler: { x: number; y: number; z: number },
+  scale: number
+): { x: number; y: number } {
+  const standoff = headForwardOffset(euler, FRAME_BRIDGE_STANDOFF_METERS * scale)
+  return { x: framePosition.x - standoff.x, y: framePosition.y - standoff.y }
+}
+
 export function contactShadowEllipse(
-  anchor: { x: number; y: number },
+  contact: { x: number; y: number },
   faceHalfWidth: number
 ): { centre: { x: number; y: number }; radius: { x: number; y: number } } {
   return {
-    centre: { x: anchor.x, y: anchor.y - CONTACT_SHADOW_DROP * faceHalfWidth },
+    centre: { x: contact.x, y: contact.y - CONTACT_SHADOW_DROP * faceHalfWidth },
     radius: { x: faceHalfWidth * 0.55, y: faceHalfWidth * 0.4 }
   }
 }

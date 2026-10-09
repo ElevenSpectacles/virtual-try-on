@@ -54,6 +54,7 @@ import {
 } from '../utils/tryon-lighting'
 import {
   CONTACT_SHADOW_STRENGTH,
+  bridgeContact,
   computeContactShadowColors,
   contactShadowEllipse
 } from '../utils/tryon-contact-shadow'
@@ -673,7 +674,8 @@ const contactShadowColors = computed<Float32Array | null>(() => {
   if (!contactShadowEnabled.value || !occluderEnabled.value || !positions) {
     return null
   }
-  const shadow = contactShadowEllipse(occluderPosition.value, faceWorldHalfWidth.value)
+  const contact = bridgeContact(framePosition.value, smoothedEuler.value, smoothedScale.value)
+  const shadow = contactShadowEllipse(contact, faceWorldHalfWidth.value)
   return computeContactShadowColors(
     positions,
     shadow.centre,

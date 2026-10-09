@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   CONTACT_SHADOW_DROP,
   CONTACT_SHADOW_STRENGTH,
+  bridgeContact,
   computeContactShadowColors,
   contactShadowEllipse
 } from '../../../src/runtime/utils/tryon-contact-shadow'
@@ -88,5 +89,19 @@ describe('contactShadowEllipse', () => {
     const { radius } = contactShadowEllipse({ x: 0, y: 0 }, 2)
     expect(radius.x).toBeCloseTo(1.1)
     expect(radius.y).toBeCloseTo(0.8)
+  })
+})
+
+describe('bridgeContact', () => {
+  it('is the frame position when the head is not turned', () => {
+    const contact = bridgeContact({ x: 0.3, y: -0.1 }, { x: 0, y: 0, z: 0 }, 13)
+    expect(contact.x).toBeCloseTo(0.3)
+    expect(contact.y).toBeCloseTo(-0.1)
+  })
+
+  it('moves back toward the face by the standoff when the head is turned', () => {
+    const contact = bridgeContact({ x: 0, y: 0 }, { x: 0, y: 0.5, z: 0 }, 13)
+    // Yaw 0.5 rad: the standoff points sideways, so the contact sits on the other side.
+    expect(contact.x).toBeLessThan(0)
   })
 })

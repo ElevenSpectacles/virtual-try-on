@@ -14,6 +14,7 @@ import { NeutralToneMapping } from 'three'
 import TryOnScene from '../../src/runtime/components/TryOnScene.vue'
 import {
   CONTACT_SHADOW_STRENGTH,
+  bridgeContact,
   computeContactShadowColors,
   contactShadowEllipse
 } from '../../src/runtime/utils/tryon-contact-shadow'
@@ -33,7 +34,8 @@ const occluderPositions = computed(() =>
 // 40% up and down, centred on the occluder.
 const contactShadowColors = computed(() => {
   if (!props.shadow || !occluderPositions.value) return null
-  const shadow = contactShadowEllipse(fixture.occluderPosition, fixture.faceWorldHalfWidth)
+  const contact = bridgeContact(fixture.framePosition, fixture.rotation, fixture.scale)
+  const shadow = contactShadowEllipse(contact, fixture.faceWorldHalfWidth)
   return computeContactShadowColors(
     occluderPositions.value,
     shadow.centre,
