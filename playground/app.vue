@@ -6,6 +6,7 @@ import { useRoute } from '#imports'
 import { computed } from 'vue'
 
 import VirtualTryOnPrototype from './components/VirtualTryOnPrototype.vue'
+import TryOnFixtureScene from './components/TryOnFixtureScene.vue'
 
 // The full Eleven Spectacles frame catalog, mirroring what the host passes.
 // Served from the host checkout via nitro publicAssets (see nuxt.config.ts).
@@ -26,6 +27,10 @@ const models: TryOnModel[] = [
 // host UI built from its slot; the default view is the tuning prototype.
 const route = useRoute()
 const showExperience = computed(() => route.query.view === 'experience')
+// `?view=scene&shadow=on|off` renders one frozen frame (no camera), for the
+// shadow comparison.
+const showScene = computed(() => route.query.view === 'scene')
+const sceneShadow = computed(() => route.query.shadow !== 'off')
 // `?tier=low|mid|high` pins the capability tier (disables the step-down) so
 // the experience can be checked at a given tier.
 const tierParam = computed(() => {
@@ -92,6 +97,9 @@ function onMetrics(payload: TryOnSessionMetrics) {
             </p>
           </template>
         </VirtualTryOnExperience>
+      </div>
+      <div v-else-if="showScene" class="mx-auto">
+        <TryOnFixtureScene :shadow="sceneShadow" />
       </div>
       <VirtualTryOnPrototype
         v-else

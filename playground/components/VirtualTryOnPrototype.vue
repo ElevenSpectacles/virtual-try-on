@@ -323,7 +323,23 @@ if (import.meta.client && route.query.harness === 'true') {
       frameIntervals,
       latencyMs: () => faceLatencyMs.value,
       blink: () => faceBlinkScore.value,
-      pose: () => facePose.value?.euler ?? null
+      pose: () => facePose.value?.euler ?? null,
+      // Everything TryOnScene needs for one frame, in world units. The shadow
+      // spec replays it (tests/e2e/tryon-pose-scene.spec.ts) so a render can be
+      // compared without a live tracker.
+      snapshot: () => ({
+        aspect: aspect.value,
+        faceWorldHalfWidth: faceWorldHalfWidth.value,
+        framePosition: { ...framePosition.value },
+        scale: smoothedScale.value,
+        rotation: { ...smoothedEuler.value },
+        modelOffset: { ...calibration.value.translation },
+        occluderPositions: occluderMeshPositions.value
+          ? Array.from(occluderMeshPositions.value)
+          : null,
+        occluderPosition: { ...occluderPosition.value },
+        occluderRadius: { ...occluderGeometry.value }
+      }),
     }
   })
 }
