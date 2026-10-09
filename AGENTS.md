@@ -92,7 +92,9 @@ Key facts:
   tracked skin), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
-  run per `requestVideoFrameCallback` frame, rAF fallback).
+  run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
+  (session telemetry: uptime, loss rate, FPS, latency percentiles; the
+  `metrics` event payload, opt-in via `reportMetrics`).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
 - `types/tryon-experience.ts` — slot/state types (`TryOnStatus`,
@@ -129,6 +131,12 @@ Key facts:
   `?harness=true` hook (`window.__tryOnHarness`) and asserts detection rate
   and still-input jitter; `render.spec.ts` screenshots the shipped component
   (`?view=experience`) against goldens in `tests/e2e/__screenshots__/`.
+  `tracking-harness.ts` is the shared driver. Real-footage specs (not run by
+  default; set the env var, footage stays out of git): `video-clip.spec.ts`
+  (`TRYON_VIDEO_CLIP`, a Y4M), `upna-pose.spec.ts` (`TRYON_VIDEO_CLIP` +
+  `TRYON_UPNA_GT`: head pose vs UPNA ground truth, via `pose-metrics.ts`;
+  UPNA is non-commercial, so keep its clips local), and `metrics.spec.ts`
+  (the `metrics` event end to end, on `TRYON_VIDEO_CLIP`).
   Tracking runs on the real GPU (MediaPipe's GPU delegate is unusably slow on
   SwiftShader); goldens run on SwiftShader so pixels match across machines.
   Local-only like `verify:playground`: skips when the models dir or ffmpeg

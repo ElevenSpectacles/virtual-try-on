@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TryOnModel } from '../src/runtime/composables/tryon/useTryOnModels'
+import type { TryOnSessionMetrics } from '../src/runtime/utils/tryon-metrics'
 
 import { useRoute } from '#imports'
 import { computed } from 'vue'
@@ -35,6 +36,12 @@ const tierParam = computed(() => {
 function onTrack(event: string, payload: Record<string, unknown>) {
   console.info('[track]', event, payload)
 }
+
+// `?metrics=true` turns on the metrics event; the e2e spec reads the JSON.
+const reportMetrics = computed(() => route.query.metrics === 'true')
+function onMetrics(payload: TryOnSessionMetrics) {
+  console.info('[metrics]', JSON.stringify(payload))
+}
 </script>
 
 <template>
@@ -54,9 +61,11 @@ function onTrack(event: string, payload: Record<string, unknown>) {
           :models="models"
           calibration-url="/models/virtual-try-on/calibration.json"
           :tier="tierParam"
+          :report-metrics="reportMetrics"
           @track="onTrack"
+          @metrics="onMetrics"
         >
-          <template #default="{ status, error, faceError, guideHint, isStarting, start }">
+          <template #default="{ status, error, faceError, guideHint, isStarting, start, stop }">
             <div
               v-if="status !== 'active'"
               class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white"
@@ -66,8 +75,17 @@ function onTrack(event: string, payload: Record<string, unknown>) {
                 {{ error ? 'Retry camera' : 'Start camera' }}
               </UButton>
             </div>
+            <UButton
+              v-if="status === 'active' && reportMetrics"
+              class="absolute bottom-4 left-4"
+              color="neutral"
+              size="xs"
+              @click="stop"
+            >
+              Stop camera
+            </UButton>
             <p
-              v-else-if="faceError || guideHint === 'noFace'"
+              v-if="status === 'active' && (faceError || guideHint === 'noFace')"
               class="absolute inset-x-0 bottom-4 text-center text-xs text-white"
             >
               {{ faceError ? `Face tracking error: ${faceError}` : 'Position your face in view' }}

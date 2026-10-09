@@ -43,6 +43,8 @@ export interface UseFaceLandmarkerOptions {
    * call returns. Used for the room-lighting estimate.
    */
   onFrame?: ((bitmap: ImageBitmap) => void) | undefined
+  /** Called with each raw camera-to-result latency sample, in ms (the EMA is `latencyMs`). */
+  onLatency?: ((ms: number) => void) | undefined
 }
 
 /**
@@ -130,6 +132,7 @@ export function useFaceLandmarker(
 
   function recordLatency(sentAt: number) {
     const sample = performance.now() - sentAt
+    options.onLatency?.(sample)
     latencyMs.value =
       latencyMs.value > 0
         ? latencyMs.value + LATENCY_EMA_ALPHA * (sample - latencyMs.value)
