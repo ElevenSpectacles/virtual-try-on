@@ -16,6 +16,10 @@ import type { HarnessResult } from './tracking-harness'
 
 // RECORD_FACE picks the fixture (default: the first face fixture).
 const FACE = (process.env.RECORD_FACE ?? FACE_FIXTURES[0]) as (typeof FACE_FIXTURES)[number]
+// RECORD_NAME names the fixture file (default: the face). RECORD_CLIP replaces the
+// portrait clip with a Y4M, e.g. a UPNA video; the fixture keeps the frame model.
+const NAME = process.env.RECORD_NAME ?? FACE
+const CLIP = process.env.RECORD_CLIP ?? ''
 const OUT_DIR = fileURLToPath(new URL('../fixtures/tryon-pose', import.meta.url))
 
 const skipReason = !process.env.RECORD_TRYON_POSE
@@ -28,10 +32,16 @@ interface HarnessSnapshotHost {
 
 test.describe('record tryon pose', () => {
   test.skip(!!skipReason, skipReason ?? '')
-  test.use({ clip: skipReason ? '' : faceClip(FACE, 'still'), gl: 'swiftshader' })
+  // RECORD_GL=hardware is needed for longer clips: SwiftShader is too slow for
+  // MediaPipe to find the first face in a 10 s UPNA clip. The saved values are
+  // tracker output, so the GL backend does not change the fixture.
+  test.use({
+    clip: skipReason ? '' : (CLIP || faceClip(FACE, 'still')),
+    gl: (process.env.RECORD_GL ?? 'swiftshader') as 'hardware' | 'swiftshader'
+  })
   test.setTimeout(300_000)
 
-  test(`record ${FACE}`, async ({ cameraPage: page }) => {
+  test(`record ${NAME}`, async ({ cameraPage: page }) => {
     await page.goto(`/?model=${FACE}&harness=true`)
     await page.waitForFunction(() => '__tryOnHarness' in window)
     await page.getByRole('button', { name: 'Allow camera access' }).click()
@@ -50,6 +60,6 @@ test.describe('record tryon pose', () => {
     expect((snapshot as { occluderPositions: unknown }).occluderPositions, 'occluder mesh present').not.toBeNull()
 
     mkdirSync(OUT_DIR, { recursive: true })
-    writeFileSync(`${OUT_DIR}/${FACE}.json`, `${JSON.stringify({ face: FACE, ...snapshot }, null, 2)}\n`)
+    writeFileSync(`${OUT_DIR}/${NAME}.json`, `${JSON.stringify({ face: FACE, ...snapshot }, null, 2)}\n`)
   })
 })
