@@ -1,0 +1,29 @@
+{
+  "enabledPlugins": {
+    "claude-code-setup@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *CHANGELOG.md|*.release-please-manifest.json) echo 'Release-managed file: change it through release-please, not by hand.' >&2; exit 2;; esac"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in */src/runtime/workers/*.ts) grep -nE '^(import|export)\\b' \"$f\" && echo 'Worker must stay import-free (classic worker).' >&2 && exit 2;; */src/*.ts|*/src/*.vue) grep -n 'console\\.' \"$f\" && echo 'The module never logs. Remove console calls.' >&2 && exit 2;; esac; true"
+          }
+        ]
+      }
+    ]
+  }
+}
