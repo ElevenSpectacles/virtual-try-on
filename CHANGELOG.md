@@ -1,5 +1,27 @@
 # Changelog
 
+## [4.6.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.5.0...v4.6.0) (2026-10-09)
+
+
+### Features
+
+* device capability tiering with frame-time step-down ([ef666af](https://github.com/ElevenSpectacles/virtual-try-on/commit/ef666afb0f854080d5b525dfadbe05cb742ade2e))
+* fixed-pose frame for a deterministic contact-shadow check ([#6](https://github.com/ElevenSpectacles/virtual-try-on/issues/6)) ([d25b594](https://github.com/ElevenSpectacles/virtual-try-on/commit/d25b59489ca4c56d67b5a6b04c33c9c925fb26ee))
+* improve face tracking ([c8962e7](https://github.com/ElevenSpectacles/virtual-try-on/commit/c8962e7a71328c77b919ef9d0a7fd34e413c6c3a))
+* light the frame from the room and add a contact shadow ([ea4fac2](https://github.com/ElevenSpectacles/virtual-try-on/commit/ea4fac2ef49a89c5d223a27c0ab9b14fd0167da7))
+* opt-in session metrics event ([#17](https://github.com/ElevenSpectacles/virtual-try-on/issues/17)) ([1af61b3](https://github.com/ElevenSpectacles/virtual-try-on/commit/1af61b31ff3944d5bf3c319629057d2e1f0979ff))
+
+
+### Bug Fixes
+
+* apply the tier prop reactively ([a38eca9](https://github.com/ElevenSpectacles/virtual-try-on/commit/a38eca93949a3612f4771745f24a0cdfe52c1f6f))
+* apply the tier prop reactively, not only at setup ([8db4e28](https://github.com/ElevenSpectacles/virtual-try-on/commit/8db4e285be4f0106920eaddb2d7a0cafce827ed2))
+
+
+### Refactoring
+
+* schedule detection through a camera-frame helper ([9eacbd9](https://github.com/ElevenSpectacles/virtual-try-on/commit/9eacbd927d7ff4c82b7737f446912c1e88579783))
+
 ## [4.5.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.4.0...v4.5.0) (2026-10-08)
 
 
