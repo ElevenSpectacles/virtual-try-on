@@ -1,4 +1,4 @@
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useTryOnFrameLoop } from './useTryOnFrameLoop'
 import {
   advanceTierSampler,
@@ -23,10 +23,12 @@ export interface TierChange {
 
 export interface UseCapabilityTierOptions {
   /**
-   * Pin the tier: no device probe, no step-down. For tests and goldens. Omit
-   * to classify from the device and step down under sustained load.
+   * Pin the tier while it returns a value: no step-down, and the device
+   * classification is ignored. Read reactively, so setting or clearing it
+   * after mount takes effect. Clearing returns to the device's own tier.
+   * For tests and goldens.
    */
-  forcedTier?: TryOnTier | undefined
+  forcedTier?: () => TryOnTier | undefined
   /**
    * Whether frames count right now: camera active and a face tracked. Frames
    * are sampled only while this is true, so idle time never counts as slow.
@@ -55,21 +57,24 @@ function probeSignals(): TierSignals {
 /**
  * The device capability tier and the features it allows, with a step-down
  * when the frame p95 stays over budget. Call from component setup: it
- * registers a frame loop and an `onMounted` probe.
+ * registers a frame loop, a watcher and an `onMounted` probe.
  *
  * The tier starts at `mid` on the server and before mount, then is set from
  * the device probe in `onMounted`. It only steps down during a session.
  */
 export function useCapabilityTier(options: UseCapabilityTierOptions = {}) {
-  const forced = options.forcedTier
-  const tier = ref<TryOnTier>(forced ?? 'mid')
+  const forcedTier = options.forcedTier ?? (() => undefined)
+  const tier = ref<TryOnTier>(forcedTier() ?? 'mid')
   const signals = ref<TierSignals | null>(null)
-  const sampler = createTierSampler(tier.value, forced !== undefined)
+  const sampler = createTierSampler(tier.value, forcedTier() !== undefined)
+  // The device's own classification, kept so clearing a forced tier can return to it.
+  let deviceTier: TryOnTier | null = null
 
   onMounted(() => {
-    if (forced !== undefined) return
+    if (forcedTier() !== undefined) return
     const probed = probeSignals()
     const initial = classifyTier(probed)
+    deviceTier = initial
     signals.value = probed
     tier.value = initial
     sampler.tier = initial
@@ -80,6 +85,21 @@ export function useCapabilityTier(options: UseCapabilityTierOptions = {}) {
       p95Ms: null,
       signals: probed
     })
+  })
+
+  // A forced tier pins the sampler; clearing it resumes from the device tier.
+  // No onChange here: a forced tier is the host's own choice, not a measured step.
+  watch(forcedTier, (value) => {
+    if (value !== undefined) {
+      sampler.forced = true
+      sampler.tier = value
+      tier.value = value
+      return
+    }
+    sampler.forced = false
+    const resume = deviceTier ?? 'mid'
+    sampler.tier = resume
+    tier.value = resume
   })
 
   useTryOnFrameLoop((deltaMs) => {
