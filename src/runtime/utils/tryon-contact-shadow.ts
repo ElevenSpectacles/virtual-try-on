@@ -42,3 +42,20 @@ export function computeContactShadowColors(
   }
   return colors
 }
+
+/**
+ * Where the shadow ellipse sits, relative to the face: centred `CONTACT_SHADOW_DROP`
+ * face-half-widths below the frame's anchor (the bridge), so the shadow lands on
+ * the cheeks and under the lenses rather than only above them.
+ */
+export const CONTACT_SHADOW_DROP = 0.6
+
+export function contactShadowEllipse(
+  anchor: { x: number; y: number },
+  faceHalfWidth: number
+): { centre: { x: number; y: number }; radius: { x: number; y: number } } {
+  return {
+    centre: { x: anchor.x, y: anchor.y - CONTACT_SHADOW_DROP * faceHalfWidth },
+    radius: { x: faceHalfWidth * 0.55, y: faceHalfWidth * 0.4 }
+  }
+}

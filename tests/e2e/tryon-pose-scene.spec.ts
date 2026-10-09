@@ -99,15 +99,16 @@ test.describe('contact shadow, frozen frame', () => {
     expect(bbox.maxY, 'bottom edge of the shadow').toBeLessThan(effect.height * 0.9)
 
     // Goldens: the same frozen frame with and without the shadow. Both are
-    // deterministic, so any drift is a real change in the render.
+    // deterministic, so any drift is a real change in the render. The default
+    // colour threshold (0.2) hides a translucent shadow, so it is tightened.
     await page.goto('/?view=scene&shadow=on')
     await expect(page.locator('[data-scene]').first().locator('canvas')).toBeVisible({ timeout: 30_000 })
     await page.waitForTimeout(12_000)
-    await expect(page.locator('[data-scene]').first()).toHaveScreenshot('frozen-shadow-on.png', { timeout: 30_000 })
+    await expect(page.locator('[data-scene]').first()).toHaveScreenshot('frozen-shadow-on.png', { timeout: 30_000, threshold: 0.02 })
 
     await page.goto('/?view=scene&shadow=off')
     await expect(page.locator('[data-scene]').first().locator('canvas')).toBeVisible({ timeout: 30_000 })
     await page.waitForTimeout(12_000)
-    await expect(page.locator('[data-scene]').first()).toHaveScreenshot('frozen-shadow-off.png', { timeout: 30_000 })
+    await expect(page.locator('[data-scene]').first()).toHaveScreenshot('frozen-shadow-off.png', { timeout: 30_000, threshold: 0.02 })
   })
 })

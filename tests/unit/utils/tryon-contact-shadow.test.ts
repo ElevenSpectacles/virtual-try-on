@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
+  CONTACT_SHADOW_DROP,
   CONTACT_SHADOW_STRENGTH,
-  computeContactShadowColors
+  computeContactShadowColors,
+  contactShadowEllipse
 } from '../../../src/runtime/utils/tryon-contact-shadow'
 import { FACE_MESH_VERTEX_COUNT } from '../../../src/runtime/utils/face-mesh-triangles'
 
@@ -72,5 +74,19 @@ describe('computeContactShadowColors', () => {
     positions.set([0, 0, 0], 0)
     const half = computeContactShadowColors(positions, centre, radius, CONTACT_SHADOW_STRENGTH / 2)
     expect(alphaOf(half, 0)).toBeCloseTo(CONTACT_SHADOW_STRENGTH / 2)
+  })
+})
+
+describe('contactShadowEllipse', () => {
+  it('drops the centre below the anchor by CONTACT_SHADOW_DROP face half-widths', () => {
+    const { centre } = contactShadowEllipse({ x: 0.2, y: 0.5 }, 1)
+    expect(centre.x).toBe(0.2)
+    expect(centre.y).toBeCloseTo(0.5 - CONTACT_SHADOW_DROP)
+  })
+
+  it('scales the radii with the face half-width', () => {
+    const { radius } = contactShadowEllipse({ x: 0, y: 0 }, 2)
+    expect(radius.x).toBeCloseTo(1.1)
+    expect(radius.y).toBeCloseTo(0.8)
   })
 })

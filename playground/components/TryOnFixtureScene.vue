@@ -14,7 +14,8 @@ import { NeutralToneMapping } from 'three'
 import TryOnScene from '../../src/runtime/components/TryOnScene.vue'
 import {
   CONTACT_SHADOW_STRENGTH,
-  computeContactShadowColors
+  computeContactShadowColors,
+  contactShadowEllipse
 } from '../../src/runtime/utils/tryon-contact-shadow'
 import fixture from '../../tests/fixtures/tryon-pose/iris-moss.json'
 
@@ -32,11 +33,11 @@ const occluderPositions = computed(() =>
 // 40% up and down, centred on the occluder.
 const contactShadowColors = computed(() => {
   if (!props.shadow || !occluderPositions.value) return null
-  const halfWidth = fixture.faceWorldHalfWidth
+  const shadow = contactShadowEllipse(fixture.occluderPosition, fixture.faceWorldHalfWidth)
   return computeContactShadowColors(
     occluderPositions.value,
-    fixture.occluderPosition,
-    { x: halfWidth * 0.55, y: halfWidth * 0.4 },
+    shadow.centre,
+    shadow.radius,
     CONTACT_SHADOW_STRENGTH
   )
 })
