@@ -423,7 +423,7 @@ if (metrics) {
 // Frames count toward the step-down only while a face is tracked, so idle
 // camera time never looks like a slow device.
 const capability = useCapabilityTier({
-  forcedTier: props.tier,
+  forcedTier: () => props.tier,
   sampling: () => isActive.value && hasFace.value,
   onChange: (change) => {
     metrics?.onTierChange(change.tier, change.previousTier !== null)
