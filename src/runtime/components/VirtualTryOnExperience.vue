@@ -40,6 +40,18 @@ import {
 } from '../composables/tryon/useTryOnModels'
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
 import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
+import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
+import { useFrameLightingSampler } from '../composables/tryon/useFrameLightingSampler'
+import type { TryOnTier } from '../utils/tryon-capability'
+import {
+  lightingGain,
+  smoothFrameLighting,
+  type FrameLighting
+} from '../utils/tryon-lighting'
+import {
+  CONTACT_SHADOW_STRENGTH,
+  computeContactShadowColors
+} from '../utils/tryon-contact-shadow'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -92,8 +104,28 @@ const props = withDefaults(
      * (default `true`).
      */
     occluder?: boolean | undefined
+    /**
+     * Pin the device capability tier (`low` | `mid` | `high`). Omit to
+     * classify the device and step down under sustained frame-time load.
+     * Forcing a tier disables the step-down, so tests and goldens stay
+     * deterministic.
+     */
+    tier?: TryOnTier | undefined
+    /**
+     * Light the frame from the room the camera sees (estimated luma and
+     * colour cast). Off keeps the fixed studio lighting. Also needs the
+     * `mid` tier or higher.
+     */
+    adaptiveLighting?: boolean
+    /**
+     * Soft shadow of the frame on the tracked skin under the bridge and
+     * lenses. Needs the face-mesh occluder and the `mid` tier or higher.
+     */
+    contactShadow?: boolean
   }>(),
   {
+    adaptiveLighting: true,
+    contactShadow: true,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -103,7 +135,8 @@ const props = withDefaults(
     draco: true,
     // Explicit undefined, not Vue's absent-boolean `false`, so an omitted
     // prop falls through to the module option.
-    occluder: undefined
+    occluder: undefined,
+    tier: undefined
   }
 )
 
@@ -175,8 +208,12 @@ const debugScaleBoost = ref(1)
 const mirrorLandmarks = true
 const useFaceTracking = ref(true)
 const runtimeConfig = useRuntimeConfig()
+// Each feature runs only when the host opted in AND the device tier allows
+// it. Opt-in comes from the prop, then the module option, then `true`.
 const occluderEnabled = computed(
-  () => props.occluder ?? runtimeConfig.public.virtualTryOn?.occluder ?? true
+  () =>
+    (props.occluder ?? runtimeConfig.public.virtualTryOn?.occluder ?? true) &&
+    capability.allows('occluder')
 )
 
 // Normalized inter-pupillary distance from the iris landmarks — varies far
@@ -310,6 +347,15 @@ const restingRotation = computed(() => ({
   z: calibration.value.rotation.z
 }))
 
+// Room lighting: each detection frame is sampled (16×16) and smoothed. A
+// failed or disabled sample leaves `frameLighting` null, which keeps the
+// neutral studio lighting.
+const lightingSampler = useFrameLightingSampler()
+const frameLighting = ref<FrameLighting | null>(null)
+const lightingEnabled = computed(
+  () => props.adaptiveLighting && capability.allows('lightingEstimate')
+)
+
 const {
   error: faceError,
   errorDetail: faceErrorDetail,
@@ -327,7 +373,33 @@ const {
     : {}),
   ...(props.mediapipeModelAssetPath !== undefined
     ? { mediapipeModelAssetPath: props.mediapipeModelAssetPath }
-    : {})
+    : {}),
+  onFrame: (bitmap) => {
+    if (!lightingEnabled.value) return
+    const sampled = lightingSampler.sample(bitmap)
+    frameLighting.value = sampled
+      ? smoothFrameLighting(frameLighting.value, sampled)
+      : null
+  }
+})
+
+// Frames count toward the step-down only while a face is tracked, so idle
+// camera time never looks like a slow device.
+const capability = useCapabilityTier({
+  forcedTier: props.tier,
+  sampling: () => isActive.value && hasFace.value,
+  onChange: (change) => {
+    // The initial classification is reported with TRY_ON_FACE_DETECTED,
+    // which fires after consent. Only step-downs need an event of their own.
+    if (change.previousTier === null) return
+    trackTryOn('TRY_ON_TIER', {
+      tier: change.tier,
+      previousTier: change.previousTier,
+      p95Ms: change.p95Ms,
+      maxTextureSize: change.signals?.maxTextureSize,
+      deviceMemoryGb: change.signals?.deviceMemoryGb
+    })
+  }
 })
 
 const correctedFaceLandmarks = computed(() =>
@@ -451,6 +523,7 @@ function trackTryOn(
     | 'TRY_ON_CAMERA_DENIED'
     | 'TRY_ON_FACE_DETECTED'
     | 'TRY_ON_FRAME_CHANGED'
+    | 'TRY_ON_TIER'
     | 'TRY_ON_ERROR',
   extra: Record<string, unknown> = {}
 ) {
@@ -537,16 +610,52 @@ function onSceneError(source: 'model' | 'environment', message: string) {
   })
 }
 
+// Light gain and tint from the smoothed room estimate; neutral (gain 1,
+// white) whenever lighting is disabled or no estimate is available.
+const lightGain = computed(() =>
+  lightingEnabled.value && frameLighting.value
+    ? lightingGain(frameLighting.value.luma)
+    : 1
+)
+const lightTint = computed<[number, number, number]>(() =>
+  lightingEnabled.value && frameLighting.value
+    ? frameLighting.value.tint
+    : [1, 1, 1]
+)
+
+// Contact shadow under the bridge and lenses, on the tracked skin only (the
+// occluder mesh is the skin). Its ellipse follows the face width, and its
+// strength follows the room light.
+const contactShadowEnabled = computed(
+  () => props.contactShadow && capability.allows('contactShadow')
+)
+const contactShadowColors = computed<Float32Array | null>(() => {
+  const positions = occluderPositions.value
+  if (!contactShadowEnabled.value || !occluderEnabled.value || !positions) {
+    return null
+  }
+  const halfWidth = faceWorldHalfWidth.value
+  return computeContactShadowColors(
+    positions,
+    occluderPosition.value,
+    { x: halfWidth * 0.55, y: halfWidth * 0.4 },
+    CONTACT_SHADOW_STRENGTH * lightGain.value
+  )
+})
+
 watch(hasFace, (detected) => {
   if (detected && !hasReportedFaceDetected.value) {
     hasReportedFaceDetected.value = true
     trackTryOn('TRY_ON_FACE_DETECTED', {
-      confidence: confidence.value
+      confidence: confidence.value,
+      tier: capability.tier.value
     })
   }
 })
 
 watch(model, (value) => {
+  // A new GLB compiles its shaders on the next frames: warm up again.
+  capability.resetWarmup()
   if (hasConsented.value) {
     trackTryOn('TRY_ON_FRAME_CHANGED', { model: value })
   }
@@ -601,6 +710,9 @@ watch(model, (value) => {
             :rotation="smoothedEuler"
             :occluder-enabled="occluderEnabled"
             :occluder-positions="occluderPositions"
+            :contact-shadow-colors="contactShadowColors"
+            :light-gain="lightGain"
+            :light-tint="lightTint"
             :occluder-position="occluderPosition"
             :occluder-radius="occluderGeometry"
             :occluder-rotation="smoothedEuler"

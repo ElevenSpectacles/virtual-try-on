@@ -71,6 +71,11 @@ Key facts:
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
     per-model calibration.
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
+  - `useFrameLightingSampler.ts` — samples each detection bitmap into a
+    16×16 canvas for the room-lighting estimate; null on failure.
+  - `useCapabilityTier.ts` — device probe (WebGL2, max texture size,
+    `deviceMemory`) and the frame-time step-down; exposes the tier and
+    `allows(feature)`. Samples only while a face is tracked.
 - `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` in a
   dedicated **classic** Web Worker (see constraints).
   `face-landmarker.worker.types.ts` holds the request/response types consumed
@@ -81,7 +86,13 @@ Key facts:
   face-mesh occluder: the tracked 468-point face surface rendered depth-only,
   so frame parts behind the skin are hidden exactly where the real head hides
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
-  `tryon-pose.ts` (matrix → face-pose decomposition).
+  `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-lighting.ts`
+  (room luma and colour cast from a 16×16 frame sample, gain and tint),
+  `tryon-contact-shadow.ts` (per-vertex alpha of the frame's shadow on the
+  tracked skin), `tryon-capability.ts`
+  (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
+  pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
+  run per `requestVideoFrameCallback` frame, rAF fallback).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
 - `types/tryon-experience.ts` — slot/state types (`TryOnStatus`,
