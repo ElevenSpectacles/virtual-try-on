@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.7.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.6.0...v4.7.0) (2026-10-09)
+
+
+### Features
+
+* move the contact shadow down onto the cheeks ([505ca93](https://github.com/ElevenSpectacles/virtual-try-on/commit/505ca93fe94e9d81766f9c0d90933e1e5d9d014a))
+* move the contact shadow down onto the cheeks ([#6](https://github.com/ElevenSpectacles/virtual-try-on/issues/6)) ([aa71a36](https://github.com/ElevenSpectacles/virtual-try-on/commit/aa71a36f4849c37745ebdbfbc12068d6e06b720b))
+
+
+### Bug Fixes
+
+* centre the contact shadow on the bridge contact, not the head ([20307f0](https://github.com/ElevenSpectacles/virtual-try-on/commit/20307f015d35f0eeb5211c0e4870bdae625dfb5e))
+
 ## [4.6.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.5.0...v4.6.0) (2026-10-09)
 
 
