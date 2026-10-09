@@ -18,24 +18,44 @@ import {
   computeContactShadowColors,
   contactShadowEllipse
 } from '../../src/runtime/utils/tryon-contact-shadow'
-import fixture from '../../tests/fixtures/tryon-pose/iris-moss.json'
+// Every recorded pose; `face` picks one. Missing names fall back to the first.
+const poses = import.meta.glob<PoseFixture>('../../tests/fixtures/tryon-pose/*.json', { eager: true, import: 'default' })
 
-const props = defineProps<{ shadow: boolean }>()
+/** Shape of tests/fixtures/tryon-pose/<face>.json (see record-tryon-pose.spec.ts). */
+interface PoseFixture {
+  face: string
+  aspect: number
+  faceWorldHalfWidth: number
+  framePosition: { x: number; y: number; z: number }
+  scale: number
+  rotation: { x: number; y: number; z: number }
+  modelOffset: { x: number; y: number; z: number }
+  occluderPositions: number[] | null
+  occluderPosition: { x: number; y: number; z: number }
+  occluderRadius: { radiusX: number; radiusY: number; radiusZ: number }
+}
+
+const props = withDefaults(defineProps<{ shadow: boolean; face?: string }>(), { face: 'iris-moss' })
+
+const fixture = computed<PoseFixture>(() => {
+  const match = Object.entries(poses).find(([path]) => path.endsWith(`/${props.face}.json`))
+  return (match ?? Object.entries(poses)[0]!)[1]
+})
 
 /** Stage width in CSS px; height follows the recorded aspect. */
 const STAGE_WIDTH = 448
-const stageHeight = STAGE_WIDTH / fixture.aspect
+const stageHeight = computed(() => STAGE_WIDTH / fixture.value.aspect)
 
 const occluderPositions = computed(() =>
-  fixture.occluderPositions ? Float32Array.from(fixture.occluderPositions) : null
+  fixture.value.occluderPositions ? Float32Array.from(fixture.value.occluderPositions) : null
 )
 
 // Same ellipse as VirtualTryOnExperience: 55% of the face half-width across,
 // 40% up and down, centred on the occluder.
 const contactShadowColors = computed(() => {
   if (!props.shadow || !occluderPositions.value) return null
-  const contact = bridgeContact(fixture.framePosition, fixture.rotation, fixture.scale)
-  const shadow = contactShadowEllipse(contact, fixture.faceWorldHalfWidth)
+  const contact = bridgeContact(fixture.value.framePosition, fixture.value.rotation, fixture.value.scale)
+  const shadow = contactShadowEllipse(contact, fixture.value.faceWorldHalfWidth)
   return computeContactShadowColors(
     occluderPositions.value,
     shadow.centre,
