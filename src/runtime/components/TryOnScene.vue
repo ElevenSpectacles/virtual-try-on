@@ -29,6 +29,7 @@ import {
   type HeadOccluderGeometry
 } from '../utils/tryon'
 import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
+import { lightingColor } from '../utils/tryon-lighting'
 
 const props = withDefaults(
   defineProps<{
@@ -67,6 +68,18 @@ const props = withDefaults(
     occluderRotation?: { x: number; y: number; z: number }
     /** Render the occluder with color so it can be visually tuned. */
     occluderDebugVisible?: boolean
+    /**
+     * Multiplier on the key, fill and ambient lights, from the room's
+     * estimated luma. 1 keeps the fixed studio lighting.
+     */
+    lightGain?: number
+    /** Colour cast of the room, each channel 0…1. White keeps the lights neutral. */
+    lightTint?: [number, number, number]
+    /**
+     * Per-vertex RGBA of the contact shadow, one entry per occluder vertex
+     * (see `computeContactShadowColors`). Null hides the shadow.
+     */
+    contactShadowColors?: Float32Array | null
     /** Wireframe box around the model's bbox — the calibration reference. */
     showBoundingBox?: boolean
     /**
@@ -106,6 +119,9 @@ const props = withDefaults(
     occluderRadius: () => ({ radiusX: 0.1, radiusY: 0.13, radiusZ: 0.12 }),
     occluderRotation: () => ({ x: 0, y: 0, z: 0 }),
     occluderDebugVisible: false,
+    lightGain: 1,
+    lightTint: () => [1, 1, 1],
+    contactShadowColors: null,
     showBoundingBox: false,
     modelOffset: () => ({ x: 0, y: 0, z: 0 }),
     visible: true,
@@ -288,6 +304,7 @@ onUnmounted(() => {
   clearEnvironment()
   dracoLoader?.dispose()
   occluderMeshGeometry.value?.dispose()
+  contactShadowGeometry.value?.dispose()
   boundingBoxHelper.value?.dispose()
 })
 
@@ -327,6 +344,8 @@ const occluderPositionVec = computed(
     )
 )
 
+const contactShadowGeometry = shallowRef<BufferGeometry | null>(null)
+
 // Face-mesh occluder: one persistent BufferGeometry whose positions are
 // re-uploaded per frame from `occluderPositions`. Fixed layout (468 tracked
 // landmark vertices plus the collar ring, FACE_MESH_OCCLUDER_INDEX
@@ -344,6 +363,7 @@ watch(
       // cycle leaks its GPU buffers.
       occluderMeshGeometry.value?.dispose()
       occluderMeshGeometry.value = null
+      syncContactShadow()
       return
     }
     let geometry = occluderMeshGeometry.value
@@ -359,9 +379,51 @@ watch(
     const attribute = geometry.getAttribute('position') as BufferAttribute
     ;(attribute.array as Float32Array).set(positions)
     attribute.needsUpdate = true
+    syncContactShadow()
   },
   { immediate: true }
 )
+
+// Contact shadow: a second mesh over the same tracked skin, with the
+// per-vertex alpha from `contactShadowColors` (see syncContactShadow). It
+// shares the occluder's position buffer, so the shadow lies exactly on the
+// skin the occluder already depth-tests against. Drawn transparent and
+// depth-tested without depth writes, so the frame in front (drawn opaque)
+// covers it.
+function syncContactShadow() {
+  const occluder = occluderMeshGeometry.value
+  const colors = props.contactShadowColors
+  if (!occluder || !colors) {
+    contactShadowGeometry.value?.dispose()
+    contactShadowGeometry.value = null
+    return
+  }
+  let geometry = contactShadowGeometry.value
+  if (!geometry) {
+    geometry = new BufferGeometry()
+    geometry.setAttribute('position', occluder.getAttribute('position'))
+    geometry.setIndex(new BufferAttribute(FACE_MESH_OCCLUDER_INDEX, 1))
+    contactShadowGeometry.value = geometry
+  }
+  const existing = geometry.getAttribute('color') as BufferAttribute | undefined
+  if (existing && existing.array.length === colors.length) {
+    ;(existing.array as Float32Array).set(colors)
+    existing.needsUpdate = true
+  } else {
+    geometry.setAttribute('color', new BufferAttribute(new Float32Array(colors), 4))
+  }
+}
+
+watch(() => props.contactShadowColors, syncContactShadow, { immediate: true })
+
+// Lights follow the room: intensity scales with the estimated luma, colour
+// takes on the room's cast. Neutral props keep the original studio values.
+const lightColor = computed(
+  () => new Color(...lightingColor(props.lightTint))
+)
+const ambientIntensity = computed(() => 0.55 * props.lightGain)
+const keyIntensity = computed(() => 1.1 * props.lightGain)
+const fillIntensity = computed(() => 0.5 * props.lightGain)
 const occluderScaleVec = computed(
   () =>
     new Vector3(
@@ -389,9 +451,17 @@ const occluderRotationVec = computed(
     :look-at="cameraTarget"
   />
 
-  <TresAmbientLight :intensity="0.55" />
-  <TresDirectionalLight :position="lightPosition" :intensity="1.1" />
-  <TresDirectionalLight :position="fillLightPosition" :intensity="0.5" />
+  <TresAmbientLight :intensity="ambientIntensity" :color="lightColor" />
+  <TresDirectionalLight
+    :position="lightPosition"
+    :intensity="keyIntensity"
+    :color="lightColor"
+  />
+  <TresDirectionalLight
+    :position="fillLightPosition"
+    :intensity="fillIntensity"
+    :color="lightColor"
+  />
 
   <!-- Depth-only head proxy: writes depth but not color, so geometry behind
        it (temple arms tucking behind the ear) is hidden by the depth test
@@ -414,6 +484,17 @@ const occluderRotationVec = computed(
       :transparent="occluderDebugVisible"
       :opacity="occluderDebugVisible ? 0.3 : 1"
       :side="DoubleSide"
+    />
+  </TresMesh>
+  <TresMesh
+    v-if="occluderEnabled && visible && contactShadowGeometry"
+    :geometry="contactShadowGeometry"
+    :frustum-culled="false"
+  >
+    <TresMeshBasicMaterial
+      :vertex-colors="true"
+      :transparent="true"
+      :depth-write="false"
     />
   </TresMesh>
   <TresMesh

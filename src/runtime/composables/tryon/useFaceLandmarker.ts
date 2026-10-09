@@ -37,6 +37,12 @@ export interface UseFaceLandmarkerOptions {
    * worker's Google-storage CDN default.
    */
   mediapipeModelAssetPath?: string | undefined
+  /**
+   * Called with each detection frame's bitmap before it is transferred to
+   * the worker. Read-only use only: the bitmap is detached right after the
+   * call returns. Used for the room-lighting estimate.
+   */
+  onFrame?: ((bitmap: ImageBitmap) => void) | undefined
 }
 
 /**
@@ -314,6 +320,11 @@ export function useFaceLandmarker(
         if (!worker.value || pendingRequestId !== id) {
           bitmap.close()
           return
+        }
+        try {
+          options.onFrame?.(bitmap)
+        } catch {
+          // A failing observer must never stop detection.
         }
         post({ type: 'detect', id, bitmap, timestamp: detectTimestamp }, [
           bitmap
