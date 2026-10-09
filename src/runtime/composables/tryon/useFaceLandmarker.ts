@@ -6,6 +6,7 @@ import {
   type NormalizedLandmark
 } from '../../utils/tryon'
 import { matrixToFacePose, type FacePose } from '../../utils/tryon-pose'
+import { scheduleOnCameraFrame } from '../../utils/tryon-frame-schedule'
 import type {
   FaceLandmarkerWorkerRequest,
   FaceLandmarkerWorkerResponse
@@ -335,38 +336,22 @@ export function useFaceLandmarker(
   // and MediaPipe throws on non-monotonic timestamps, so detect() always
   // stamps frames with performance.now().
   //
-  // rVFC isn't in every TS lib.dom yet and is unsupported in older Safari,
-  // so access it via a structural type and fall back to rAF.
-  type VideoFrameCallbackElement = HTMLVideoElement & {
-    requestVideoFrameCallback?: (cb: () => void) => number
-    cancelVideoFrameCallback?: (handle: number) => void
-  }
-
+  // The rVFC-with-rAF-fallback choice lives in utils/tryon-frame-schedule.ts.
   let loopActive = false
   let cancelFrame: (() => void) | null = null
 
   function scheduleLoop() {
     if (!loopActive) return
-    const video = videoRef.value as VideoFrameCallbackElement | null
+    const video = videoRef.value
     if (!video) {
       loopActive = false
       return
     }
-    if (typeof video.requestVideoFrameCallback === 'function') {
-      const handle = video.requestVideoFrameCallback(() => {
-        cancelFrame = null
-        detect(performance.now())
-        scheduleLoop()
-      })
-      cancelFrame = () => video.cancelVideoFrameCallback?.(handle)
-    } else {
-      const handle = requestAnimationFrame(() => {
-        cancelFrame = null
-        detect(performance.now())
-        scheduleLoop()
-      })
-      cancelFrame = () => cancelAnimationFrame(handle)
-    }
+    cancelFrame = scheduleOnCameraFrame(video, () => {
+      cancelFrame = null
+      detect(performance.now())
+      scheduleLoop()
+    })
   }
 
   function startLoop() {

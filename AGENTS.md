@@ -86,7 +86,8 @@ Key facts:
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
   `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
-  pure step-down sampler).
+  pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
+  run per `requestVideoFrameCallback` frame, rAF fallback).
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
 - `types/tryon-experience.ts` — slot/state types (`TryOnStatus`,
