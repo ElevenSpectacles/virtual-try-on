@@ -31,6 +31,7 @@ const showExperience = computed(() => route.query.view === 'experience')
 // shadow comparison.
 const showScene = computed(() => route.query.view === 'scene')
 const sceneShadow = computed(() => route.query.shadow !== 'off')
+const sceneFace = computed(() => (typeof route.query.face === 'string' ? route.query.face : 'iris-moss'))
 // `?tier=low|mid|high` pins the capability tier (disables the step-down) so
 // the experience can be checked at a given tier.
 const tierParam = computed(() => {
@@ -99,7 +100,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
         </VirtualTryOnExperience>
       </div>
       <div v-else-if="showScene" class="mx-auto">
-        <TryOnFixtureScene :shadow="sceneShadow" />
+        <TryOnFixtureScene :shadow="sceneShadow" :face="sceneFace" />
       </div>
       <VirtualTryOnPrototype
         v-else

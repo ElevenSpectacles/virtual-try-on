@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
+  CONTACT_SHADOW_DROP,
   CONTACT_SHADOW_STRENGTH,
-  computeContactShadowColors
+  bridgeContact,
+  computeContactShadowColors,
+  contactShadowEllipse
 } from '../../../src/runtime/utils/tryon-contact-shadow'
 import { FACE_MESH_VERTEX_COUNT } from '../../../src/runtime/utils/face-mesh-triangles'
 
@@ -72,5 +75,33 @@ describe('computeContactShadowColors', () => {
     positions.set([0, 0, 0], 0)
     const half = computeContactShadowColors(positions, centre, radius, CONTACT_SHADOW_STRENGTH / 2)
     expect(alphaOf(half, 0)).toBeCloseTo(CONTACT_SHADOW_STRENGTH / 2)
+  })
+})
+
+describe('contactShadowEllipse', () => {
+  it('drops the centre below the anchor by CONTACT_SHADOW_DROP face half-widths', () => {
+    const { centre } = contactShadowEllipse({ x: 0.2, y: 0.5 }, 1)
+    expect(centre.x).toBe(0.2)
+    expect(centre.y).toBeCloseTo(0.5 - CONTACT_SHADOW_DROP)
+  })
+
+  it('scales the radii with the face half-width', () => {
+    const { radius } = contactShadowEllipse({ x: 0, y: 0 }, 2)
+    expect(radius.x).toBeCloseTo(1.1)
+    expect(radius.y).toBeCloseTo(0.8)
+  })
+})
+
+describe('bridgeContact', () => {
+  it('is the frame position when the head is not turned', () => {
+    const contact = bridgeContact({ x: 0.3, y: -0.1 }, { x: 0, y: 0, z: 0 }, 13)
+    expect(contact.x).toBeCloseTo(0.3)
+    expect(contact.y).toBeCloseTo(-0.1)
+  })
+
+  it('moves back toward the face by the standoff when the head is turned', () => {
+    const contact = bridgeContact({ x: 0, y: 0 }, { x: 0, y: 0.5, z: 0 }, 13)
+    // Yaw 0.5 rad: the standoff points sideways, so the contact sits on the other side.
+    expect(contact.x).toBeLessThan(0)
   })
 })

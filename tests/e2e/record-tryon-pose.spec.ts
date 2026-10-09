@@ -14,7 +14,8 @@ import type { HarnessResult } from './tracking-harness'
  * the fixture is a snapshot of how those produce one frame.
  */
 
-const FACE = FACE_FIXTURES[0]
+// RECORD_FACE picks the fixture (default: the first face fixture).
+const FACE = (process.env.RECORD_FACE ?? FACE_FIXTURES[0]) as (typeof FACE_FIXTURES)[number]
 const OUT_DIR = fileURLToPath(new URL('../fixtures/tryon-pose', import.meta.url))
 
 const skipReason = !process.env.RECORD_TRYON_POSE
