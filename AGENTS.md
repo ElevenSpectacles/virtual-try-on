@@ -137,6 +137,14 @@ Key facts:
   `TRYON_UPNA_GT`: head pose vs UPNA ground truth, via `pose-metrics.ts`;
   UPNA is non-commercial, so keep its clips local), and `metrics.spec.ts`
   (the `metrics` event end to end, on `TRYON_VIDEO_CLIP`).
+- Rendering goldens (`rendering-goldens.spec.ts`, `tryon-pose-scene.spec.ts`)
+  render recorded frozen frames through `?view=scene`, one flag per golden
+  (`occluder`, `light`, `background`, `shadow`, `face`). Local-only, real or
+  SwiftShader GL. After an intended visual change, re-record with
+  `npx playwright test <spec> --update-snapshots` and review the PNGs; the
+  strict threshold (0.02) is set per assertion, since the default hides faint
+  changes like a shadow. New poses come from `RECORD_TRYON_POSE=1
+  RECORD_FACE=<face> npx playwright test tests/e2e/record-tryon-pose.spec.ts`.
   Tracking runs on the real GPU (MediaPipe's GPU delegate is unusably slow on
   SwiftShader); goldens run on SwiftShader so pixels match across machines.
   Local-only like `verify:playground`: skips when the models dir or ffmpeg

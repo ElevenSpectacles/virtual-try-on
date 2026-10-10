@@ -32,6 +32,10 @@ const showExperience = computed(() => route.query.view === 'experience')
 const showScene = computed(() => route.query.view === 'scene')
 const sceneShadow = computed(() => route.query.shadow !== 'off')
 const sceneFace = computed(() => (typeof route.query.face === 'string' ? route.query.face : 'iris-moss'))
+// Rendering-golden flags: ?occluder=off, ?light=dim|bright, ?background=light|dark.
+const sceneOccluder = computed(() => route.query.occluder !== 'off')
+const sceneLight = computed(() => (route.query.light === 'dim' || route.query.light === 'bright' ? route.query.light : 'neutral'))
+const sceneBackground = computed(() => (route.query.background === 'light' || route.query.background === 'dark' ? route.query.background : 'mid'))
 // `?tier=low|mid|high` pins the capability tier (disables the step-down) so
 // the experience can be checked at a given tier.
 const tierParam = computed(() => {
@@ -100,7 +104,13 @@ function onMetrics(payload: TryOnSessionMetrics) {
         </VirtualTryOnExperience>
       </div>
       <div v-else-if="showScene" class="mx-auto">
-        <TryOnFixtureScene :shadow="sceneShadow" :face="sceneFace" />
+        <TryOnFixtureScene
+          :shadow="sceneShadow"
+          :face="sceneFace"
+          :occluder="sceneOccluder"
+          :light="sceneLight"
+          :background="sceneBackground"
+        />
       </div>
       <VirtualTryOnPrototype
         v-else

@@ -35,7 +35,26 @@ interface PoseFixture {
   occluderRadius: { radiusX: number; radiusY: number; radiusZ: number }
 }
 
-const props = withDefaults(defineProps<{ shadow: boolean; face?: string }>(), { face: 'iris-moss' })
+// Flags for the rendering goldens (tests/e2e/rendering-goldens.spec.ts).
+// Defaults reproduce the frozen frame used by tryon-pose-scene.spec.ts.
+const props = withDefaults(
+  defineProps<{
+    shadow: boolean
+    face?: string
+    /** Occluder (#E): hides the far temple behind the head. */
+    occluder?: boolean
+    /** Room light (#A): dims or brightens the key, fill and ambient lights. */
+    light?: 'neutral' | 'dim' | 'bright'
+    /** Flat backdrop behind the frame. */
+    background?: 'mid' | 'light' | 'dark'
+  }>(),
+  { face: 'iris-moss', occluder: true, light: 'neutral', background: 'mid' }
+)
+
+// Gains match LIGHT_GAIN_RANGE in utils/tryon-lighting: dim is the floor, bright the ceiling.
+const LIGHT_GAIN = { neutral: 1, dim: 0.5, bright: 1.5 } as const
+const BACKDROP = { mid: '#c9c9c9', light: '#f2f2f2', dark: '1e1e1e' } as const
+const lightGain = computed(() => LIGHT_GAIN[props.light])
 
 const fixture = computed<PoseFixture>(() => {
   const match = Object.entries(poses).find(([path]) => path.endsWith(`/${props.face}.json`))
@@ -68,7 +87,7 @@ const contactShadowColors = computed(() => {
 <template>
   <div
     data-scene
-    :style="{ width: `${STAGE_WIDTH}px`, height: `${stageHeight}px`, background: '#c9c9c9' }"
+    :style="{ width: `${STAGE_WIDTH}px`, height: `${stageHeight}px`, background: BACKDROP[props.background] }"
     class="relative"
   >
     <ClientOnly>
@@ -88,7 +107,8 @@ const contactShadowColors = computed(() => {
           :model-offset="fixture.modelOffset"
           :scale="fixture.scale"
           :rotation="fixture.rotation"
-          :occluder-enabled="true"
+          :occluder-enabled="occluder"
+          :light-gain="lightGain"
           :occluder-positions="occluderPositions"
           :occluder-position="fixture.occluderPosition"
           :occluder-radius="fixture.occluderRadius"
