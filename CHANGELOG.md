@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.7.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.7.0...v4.7.1) (2026-10-10)
+
+
+### Documentation
+
+* add Graphify rules to AGENTS.md ([278f8eb](https://github.com/ElevenSpectacles/virtual-try-on/commit/278f8eb29fc9a820af7c7b03180360fb1932d3d1))
+* add Graphify rules to AGENTS.md ([d7011d0](https://github.com/ElevenSpectacles/virtual-try-on/commit/d7011d0b22866f59269a7f42d633b96fde2e5d5e))
+
 ## [4.7.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.6.0...v4.7.0) (2026-10-09)
 
 
