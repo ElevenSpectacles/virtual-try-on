@@ -34,6 +34,9 @@ const CASES: Case[] = [
   { name: 'iris-moss-background-dark', face: 'iris-moss', query: { background: 'dark' } },
   { name: 'pteron-azure-base', face: 'pteron-azure', query: {} },
   { name: 'kairos-amber-base', face: 'kairos-amber', query: {} },
+  // Synthetic profile (about -76 yaw): the recorded iris-moss frame rotated about
+  // the head axis. Geometry only, not a real face; see synthetic-profile.json.
+  { name: 'synthetic-profile-base', face: 'synthetic-profile', query: {} },
   // Frontal (yaw 0). The fixture is derived from a UPNA clip (non-commercial
   // licence), so it stays local and is not committed; the case skips without it.
   { name: 'upna-frontal-base', face: 'upna-frontal', query: {} }
