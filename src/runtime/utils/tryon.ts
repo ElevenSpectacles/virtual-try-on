@@ -540,16 +540,27 @@ export const ONE_EURO_MAX_PREDICTION_SECONDS = 0.1
  *   velocity would overshoot badly). Keep this tight: past-the-measurement
  *   overshoot is what makes the frame visibly swing past the face when a
  *   head turn stops.
+ *
+ * A third guard keeps a still head still: `minSpeed` is a soft deadband on
+ * the velocity estimate. On a still face the derivative is pure measurement
+ * noise, and extrapolating along it multiplies at-rest jitter (about 3x at
+ * 100 ms latency, see useTryOnSmoothing.test.ts). Speeds below `minSpeed`
+ * predict nothing; above it the excess is used, so prediction fades in with
+ * no step.
  */
 export function predictOneEuro(
   state: OneEuroState,
   measurement: number,
   dtSeconds: number,
-  maxOvershoot = 1.2
+  maxOvershoot = 1.2,
+  minSpeed = 0
 ): number {
   if (dtSeconds <= 0) return state.value
   const dt = Math.min(dtSeconds, ONE_EURO_MAX_PREDICTION_SECONDS)
-  const predicted = state.value + state.derivative * dt
+  const speed = Math.abs(state.derivative)
+  const velocity =
+    speed > minSpeed ? Math.sign(state.derivative) * (speed - minSpeed) : 0
+  const predicted = state.value + velocity * dt
   const gap = measurement - state.value
   const overshoot = predicted - measurement
   if (
