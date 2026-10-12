@@ -56,7 +56,7 @@ Key facts:
     the mirrored video + tracked frame, filling its container, with
     structural scoped CSS. Consent, errors, guide hints and controls are the
     host's, built from the default scoped slot (`status`, `error`,
-    `faceError`, `hasFace`, `guideHint`, `start`, `stop`; also exposed on
+    `faceError`, `hasFace`, `guideHint`, `fit`, `start`, `stop`; also exposed on
     the ref). Never add UI copy, icons, a UI library or utility classes.
   - `TryOnScene.vue` — the TresJS scene (GLB loading, occluder, environment).
     Uses three's own `GLTFLoader`/`DRACOLoader`/`HDRLoader`, not
@@ -101,7 +101,8 @@ Key facts:
   downsampling/smoothing, the segmentation-time budget),
   `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
   map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint/density from
-  calibration, the Fresnel term of the physical lens), `tryon-capability.ts`
+  calibration, the Fresnel term of the physical lens), `tryon-fit.ts` (face width in mm from ear width over IPD,
+  and the narrow/good/wide fit verdict with hysteresis), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
@@ -143,7 +144,9 @@ Key facts:
   `?harness=true` hook (`window.__tryOnHarness`) and asserts detection rate
   and still-input jitter; `render.spec.ts` screenshots the shipped component
   (`?view=experience`) against goldens in `tests/e2e/__screenshots__/`.
-  `tracking-harness.ts` is the shared driver. `hair.spec.ts` runs the hair
+  `tracking-harness.ts` is the shared driver. `fit.spec.ts` checks the fit
+  verdict reads "good" for each fixture's own frame (and is where
+  `FIT_IDEAL_RATIO` was measured). `hair.spec.ts` runs the hair
   segmenter live (`?view=experience&hair=on&tier=high`: mask, cadence,
   budget, tracking latency/fps on vs off) and `hair-scene.spec.ts` proves the
   hiding on frozen frames with a painted band (`?view=scene&hair=band`).

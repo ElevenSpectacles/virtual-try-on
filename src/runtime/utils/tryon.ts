@@ -256,15 +256,21 @@ export const IRIS_CENTER_RIGHT = 468
 export const IRIS_CENTER_LEFT = 473
 
 /**
- * Landmark indices averaged into the frame anchor: the nose-bridge ridge
- * (168 between eyebrows, 6 glabella, 197/5 down the ridge) pins the anchor
- * vertically where the frame's bridge actually rests, and the iris centres
- * (468/473) pin it to the lens line. Averaging six points also smooths
- * single-landmark jitter for free. Brow/mouth/chin landmarks are
- * deliberately excluded — they move with expression and would make the
- * frame drift when the user talks or raises their eyebrows.
+ * Landmark indices averaged into the frame anchor — the frame's seat. The
+ * nose-bridge ridge (168 between eyebrows, 6 glabella, 197/5 down the ridge)
+ * pins the anchor where the frame's bridge actually rests, and the inner eye
+ * corners (133/362) pin it to the lens line. Every point is fixed to the
+ * skull, so the seat follows the head and nothing else: the iris centres
+ * this used before move with gaze and drift during blinks, which moved the
+ * frame when the customer looked down at their phone. A real frame doesn't.
+ * The eye corners also sit a little lower than the pupils, which brought the
+ * rendered bridge 1.6–3 px (stage) down onto the real one on the face
+ * fixtures (issue #11). Averaging six points also smooths single-landmark
+ * jitter. Brow/mouth/chin landmarks are deliberately excluded — they move
+ * with expression and would make the frame drift when the user talks or
+ * raises their eyebrows.
  */
-export const TRYON_ANCHOR_INDICES = [168, 6, 197, 5, 468, 473] as const
+export const TRYON_ANCHOR_INDICES = [168, 6, 197, 5, 133, 362] as const
 
 /**
  * Average the given landmark indices into a single anchor point. Missing

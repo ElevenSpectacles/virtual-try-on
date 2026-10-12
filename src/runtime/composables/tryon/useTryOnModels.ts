@@ -5,6 +5,11 @@ export interface TryOnModel {
   color: string
   colorClass: string
   thumbnailUrl?: string
+  /**
+   * Total frame width in millimetres from the catalog spec, for the fit
+   * verdict. Omit to measure it from the GLB's bounding box.
+   */
+  frameWidthMm?: number
 }
 
 export function getTryOnModel(
