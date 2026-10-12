@@ -124,7 +124,10 @@ Key facts:
 - `scripts/` — CLIs:
   - `generate-calibration.ts` — scans a GLB directory and emits
     `calibration.json` (bounding-box recentring + scale normalization against
-    a reference model).
+    a reference model; `--input`, `--output`, `--reference`). Keeps the
+    hand-tuned fields (`rotation`, `templeWidthBoost`, `lens`) of an existing
+    `--output`. The maths lives in `scripts/lib/calibration.ts`, unit-tested
+    in `tests/unit/scripts/`.
   - `compress-models.ts` — Draco-compresses GLBs via `@gltf-transform`. Run
     `generate-calibration` against the compressed output (compression shifts
     bounding boxes by float rounding).
