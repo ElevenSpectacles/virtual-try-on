@@ -88,8 +88,8 @@ Key facts:
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
   `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-lighting.ts`
   (room luma and colour cast from a 16×16 frame sample, gain and tint),
-  `tryon-contact-shadow.ts` (per-vertex alpha of the frame's shadow on the
-  tracked skin), `tryon-lens.ts` (per-model lens tint/density from
+  `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
+  map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint/density from
   calibration, the Fresnel term of the physical lens), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one

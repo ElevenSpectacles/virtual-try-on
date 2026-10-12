@@ -7,7 +7,7 @@
  * default slot (and the component ref) exposes. Slot content is rendered on
  * top of the feed inside the stage.
  */
-import { NeutralToneMapping, Euler, Vector3 } from 'three'
+import { NeutralToneMapping, VSMShadowMap, Euler, Vector3 } from 'three'
 import {
   landmarkToWorld,
   computeMetricBaseScale,
@@ -52,12 +52,7 @@ import {
   smoothFrameLighting,
   type FrameLighting
 } from '../utils/tryon-lighting'
-import {
-  CONTACT_SHADOW_STRENGTH,
-  bridgeContact,
-  computeContactShadowColors,
-  contactShadowEllipse
-} from '../utils/tryon-contact-shadow'
+import { CONTACT_SHADOW_STRENGTH } from '../utils/tryon-contact-shadow'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -681,20 +676,10 @@ const physicalLensEnabled = computed(
   () => props.physicalLens && capability.allows('physicalLens')
 )
 
-const contactShadowColors = computed<Float32Array | null>(() => {
-  const positions = occluderPositions.value
-  if (!contactShadowEnabled.value || !occluderEnabled.value || !positions) {
-    return null
-  }
-  const contact = bridgeContact(framePosition.value, smoothedEuler.value, smoothedScale.value)
-  const shadow = contactShadowEllipse(contact, faceWorldHalfWidth.value)
-  return computeContactShadowColors(
-    positions,
-    shadow.centre,
-    shadow.radius,
-    CONTACT_SHADOW_STRENGTH * lightGain.value
-  )
-})
+// Shadow opacity follows the room light: a bright room casts a stronger shadow.
+const contactShadowStrength = computed(
+  () => CONTACT_SHADOW_STRENGTH * lightGain.value
+)
 
 watch(hasFace, (detected) => {
   if (detected && !hasReportedFaceDetected.value) {
@@ -758,6 +743,8 @@ watch(model, (value) => {
           :dpr="[1, 2]"
           :tone-mapping="NeutralToneMapping"
           :tone-mapping-exposure="exposure"
+          :shadows="contactShadowEnabled"
+          :shadow-map-type="VSMShadowMap"
           power-preference="high-performance"
           render-mode="always"
           class="vto-layer"
@@ -776,7 +763,8 @@ watch(model, (value) => {
             :rotation="smoothedEuler"
             :occluder-enabled="occluderEnabled"
             :occluder-positions="occluderPositions"
-            :contact-shadow-colors="contactShadowColors"
+            :contact-shadow="contactShadowEnabled && occluderEnabled"
+            :contact-shadow-strength="contactShadowStrength"
             :light-gain="lightGain"
             :light-tint="lightTint"
             :occluder-position="occluderPosition"

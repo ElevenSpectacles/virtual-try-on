@@ -10,14 +10,9 @@
  * lands on the same skin whatever is behind it.
  */
 import { computed } from 'vue'
-import { NeutralToneMapping } from 'three'
+import { NeutralToneMapping, VSMShadowMap } from 'three'
 import TryOnScene from '../../src/runtime/components/TryOnScene.vue'
-import {
-  CONTACT_SHADOW_STRENGTH,
-  bridgeContact,
-  computeContactShadowColors,
-  contactShadowEllipse
-} from '../../src/runtime/utils/tryon-contact-shadow'
+
 // Every recorded pose; `face` picks one. Missing names fall back to the first.
 const poses = import.meta.glob<PoseFixture>('../../tests/fixtures/tryon-pose/*.json', { eager: true, import: 'default' })
 
@@ -73,19 +68,6 @@ const occluderPositions = computed(() =>
   fixture.value.occluderPositions ? Float32Array.from(fixture.value.occluderPositions) : null
 )
 
-// Same ellipse as VirtualTryOnExperience: 55% of the face half-width across,
-// 40% up and down, centred on the occluder.
-const contactShadowColors = computed(() => {
-  if (!props.shadow || !occluderPositions.value) return null
-  const contact = bridgeContact(fixture.value.framePosition, fixture.value.rotation, fixture.value.scale)
-  const shadow = contactShadowEllipse(contact, fixture.value.faceWorldHalfWidth)
-  return computeContactShadowColors(
-    occluderPositions.value,
-    shadow.centre,
-    shadow.radius,
-    CONTACT_SHADOW_STRENGTH
-  )
-})
 </script>
 
 <template>
@@ -101,6 +83,8 @@ const contactShadowColors = computed(() => {
         :antialias="true"
         :dpr="1"
         :tone-mapping="NeutralToneMapping"
+        :shadows="shadow"
+        :shadow-map-type="VSMShadowMap"
         render-mode="always"
         class="absolute inset-0 h-full w-full"
       >
@@ -117,7 +101,7 @@ const contactShadowColors = computed(() => {
           :occluder-position="fixture.occluderPosition"
           :occluder-radius="fixture.occluderRadius"
           :occluder-rotation="fixture.rotation"
-          :contact-shadow-colors="contactShadowColors"
+          :contact-shadow="shadow"
           :physical-lens="lens === 'physical'"
         />
       </TresCanvas>
