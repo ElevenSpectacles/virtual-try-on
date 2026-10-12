@@ -1,77 +1,75 @@
-import { FACE_MESH_VERTEX_COUNT } from './face-mesh-triangles'
-import { FRAME_BRIDGE_STANDOFF_METERS, headForwardOffset } from './tryon'
-
 /**
- * Soft contact shadow of the frame on the skin, as per-vertex colours on the
- * face-mesh occluder.
+ * Contact shadow of the frame on the face (issue #6): the scene's key light
+ * casts a soft shadow map from the frame's opaque parts (rims, bridge,
+ * temples) onto the tracked face mesh, drawn with a shadow-only material.
  *
- * The occluder is the tracked face surface, so a shadow painted on its
- * vertices follows the head's yaw and pitch for free. The mesh is drawn
- * with its own depth, so the shadow sits on skin and stops at the face
- * silhouette.
+ * The receiver is the per-frame face-mesh occluder, so the shadow follows
+ * the head's yaw and pitch, lands only on skin and stops at the face
+ * silhouette. Because the frame stands off the face
+ * (FRAME_BRIDGE_STANDOFF_METERS), the shadow falls a few millimetres below
+ * and beside each rim, which is what grounds a real pair of glasses: a thin
+ * band under the lenses on the cheeks, and under the pads beside the nose.
  *
- * Pure functions only (no DOM, no Vue).
+ * This file holds the pure framing math for the shadow camera (no three.js).
  */
 
-/** Peak opacity of the shadow, at the frame's centre. Kept subtle: a cue, not a shadow. */
-export const CONTACT_SHADOW_STRENGTH = 0.35
+/** Peak opacity of the shadow on skin. Kept subtle: a cue, not a hard shadow. */
+export const CONTACT_SHADOW_STRENGTH = 0.22
 
 /**
- * RGBA colour per occluder vertex (`vertexCount * 4` floats). Black with
- * alpha falling off quadratically from `centre` to the `radius` ellipse,
- * zero outside it.
- *
- * Only the tracked skin vertices get shadow. The collar ring after them sits
- * behind the ears and must stay clear.
+ * Direction the shadow light shines from (unnormalized, world space): mostly
+ * from the front, a little above and to the right. Its own light, with no
+ * intensity, so the frame's shading keeps the studio key light. Steep light
+ * throws the shadow of a lens 2–3 cm onto the cheek, which reads as a dark
+ * patch; with this angle it lands about a centimetre below the rims, where
+ * a real pair's shadow sits under ordinary room light.
  */
-export function computeContactShadowColors(
-  positions: Float32Array,
-  centre: { x: number; y: number },
-  radius: { x: number; y: number },
-  strength: number = CONTACT_SHADOW_STRENGTH
-): Float32Array {
-  const vertexCount = positions.length / 3
-  const colors = new Float32Array(vertexCount * 4)
-  if (radius.x <= 0 || radius.y <= 0 || strength <= 0) return colors
+export const SHADOW_LIGHT_DIRECTION = { x: 0.6, y: 2, z: 6 } as const
 
-  const skinCount = Math.min(vertexCount, FACE_MESH_VERTEX_COUNT)
-  for (let i = 0; i < skinCount; i++) {
-    const dx = (positions[i * 3]! - centre.x) / radius.x
-    const dy = (positions[i * 3 + 1]! - centre.y) / radius.y
-    const falloff = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy))
-    colors[i * 4 + 3] = strength * falloff * falloff
-  }
-  return colors
+/**
+ * Half-size of the shadow camera's square frustum per unit of frame scale.
+ * A frame is about 0.14 m wide; 0.16 m each way also covers the temples and
+ * the shadow below the frame, so the shadow never ends on the frustum edge.
+ */
+export const SHADOW_HALF_EXTENT_METERS = 0.16
+
+/** Distance from the frame to the shadow light along its direction, per unit of scale. */
+export const SHADOW_LIGHT_DISTANCE_METERS = 0.5
+
+export interface ContactShadowLight {
+  /** Light position (world units). */
+  position: { x: number; y: number; z: number }
+  /** Light target: the frame's position. */
+  target: { x: number; y: number; z: number }
+  /** Half-size of the orthographic shadow camera (world units). */
+  halfExtent: number
+  /** Shadow camera near/far planes (world units). */
+  near: number
+  far: number
 }
 
 /**
- * Where the shadow ellipse sits, relative to the face: centred `CONTACT_SHADOW_DROP`
- * face-half-widths below the frame's anchor (the bridge), so the shadow lands on
- * the cheeks and under the lenses rather than only above them.
+ * Frame the shadow light's camera on the frame: aimed at the frame
+ * position along `SHADOW_LIGHT_DIRECTION`, sized to the frame's scale (the GLB
+ * is in metres, scaled into world units by `scale`).
  */
-export const CONTACT_SHADOW_DROP = 0.6
-
-/**
- * Where the frame touches the skin at the bridge, in the same world units as the
- * occluder. The frame stands off the face along the head's forward axis
- * (FRAME_BRIDGE_STANDOFF_METERS), so the contact is the frame position minus that
- * offset. The occluder centre is not the contact: it is pushed back into the head.
- */
-export function bridgeContact(
-  framePosition: { x: number; y: number },
-  euler: { x: number; y: number; z: number },
+export function contactShadowLight(
+  framePosition: { x: number; y: number; z?: number },
   scale: number
-): { x: number; y: number } {
-  const standoff = headForwardOffset(euler, FRAME_BRIDGE_STANDOFF_METERS * scale)
-  return { x: framePosition.x - standoff.x, y: framePosition.y - standoff.y }
-}
-
-export function contactShadowEllipse(
-  contact: { x: number; y: number },
-  faceHalfWidth: number
-): { centre: { x: number; y: number }; radius: { x: number; y: number } } {
+): ContactShadowLight {
+  const d = SHADOW_LIGHT_DIRECTION
+  const length = Math.hypot(d.x, d.y, d.z)
+  const distance = SHADOW_LIGHT_DISTANCE_METERS * scale
+  const target = { x: framePosition.x, y: framePosition.y, z: framePosition.z ?? 0 }
   return {
-    centre: { x: contact.x, y: contact.y - CONTACT_SHADOW_DROP * faceHalfWidth },
-    radius: { x: faceHalfWidth * 0.55, y: faceHalfWidth * 0.4 }
+    position: {
+      x: target.x + (d.x / length) * distance,
+      y: target.y + (d.y / length) * distance,
+      z: target.z + (d.z / length) * distance
+    },
+    target,
+    halfExtent: SHADOW_HALF_EXTENT_METERS * scale,
+    near: distance * 0.25,
+    far: distance * 2
   }
 }
