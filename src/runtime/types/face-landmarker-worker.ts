@@ -1,6 +1,6 @@
 /**
  * Message types shared between the main thread and
- * `face-landmarker.worker.ts`, split into their own file because the worker
+ * `workers/face-landmarker.worker.ts`, kept out of the worker because it
  * is built as a classic (non-module) worker: any top-level `export` in the
  * worker's own source — even a type-only one that's erased at runtime —
  * makes the compiler emit a trailing `export {}` marker in the bundled

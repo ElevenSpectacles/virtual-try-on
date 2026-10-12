@@ -10,7 +10,7 @@ import { scheduleOnCameraFrame } from '../../utils/tryon-frame-schedule'
 import type {
   FaceLandmarkerWorkerRequest,
   FaceLandmarkerWorkerResponse
-} from '../../workers/face-landmarker.worker.types'
+} from '../../types/face-landmarker-worker'
 import type { FaceLandmarkerError } from '../../types/tryon-experience'
 
 export type { FaceLandmarkerError }

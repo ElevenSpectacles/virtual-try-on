@@ -77,18 +77,17 @@ Key facts:
   - `useHairSegmenter.ts` — hair segmentation in its own worker for the
     opt-in hair occluder: lazy start, ~10 Hz, one request in flight, mask
     shrunk and smoothed; switches itself off over its worker-time budget.
-- `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` in a
-  dedicated **classic** Web Worker (see constraints).
-  `workers/hair-segmenter.worker.ts` — MediaPipe's hair segmenter
-  (`hair_segmenter.tflite`, 0.8 MB, GPU only) in a second classic worker, so
-  segmentation never delays tracking; its message types live in
-  `types/hair-segmenter-worker.ts` (a repo hook rejects `export` in any
-  `workers/*.ts`). The face-landmarker worker, on request
-  (`wantFrameSample`) it also returns a 16×16 RGBA downsample of the frame
-  for the room-lighting estimate, after the landmark result, so the GPU
-  readback never runs on the render thread.
-  `face-landmarker.worker.types.ts` holds the request/response types consumed
-  by the main thread.
+- `workers/` — the two **classic** Web Workers (see constraints). Their
+  message types live in `types/` (`face-landmarker-worker.ts`,
+  `hair-segmenter-worker.ts`), since a worker file can't `export` and a repo
+  hook rejects `export` in any `workers/*.ts`:
+  - `face-landmarker.worker.ts` — MediaPipe `FaceLandmarker`. On request
+    (`wantFrameSample`) it also returns a 16×16 RGBA downsample of the frame
+    for the room-lighting estimate, after the landmark result, so the GPU
+    readback never runs on the render thread.
+  - `hair-segmenter.worker.ts` — MediaPipe's hair segmenter
+    (`hair_segmenter.tflite`, 0.8 MB, GPU only) for the opt-in hair
+    occluder, in its own worker so segmentation never delays tracking.
 - `utils/` — pure, unit-testable math: `tryon.ts` (landmark→NDC/world
   remapping, metric/IPD scaling, occluder geometry, One-Euro filter,
   `TRYON_CAMERA` constants), `tryon-occluder.ts` (per-frame landmark-built
@@ -269,7 +268,8 @@ claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
   marker that is a SyntaxError in a classic worker, and MediaPipe's WASM
   loader relies on synchronous `importScripts`, which module workers don't
   support. Worker message types are duplicated inline; the main-thread source
-  of truth is `face-landmarker.worker.types.ts` — keep both in sync.
+  of truth is `types/face-landmarker-worker.ts` (`types/hair-segmenter-worker.ts`
+  for the hair worker) — keep both in sync.
 - **Works from both layouts**: `src/module.ts` must resolve everything via
   `createResolver` against `./runtime/…` and never assume `.ts` files exist —
   from npm it runs as `dist/module.mjs` next to transpiled `.js` runtime.

@@ -14,7 +14,7 @@
 // ES module and appends a trailing `export {}` marker to the bundle — a hard
 // SyntaxError outside a module worker — even for a type-only `import type`.
 // The request/response types are therefore duplicated here (source of truth
-// lives in `./face-landmarker.worker.types`, consumed via normal import by
+// lives in `../types/face-landmarker-worker`, consumed via normal import by
 // the main-thread composable) instead of imported.
 type FaceLandmarkerWorkerRequest =
   | { type: 'init'; basePath?: string; modelAssetPath?: string }

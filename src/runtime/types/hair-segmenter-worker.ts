@@ -1,7 +1,7 @@
 /**
  * Message types shared between the main thread and
  * `workers/hair-segmenter.worker.ts`. Kept out of the worker for the same
- * reason as `face-landmarker.worker.types.ts`: the worker is a classic worker
+ * reason as `face-landmarker-worker.ts`: the worker is a classic worker
  * and must not contain any `export`. Keep the inline copy in the worker in
  * sync.
  */
