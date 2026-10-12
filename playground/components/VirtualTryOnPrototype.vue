@@ -1,38 +1,20 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { NeutralToneMapping, VSMShadowMap, Euler, Vector3 } from 'three'
+import { NeutralToneMapping, VSMShadowMap } from 'three'
 import {
   useElementSize,
   usePreferredReducedMotion,
   useRafFn
 } from '@vueuse/core'
 import {
-  landmarkToWorld,
-  computeMetricBaseScale,
-  computeMetricScaleFromMeasure,
-  compensateMeasureForPose,
-  getInterPupillaryDistance,
-  computeHeadOccluderGeometry,
-  worldPlaneWidth,
   objectCoverWindow,
-  mapLandmarkToObjectCover,
-  getFaceWidth,
-  getEarWidth,
   shouldHoldScaleForBlink,
   getEyeAspectRatio,
-  ASSUMED_FACE_WIDTH_METERS,
-  ASSUMED_EAR_WIDTH_METERS,
-  ASSUMED_IPD_METERS,
-  FRAME_FIT_SCALE_BOOST,
-  FRAME_BRIDGE_STANDOFF_METERS,
-  headForwardOffset,
   type NormalizedLandmark
 } from '../../src/runtime/utils/tryon'
-import { faceEulerToThree } from '../../src/runtime/utils/tryon-pose'
-import { buildFaceMeshOccluderPositions } from '../../src/runtime/utils/tryon-occluder'
 import { useWebcamStream } from '../../src/runtime/composables/tryon/useWebcamStream'
 import { useFaceLandmarker } from '../../src/runtime/composables/tryon/useFaceLandmarker'
-import { useTryOnSmoothing } from '../../src/runtime/composables/tryon/useTryOnSmoothing'
+import { useTryOnPlacement } from '../../src/runtime/composables/tryon/useTryOnPlacement'
 import { useFrameCalibration } from '../../src/runtime/composables/tryon/useFrameCalibration'
 import {
   getTryOnModel,
@@ -111,58 +93,6 @@ const debugYOffset = ref(0)
 const debugZOffset = ref(0)
 const debugScaleBoost = ref(1)
 
-const correctedIpd = computed(() =>
-  getInterPupillaryDistance(correctedFaceLandmarks.value)
-)
-
-const correctedEarWidth = computed(() =>
-  getEarWidth(correctedFaceLandmarks.value)
-)
-
-function poseCompensated(measure: number): number {
-  if (!facePose.value) return measure
-  return compensateMeasureForPose(
-    measure,
-    facePose.value.euler.yaw,
-    facePose.value.euler.pitch
-  )
-}
-
-// Same chain as VirtualTryOnExperience: ear-to-ear width first (what a
-// frame's temple arms actually span), then cheek width, then IPD — so
-// values tuned here transfer 1:1 to production.
-const scaleSource = computed<'ear' | 'width' | 'ipd' | 'manual'>(() => {
-  if (!enableAutoScale.value || !hasFace.value) return 'manual'
-  if (correctedEarWidth.value > 0) return 'ear'
-  return correctedFaceWidth.value > 0 ? 'width' : 'ipd'
-})
-
-const autoMetricScale = computed(() => {
-  if (scaleSource.value === 'manual') {
-    return computeMetricBaseScale(aspect.value, referenceFaceWidth.value)
-  }
-  const measure =
-    scaleSource.value === 'ear'
-      ? ([correctedEarWidth.value, ASSUMED_EAR_WIDTH_METERS] as const)
-      : scaleSource.value === 'width'
-        ? ([correctedFaceWidth.value, ASSUMED_FACE_WIDTH_METERS] as const)
-        : ([correctedIpd.value, ASSUMED_IPD_METERS] as const)
-  // Tracked sources get the fit boost on top — a real frame is worn
-  // slightly wider than the skull (see FRAME_FIT_SCALE_BOOST).
-  return (
-    computeMetricScaleFromMeasure(aspect.value, poseCompensated(measure[0]), measure[1]) *
-    FRAME_FIT_SCALE_BOOST
-  )
-})
-
-const calibratedScale = computed(
-  () =>
-    autoMetricScale.value *
-    calibration.value.scale *
-    debugScaleBoost.value *
-    fineTuneScale.value
-)
-
 const occluderEnabled = ref(true)
 const occluderDebugVisible = ref(false)
 const showModelBoundingBox = ref(false)
@@ -176,62 +106,8 @@ const occluderSkinSetback = ref(0.006)
 const occluderMeshInflate = ref(1.04)
 const occluderCollarDepth = ref(0.2)
 
-// The occluder must stay skull-sized when the head turns: the cheek-to-cheek
-// measure foreshortens by cos(yaw)·cos(pitch), so compensate it the same way
-// the scale path does — otherwise the ellipsoid shrinks at yaw and the far
-// temple arm escapes it, rendering on top of the face.
-const faceWorldHalfWidth = computed(() => {
-  const width =
-    enableAutoScale.value && correctedFaceWidth.value
-      ? poseCompensated(correctedFaceWidth.value)
-      : referenceFaceWidth.value
-  return (worldPlaneWidth(aspect.value) * width) / 2
-})
-
-const occluderGeometry = computed(() =>
-  computeHeadOccluderGeometry(faceWorldHalfWidth.value, {
-    widthRatio: occluderWidthRatio.value,
-    heightRatio: occluderHeightRatio.value,
-    depthRatio: occluderDepthRatio.value
-  })
-)
-
-const occluderPosition = computed(() => {
-  const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
-    mirror: mirrorLandmarks
-  })
-  // Front-at-anchor calibration: the ellipsoid's front surface sits just past
-  // the frame's endpiece wrap (~15mm back), matching the shell's cap.
-  const setback = 0.015 * smoothedScale.value
-  const rot = smoothedEuler.value
-  const back = new Vector3(
-    0,
-    0,
-    -(occluderGeometry.value.radiusZ + setback)
-  ).applyEuler(new Euler(rot.x, rot.y, rot.z))
-  return {
-    x: position.x + back.x,
-    y: position.y + back.y,
-    z: debugZOffset.value + back.z
-  }
-})
 const rotationDeg = ref(0)
 const rotationY = computed(() => (rotationDeg.value * Math.PI) / 180)
-const faceRotation = computed(() => {
-  if (!useFaceTracking.value || !facePose.value) return null
-  const euler = faceEulerToThree(facePose.value.euler)
-  return {
-    x: euler.x + calibration.value.rotation.x,
-    y: euler.y + calibration.value.rotation.y,
-    z: euler.z + calibration.value.rotation.z
-  }
-})
-const manualRotation = computed(() => ({
-  x: calibration.value.rotation.x,
-  y: rotationY.value + calibration.value.rotation.y,
-  z: calibration.value.rotation.z
-}))
-const mirrorLandmarks = true
 const useFaceTracking = ref(false)
 const noFaceDetectedAt = ref<number | null>(null)
 const showNoFaceMessage = computed(() => {
@@ -253,20 +129,6 @@ const {
   latencyMs: faceLatencyMs,
   init: initFaceLandmarker
 } = useFaceLandmarker(videoRef)
-
-const correctedFaceLandmarks = computed(() =>
-  faceLandmarks.value.map((lm) =>
-    mapLandmarkToObjectCover(lm, coverWindow.value)
-  )
-)
-const correctedFaceAnchor = computed(() =>
-  faceAnchor.value
-    ? mapLandmarkToObjectCover(faceAnchor.value, coverWindow.value)
-    : null
-)
-const correctedFaceWidth = computed(() =>
-  getFaceWidth(correctedFaceLandmarks.value)
-)
 
 // Face-fixture harness (tests/e2e/tracking.spec.ts): `?harness=true` exposes
 // the raw tracking stream on `window.__tryOnHarness` so Playwright can assert
@@ -391,80 +253,72 @@ useRafFn(
   { immediate: true }
 )
 
-const effectiveLandmark = computed<NormalizedLandmark>(() => {
-  if (useFaceTracking.value && hasFace.value && correctedFaceAnchor.value) {
-    return correctedFaceAnchor.value
-  }
+// Anchor while no face is tracked: the pointer, or a slow idle drift so the
+// frame can be inspected before the camera starts.
+function idleOrPointerLandmark(): NormalizedLandmark {
   if (pointerActive.value) return landmark.value
   if (prefersReducedMotion.value === 'reduce') return { x: 0.5, y: 0.45 }
   return {
     x: 0.5 + 0.06 * Math.sin(idlePhase.value),
     y: 0.45 + 0.03 * Math.sin(idlePhase.value * 0.7)
   }
-})
+}
 
 const frameVisible = computed(() => {
   if (useFaceTracking.value && isActive.value) return hasFace.value
   return true
 })
 
-// Smoothing is shared with the production experience via the composable:
-// One Euro filtering on anchor/scale, quaternion slerp on rotation, a snap
-// reset when the face is (re)acquired, and a scale hold during blinks (the
-// iris-driven scale signal is garbage for those few frames).
-const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
-  targetAnchor: effectiveLandmark,
-  targetEuler: computed(() => faceRotation.value ?? manualRotation.value),
-  targetScale: calibratedScale,
-  isTracking: computed(() => useFaceTracking.value && hasFace.value),
+// Placement is shared with the production experience (useTryOnPlacement):
+// scale from the tracked face, One Euro / slerp smoothing, frame position and
+// the occluders. The knobs below are the playground's tuning inputs; at their
+// defaults the result is exactly what VirtualTryOnExperience renders.
+const {
+  correctedLandmarks: correctedFaceLandmarks,
+  correctedAnchor: correctedFaceAnchor,
+  faceWidth: correctedFaceWidth,
+  ipd: correctedIpd,
+  faceRotation,
+  scaleSource,
+  autoMetricScale,
+  calibratedScale,
+  smoothedEuler,
+  smoothedScale,
+  framePosition,
+  faceWorldHalfWidth,
+  occluderGeometry,
+  occluderPosition,
+  occluderPositions: occluderMeshPositions
+} = useTryOnPlacement({
+  landmarks: faceLandmarks,
+  anchor: faceAnchor,
+  pose: facePose,
+  blinkScore: faceBlinkScore,
   latencyMs: faceLatencyMs,
-  holdScale: computed(() =>
-    shouldHoldScaleForBlink(
-      faceBlinkScore.value,
-      faceLandmarks.value,
-      mediaAspect.value || 1
-    )
-  )
-})
-
-const framePosition = computed(() => {
-  const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
-    mirror: mirrorLandmarks
-  })
-  // The frame front stands off the face along the head's forward axis
-  // (see FRAME_BRIDGE_STANDOFF_METERS).
-  const standoff = headForwardOffset(
-    smoothedEuler.value,
-    FRAME_BRIDGE_STANDOFF_METERS * smoothedScale.value
-  )
-  return {
-    x: position.x + standoff.x,
-    y: position.y + standoff.y + DEFAULT_ANCHOR_Y_OFFSET + debugYOffset.value,
-    z: standoff.z + debugZOffset.value
-  }
-})
-
-// Same face-mesh occluder wiring as VirtualTryOnExperience: shape from raw
-// landmarks, placement from the smoothed transform. Null → ellipsoid.
-const occluderMeshPositions = computed(() => {
-  if (
-    !useFaceTracking.value ||
-    !hasFace.value ||
-    !facePose.value ||
-    !faceRotation.value ||
-    !correctedFaceAnchor.value
-  ) {
-    return null
-  }
-  return buildFaceMeshOccluderPositions({
-    landmarks: correctedFaceLandmarks.value,
-    aspect: aspect.value,
-    mirror: mirrorLandmarks,
-    rawAnchor: correctedFaceAnchor.value,
-    rawEuler: faceRotation.value,
-    smoothedAnchor: smoothedAnchor.value,
-    smoothedEuler: smoothedEuler.value,
-    scale: smoothedScale.value,
+  hasFace,
+  faceTracking: () => useFaceTracking.value,
+  aspect,
+  coverWindow,
+  mediaAspect,
+  calibration,
+  scaleMultiplier: () => debugScaleBoost.value * fineTuneScale.value,
+  autoScale: () => enableAutoScale.value,
+  referenceFaceWidth: () => referenceFaceWidth.value,
+  fallbackAnchor: idleOrPointerLandmark,
+  // Pointer mode turns the frame with the yaw slider.
+  fallbackRotation: () => ({
+    x: calibration.value.rotation.x,
+    y: rotationY.value + calibration.value.rotation.y,
+    z: calibration.value.rotation.z
+  }),
+  offsetY: () => DEFAULT_ANCHOR_Y_OFFSET + debugYOffset.value,
+  offsetZ: () => debugZOffset.value,
+  occluderRatios: () => ({
+    widthRatio: occluderWidthRatio.value,
+    heightRatio: occluderHeightRatio.value,
+    depthRatio: occluderDepthRatio.value
+  }),
+  occluderMesh: () => ({
     skinSetbackMeters: occluderSkinSetback.value,
     inflate: occluderMeshInflate.value,
     collarDepthMeters: occluderCollarDepth.value
