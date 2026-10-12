@@ -16,11 +16,13 @@ import { fileURLToPath } from 'node:url'
  * - `still`  — the portrait held for 4 s: tracker noise floor (jitter).
  * - `motion` — slow pan, lean in/out and ±4.5° roll for 6 s: detection rate
  *   under movement. Yaw/pitch can't be synthesised from one photo.
+ * - `dim` / `bright` — the portrait held for 6 s with the exposure pulled
+ *   down or up: the room-lighting estimate (#5) must follow it.
  */
 
 export const FACE_FIXTURES = ['iris-moss', 'pteron-azure', 'kairos-amber'] as const
 export type FaceFixture = (typeof FACE_FIXTURES)[number]
-export type ClipKind = 'still' | 'motion'
+export type ClipKind = 'still' | 'motion' | 'dim' | 'bright'
 
 const FACES_DIR = fileURLToPath(new URL('../fixtures/faces', import.meta.url))
 const CLIPS_DIR = join(tmpdir(), 'virtual-try-on-face-clips')
@@ -44,9 +46,11 @@ const FILTERS: Record<ClipKind, string> = {
     "scale=w='520+60*sin(2*PI*t/6)':h=-2:eval=frame",
     "rotate='0.08*sin(2*PI*t/3)':fillcolor=black",
     "crop=480:640:'(iw-480)/2+18*sin(2*PI*t/5)':'(ih-640)/2+8*sin(2*PI*t/4)'"
-  ].join(',')
+  ].join(','),
+  dim: 'scale=480:640,eq=brightness=-0.25:saturation=0.85',
+  bright: 'scale=480:640,eq=brightness=0.12'
 }
-const DURATION_S: Record<ClipKind, number> = { still: 4, motion: 6 }
+const DURATION_S: Record<ClipKind, number> = { still: 4, motion: 6, dim: 6, bright: 6 }
 
 /** Why the harness can't run here, or null when it can. */
 export function missingPrerequisite(): string | null {

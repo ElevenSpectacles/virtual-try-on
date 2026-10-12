@@ -38,11 +38,24 @@ export interface UseFaceLandmarkerOptions {
    */
   mediapipeModelAssetPath?: string | undefined
   /**
-   * Called with each detection frame's bitmap before it is transferred to
-   * the worker. Read-only use only: the bitmap is detached right after the
-   * call returns. Used for the room-lighting estimate.
+   * Whether the next detection should also return a small RGBA downsample
+   * of the frame (for the room-lighting estimate). Checked once per
+   * detection; omit to never sample.
    */
-  onFrame?: ((bitmap: ImageBitmap) => void) | undefined
+  wantFrameSample?: (() => boolean) | undefined
+  /**
+   * Receives each requested downsample, made in the worker after the
+   * landmarks so it costs the render thread nothing. `sampleMs` is the time
+   * the worker spent on it.
+   */
+  onFrameSample?:
+    | ((
+        rgba: Uint8ClampedArray,
+        width: number,
+        height: number,
+        sampleMs: number
+      ) => void)
+    | undefined
   /** Called with each raw camera-to-result latency sample, in ms (the EMA is `latencyMs`). */
   onLatency?: ((ms: number) => void) | undefined
 }
@@ -195,6 +208,21 @@ export function useFaceLandmarker(
         errorDetail.value = message.message
         error.value = 'runtime_failed'
         break
+
+      // Downsamples arrive after their result and are not part of the
+      // one-in-flight handshake: a late one is still a valid room sample.
+      case 'sample':
+        try {
+          options.onFrameSample?.(
+            message.pixels,
+            message.width,
+            message.height,
+            message.ms
+          )
+        } catch {
+          // A failing observer must never stop detection.
+        }
+        break
     }
   }
 
@@ -324,14 +352,16 @@ export function useFaceLandmarker(
           bitmap.close()
           return
         }
-        try {
-          options.onFrame?.(bitmap)
-        } catch {
-          // A failing observer must never stop detection.
-        }
-        post({ type: 'detect', id, bitmap, timestamp: detectTimestamp }, [
-          bitmap
-        ])
+        post(
+          {
+            type: 'detect',
+            id,
+            bitmap,
+            timestamp: detectTimestamp,
+            sample: options.wantFrameSample?.() ?? false
+          },
+          [bitmap]
+        )
       })
       .catch((err) => {
         if (pendingRequestId !== id) return

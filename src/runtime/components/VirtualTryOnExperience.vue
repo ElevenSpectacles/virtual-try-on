@@ -41,13 +41,14 @@ import {
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
 import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
-import { useFrameLightingSampler } from '../composables/tryon/useFrameLightingSampler'
 import type { TryOnTier } from '../utils/tryon-capability'
 import {
   createMetricsAccumulator,
   type TryOnSessionMetrics
 } from '../utils/tryon-metrics'
 import {
+  LIGHTING_SAMPLE_EVERY,
+  estimateFrameLighting,
   lightingGain,
   smoothFrameLighting,
   type FrameLighting
@@ -368,11 +369,14 @@ const restingRotation = computed(() => ({
   z: calibration.value.rotation.z
 }))
 
-// Room lighting: each detection frame is sampled (16×16) and smoothed. A
-// failed or disabled sample leaves `frameLighting` null, which keeps the
-// neutral studio lighting.
-const lightingSampler = useFrameLightingSampler()
+// Room lighting: while lighting is on, the worker returns a 16×16 downsample
+// of every LIGHTING_SAMPLE_EVERY-th detection frame, which is averaged here
+// and smoothed. With no
+// sample (lighting off, or OffscreenCanvas unavailable in the worker)
+// `frameLighting` stays null, which keeps the neutral studio lighting.
 const frameLighting = ref<FrameLighting | null>(null)
+const lastSampleMs = ref<number | null>(null)
+let detectionsSinceSample = 0
 const lightingEnabled = computed(
   () => props.adaptiveLighting && capability.allows('lightingEstimate')
 )
@@ -396,12 +400,18 @@ const {
     ? { mediapipeModelAssetPath: props.mediapipeModelAssetPath }
     : {}),
   onLatency: (ms) => metrics?.onLatency(ms),
-  onFrame: (bitmap) => {
+  wantFrameSample: () => {
+    if (!lightingEnabled.value) return false
+    detectionsSinceSample = (detectionsSinceSample + 1) % LIGHTING_SAMPLE_EVERY
+    return detectionsSinceSample === 0
+  },
+  onFrameSample: (rgba, width, height, sampleMs) => {
     if (!lightingEnabled.value) return
-    const sampled = lightingSampler.sample(bitmap)
-    frameLighting.value = sampled
-      ? smoothFrameLighting(frameLighting.value, sampled)
-      : null
+    frameLighting.value = smoothFrameLighting(
+      frameLighting.value,
+      estimateFrameLighting(rgba, width, height)
+    )
+    lastSampleMs.value = sampleMs
   }
 })
 
@@ -601,7 +611,27 @@ onMounted(() => {
   if (props.autoStart) void start()
 })
 
-defineExpose({ start, stop, status, error, faceError, hasFace, guideHint })
+// Room-lighting state, read-only on the ref (not the slot: hosts don't need
+// it for UI). `luma` is the smoothed room estimate (null while lighting is
+// off or unsampled), `gain` the light multiplier it drives, `sampleMs` the
+// worker's time for the last 16×16 downsample (one per
+// LIGHTING_SAMPLE_EVERY detections).
+const lighting = computed(() => ({
+  luma: lightingEnabled.value ? (frameLighting.value?.luma ?? null) : null,
+  gain: lightGain.value,
+  sampleMs: lastSampleMs.value
+}))
+
+defineExpose({
+  start,
+  stop,
+  status,
+  error,
+  faceError,
+  hasFace,
+  guideHint,
+  lighting
+})
 
 defineSlots<{
   default?: (props: {

@@ -3,7 +3,10 @@
  * `detectForVideo` calls off the main thread. The main thread grabs each
  * video frame as a transferable `ImageBitmap` and posts it here; only the
  * small landmark/matrix result comes back, so the worker never touches the
- * DOM.
+ * DOM. On request it also sends back a 16×16 RGBA downsample of the frame
+ * for the room-lighting estimate: reading pixels back from a GPU-backed
+ * bitmap costs about a millisecond, which belongs here, not on the render
+ * thread.
  */
 
 // Classic (non-module) worker: this file must contain zero static
@@ -15,7 +18,13 @@
 // the main-thread composable) instead of imported.
 type FaceLandmarkerWorkerRequest =
   | { type: 'init'; basePath?: string; modelAssetPath?: string }
-  | { type: 'detect'; id: number; bitmap: ImageBitmap; timestamp: number }
+  | {
+      type: 'detect'
+      id: number
+      bitmap: ImageBitmap
+      timestamp: number
+      sample?: boolean
+    }
   | { type: 'destroy' }
 
 type FaceLandmarkerWorkerResponse =
@@ -29,6 +38,14 @@ type FaceLandmarkerWorkerResponse =
       blink: number | null
     }
   | { type: 'detect_failed'; id: number; message: string }
+  | {
+      type: 'sample'
+      id: number
+      pixels: Uint8ClampedArray
+      width: number
+      height: number
+      ms: number
+    }
 
 interface BlendshapeClassifications {
   categories: { categoryName: string; score: number }[]
@@ -50,8 +67,44 @@ interface FaceLandmarkerInstance {
 // is the only input source.
 let faceLandmarker: FaceLandmarkerInstance | null = null
 
-function post(message: FaceLandmarkerWorkerResponse) {
-  self.postMessage(message)
+function post(message: FaceLandmarkerWorkerResponse, transfer: Transferable[] = []) {
+  self.postMessage(message, transfer)
+}
+
+// Side of the lighting downsample. 16×16 is 256 pixels: enough for a mean
+// luma and colour cast (see utils/tryon-lighting).
+const SAMPLE_SIZE = 16
+// undefined until first use; null when OffscreenCanvas 2D is unavailable,
+// in which case samples are silently skipped (lighting stays neutral).
+let sampleContext: OffscreenCanvasRenderingContext2D | null | undefined
+
+// Draw the frame into a 16×16 canvas and read it back. The readback waits
+// on the GPU (the bitmap is GPU-backed and MediaPipe has just queued work),
+// about 1.2 ms on a laptop; it runs here, after the result is posted, and the
+// main thread asks for one sample every LIGHTING_SAMPLE_EVERY detections.
+// (A GPU-side `createImageBitmap` resize first was slower: 2.5 ms.)
+function postSample(id: number, bitmap: ImageBitmap) {
+  try {
+    if (sampleContext === undefined) {
+      sampleContext =
+        typeof OffscreenCanvas === 'function'
+          ? new OffscreenCanvas(SAMPLE_SIZE, SAMPLE_SIZE).getContext('2d', {
+              willReadFrequently: true
+            })
+          : null
+    }
+    if (!sampleContext) return
+    const startedAt = performance.now()
+    sampleContext.drawImage(bitmap, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE)
+    const { data } = sampleContext.getImageData(0, 0, SAMPLE_SIZE, SAMPLE_SIZE)
+    const ms = performance.now() - startedAt
+    post(
+      { type: 'sample', id, pixels: data, width: SAMPLE_SIZE, height: SAMPLE_SIZE, ms },
+      [data.buffer]
+    )
+  } catch {
+    // A failed sample only costs the lighting estimate one frame.
+  }
 }
 
 // Defaults used when the host doesn't pass a self-hosted path — kept as the
@@ -179,11 +232,13 @@ self.addEventListener(
         break
 
       case 'detect': {
-        const { id, bitmap, timestamp } = message
+        const { id, bitmap, timestamp, sample } = message
         try {
           if (!faceLandmarker) throw new Error('FaceLandmarker not ready')
           const raw = faceLandmarker.detectForVideo(bitmap, timestamp)
           post(toResult(id, raw))
+          // After the result, so the downsample never delays the landmarks.
+          if (sample) postSample(id, bitmap)
         } catch (err) {
           post({
             type: 'detect_failed',
