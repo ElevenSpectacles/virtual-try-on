@@ -368,6 +368,7 @@ const restingRotation = computed(() => ({
 // sample (lighting off, or OffscreenCanvas unavailable in the worker)
 // `frameLighting` stays null, which keeps the neutral studio lighting.
 const frameLighting = ref<FrameLighting | null>(null)
+const lastSampleMs = ref<number | null>(null)
 let detectionsSinceSample = 0
 const lightingEnabled = computed(
   () => props.adaptiveLighting && capability.allows('lightingEstimate')
@@ -397,12 +398,13 @@ const {
     detectionsSinceSample = (detectionsSinceSample + 1) % LIGHTING_SAMPLE_EVERY
     return detectionsSinceSample === 0
   },
-  onFrameSample: (rgba, width, height) => {
+  onFrameSample: (rgba, width, height, sampleMs) => {
     if (!lightingEnabled.value) return
     frameLighting.value = smoothFrameLighting(
       frameLighting.value,
       estimateFrameLighting(rgba, width, height)
     )
+    lastSampleMs.value = sampleMs
   }
 })
 
@@ -601,7 +603,27 @@ onMounted(() => {
   if (props.autoStart) void start()
 })
 
-defineExpose({ start, stop, status, error, faceError, hasFace, guideHint })
+// Room-lighting state, read-only on the ref (not the slot: hosts don't need
+// it for UI). `luma` is the smoothed room estimate (null while lighting is
+// off or unsampled), `gain` the light multiplier it drives, `sampleMs` the
+// worker's time for the last 16×16 downsample (one per
+// LIGHTING_SAMPLE_EVERY detections).
+const lighting = computed(() => ({
+  luma: lightingEnabled.value ? (frameLighting.value?.luma ?? null) : null,
+  gain: lightGain.value,
+  sampleMs: lastSampleMs.value
+}))
+
+defineExpose({
+  start,
+  stop,
+  status,
+  error,
+  faceError,
+  hasFace,
+  guideHint,
+  lighting
+})
 
 defineSlots<{
   default?: (props: {

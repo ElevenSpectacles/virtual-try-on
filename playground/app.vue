@@ -3,7 +3,7 @@ import type { TryOnModel } from '../src/runtime/composables/tryon/useTryOnModels
 import type { TryOnSessionMetrics } from '../src/runtime/utils/tryon-metrics'
 
 import { useRoute } from '#imports'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import VirtualTryOnPrototype from './components/VirtualTryOnPrototype.vue'
 import TryOnFixtureScene from './components/TryOnFixtureScene.vue'
@@ -47,6 +47,11 @@ function onTrack(event: string, payload: Record<string, unknown>) {
   console.info('[track]', event, payload)
 }
 
+// `?lighting=true` shows the room-lighting estimate read from the component
+// ref (tests/e2e/lighting.spec.ts reads its data attributes).
+const showLighting = computed(() => route.query.lighting === 'true')
+const experienceRef = ref<{ lighting: { luma: number | null; gain: number; sampleMs: number | null } } | null>(null)
+
 // `?metrics=true` turns on the metrics event; the e2e spec reads the JSON.
 const reportMetrics = computed(() => route.query.metrics === 'true')
 function onMetrics(payload: TryOnSessionMetrics) {
@@ -68,6 +73,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
         class="relative mx-auto aspect-3/4 w-full max-w-md bg-neutral-900"
       >
         <VirtualTryOnExperience
+          ref="experienceRef"
           :models="models"
           calibration-url="/models/virtual-try-on/calibration.json"
           :tier="tierParam"
@@ -94,6 +100,16 @@ function onMetrics(payload: TryOnSessionMetrics) {
             >
               Stop camera
             </UButton>
+            <p
+              v-if="showLighting && experienceRef?.lighting.luma != null"
+              class="absolute inset-x-0 top-4 text-center text-xs text-white"
+              data-lighting
+              :data-luma="experienceRef.lighting.luma"
+              :data-gain="experienceRef.lighting.gain"
+              :data-sample-ms="experienceRef.lighting.sampleMs ?? ''"
+            >
+              room luma {{ experienceRef.lighting.luma.toFixed(2) }} · light gain {{ experienceRef.lighting.gain.toFixed(2) }}
+            </p>
             <p
               v-if="status === 'active' && (faceError || guideHint === 'noFace')"
               class="absolute inset-x-0 bottom-4 text-center text-xs text-white"

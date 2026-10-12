@@ -132,7 +132,10 @@ Key facts:
   `?harness=true` hook (`window.__tryOnHarness`) and asserts detection rate
   and still-input jitter; `render.spec.ts` screenshots the shipped component
   (`?view=experience`) against goldens in `tests/e2e/__screenshots__/`.
-  `tracking-harness.ts` is the shared driver. Real-footage specs (not run by
+  `tracking-harness.ts` is the shared driver. `lighting.spec.ts` checks the
+  room-lighting estimate on dim/bright/still clips (`fixtures.ts` clip
+  kinds) through the shipped component's ref (`?view=experience&lighting=true`).
+  Real-footage specs (not run by
   default; set the env var, footage stays out of git): `video-clip.spec.ts`
   (`TRYON_VIDEO_CLIP`, a Y4M), `upna-pose.spec.ts` (`TRYON_VIDEO_CLIP` +
   `TRYON_UPNA_GT`: head pose vs UPNA ground truth, via `pose-metrics.ts`;
