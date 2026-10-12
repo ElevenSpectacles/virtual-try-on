@@ -56,7 +56,7 @@ Key facts:
     the mirrored video + tracked frame, filling its container, with
     structural scoped CSS. Consent, errors, guide hints and controls are the
     host's, built from the default scoped slot (`status`, `error`,
-    `faceError`, `hasFace`, `guideHint`, `start`, `stop`; also exposed on
+    `faceError`, `hasFace`, `guideHint`, `fit`, `start`, `stop`; also exposed on
     the ref). Never add UI copy, icons, a UI library or utility classes.
   - `TryOnScene.vue` — the TresJS scene (GLB loading, occluder, environment).
     Uses three's own `GLTFLoader`/`DRACOLoader`/`HDRLoader`, not
@@ -89,7 +89,8 @@ Key facts:
   `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-lighting.ts`
   (room luma and colour cast from a 16×16 frame sample, gain and tint),
   `tryon-contact-shadow.ts` (per-vertex alpha of the frame's shadow on the
-  tracked skin), `tryon-capability.ts`
+  tracked skin), `tryon-fit.ts` (face width in mm from ear width over IPD,
+  and the narrow/good/wide fit verdict with hysteresis), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
@@ -131,7 +132,9 @@ Key facts:
   `?harness=true` hook (`window.__tryOnHarness`) and asserts detection rate
   and still-input jitter; `render.spec.ts` screenshots the shipped component
   (`?view=experience`) against goldens in `tests/e2e/__screenshots__/`.
-  `tracking-harness.ts` is the shared driver. Real-footage specs (not run by
+  `tracking-harness.ts` is the shared driver. `fit.spec.ts` checks the fit
+  verdict reads "good" for each fixture's own frame (and is where
+  `FIT_IDEAL_RATIO` was measured). Real-footage specs (not run by
   default; set the env var, footage stays out of git): `video-clip.spec.ts`
   (`TRYON_VIDEO_CLIP`, a Y4M), `upna-pose.spec.ts` (`TRYON_VIDEO_CLIP` +
   `TRYON_UPNA_GT`: head pose vs UPNA ground truth, via `pose-metrics.ts`;

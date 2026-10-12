@@ -13,6 +13,7 @@ import {
   Matrix4,
   Mesh,
   type Material,
+  type Object3D,
   type MeshStandardMaterial,
   type Texture
 } from 'three'
@@ -133,6 +134,8 @@ const props = withDefaults(
 // the module itself never logs.
 const emit = defineEmits<{
   error: [source: 'model' | 'environment', message: string]
+  /** The loaded GLB's width (bounding-box x extent), in GLB metres. */
+  loaded: [widthMeters: number]
 }>()
 
 function errorMessage(err: unknown): string {
@@ -165,7 +168,10 @@ watch(
     const id = ++modelLoadId
     try {
       const gltf = await gltfLoader.loadAsync(src)
-      if (id === modelLoadId) model.value = gltf
+      if (id === modelLoadId) {
+        model.value = gltf
+        emit('loaded', localBounds(gltf.scene).getSize(new Vector3()).x)
+      }
     } catch (err) {
       if (id === modelLoadId) emit('error', 'model', `${src}: ${errorMessage(err)}`)
     }
@@ -272,15 +278,14 @@ watch(
   { immediate: true }
 )
 
-// Debug helper: the GLB's local-space bounding box. Calibration y-centers the
+// The GLB's local-space bounding box: the debug helper below, and the frame
+// width the fit verdict compares with the face. Calibration y-centers the
 // bbox on the tracked anchor and places the frame's FRONT face on it in z
 // (the frame extends backward toward the temples), so this box shows exactly
 // what the calibration anchors against. The box is accumulated relative to
 // the GLB scene root (not via `setFromObject`, which measures in world space
 // and would double-apply the group transform once the scene is mounted).
-const boundingBoxHelper = computed(() => {
-  if (!props.showBoundingBox || !model.value) return null
-  const root = model.value.scene
+function localBounds(root: Object3D): Box3 {
   root.updateMatrixWorld(true)
   const sceneInverse = new Matrix4().copy(root.matrixWorld).invert()
   const box = new Box3()
@@ -293,7 +298,12 @@ const boundingBoxHelper = computed(() => {
     meshBox.copy(obj.geometry.boundingBox!).applyMatrix4(relative)
     box.union(meshBox)
   })
-  return new Box3Helper(box, new Color('yellow'))
+  return box
+}
+
+const boundingBoxHelper = computed(() => {
+  if (!props.showBoundingBox || !model.value) return null
+  return new Box3Helper(localBounds(model.value.scene), new Color('yellow'))
 })
 // `<primitive>` objects are never disposed by Tres, so free the previous
 // helper's geometry/material whenever it is rebuilt or toggled off.
