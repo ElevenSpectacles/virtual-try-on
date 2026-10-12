@@ -405,6 +405,12 @@ After an intended visual change, run
 `npm run verify:e2e -- --update-snapshots` and review the new images. It
 skips when `ffmpeg` or the models directory is missing.
 
+**Real footage** — `npm run fetch-footage` downloads a few stock portrait
+clips (Mixkit, free licence, never committed) into the OS temp dir and
+prints the `TRYON_VIDEO_CLIP=…` to run `tests/e2e/video-clip.spec.ts` with.
+That spec checks tracking on the clip and saves a screenshot of the try-on
+for review.
+
 **Compressing models** — Draco-compress a directory of GLBs:
 
 ```bash
