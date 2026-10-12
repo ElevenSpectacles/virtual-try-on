@@ -44,9 +44,9 @@ Key facts:
   re-exports the public types (`TryOnModel`, calibration and slot/state
   types). Hosts add one `modules` entry; nothing else.
 - `build.config.ts` — module-builder (unbuild) hook that rewrites the worker
-  URL in the built `useFaceLandmarker.js` from `.ts` to `.js` (mkdist
-  transpiles the worker but not the `new URL()` string). Fails the build if
-  the reference moves.
+  URLs in the built `useFaceLandmarker.js` and `useHairSegmenter.js` from
+  `.ts` to `.js` (mkdist transpiles the workers but not the `new URL()`
+  strings). Fails the build if a reference moves.
 - `src/runtime/` — everything shipped to the host app. Paths below are
   relative to it.
 - `components/` — the entire public surface, exactly two SFCs:
@@ -74,8 +74,16 @@ Key facts:
   - `useCapabilityTier.ts` — device probe (WebGL2, max texture size,
     `deviceMemory`) and the frame-time step-down; exposes the tier and
     `allows(feature)`. Samples only while a face is tracked.
+  - `useHairSegmenter.ts` — hair segmentation in its own worker for the
+    opt-in hair occluder: lazy start, ~10 Hz, one request in flight, mask
+    shrunk and smoothed; switches itself off over its worker-time budget.
 - `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` in a
-  dedicated **classic** Web Worker (see constraints). On request
+  dedicated **classic** Web Worker (see constraints).
+  `workers/hair-segmenter.worker.ts` — MediaPipe's hair segmenter
+  (`hair_segmenter.tflite`, 0.8 MB, GPU only) in a second classic worker, so
+  segmentation never delays tracking; its message types live in
+  `types/hair-segmenter-worker.ts` (a repo hook rejects `export` in any
+  `workers/*.ts`). The face-landmarker worker, on request
   (`wantFrameSample`) it also returns a 16×16 RGBA downsample of the frame
   for the room-lighting estimate, after the landmark result, so the GPU
   readback never runs on the render thread.
@@ -89,6 +97,8 @@ Key facts:
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
   `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-lighting.ts`
   (room luma and colour cast from a 16×16 frame sample, gain and tint),
+  `tryon-hair.ts` (hair occluder: screen→camera-frame mapping, mask
+  downsampling/smoothing, the segmentation-time budget),
   `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
   map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint/density from
   calibration, the Fresnel term of the physical lens), `tryon-fit.ts` (face width in mm from ear width over IPD,
@@ -139,7 +149,11 @@ Key facts:
   (`?view=experience`) against goldens in `tests/e2e/__screenshots__/`.
   `tracking-harness.ts` is the shared driver. `fit.spec.ts` checks the fit
   verdict reads "good" for each fixture's own frame (and is where
-  `FIT_IDEAL_RATIO` was measured). `lighting.spec.ts` checks the
+  `FIT_IDEAL_RATIO` was measured). `hair.spec.ts` runs the hair
+  segmenter live (`?view=experience&hair=on&tier=high`: mask, cadence,
+  budget, tracking latency/fps on vs off) and `hair-scene.spec.ts` proves the
+  hiding on frozen frames with a painted band (`?view=scene&hair=band`).
+  `lighting.spec.ts` checks the
   room-lighting estimate on dim/bright/still clips (`fixtures.ts` clip
   kinds) through the shipped component's ref (`?view=experience&lighting=true`).
   Real-footage specs (not run by
@@ -150,7 +164,7 @@ Key facts:
   (the `metrics` event end to end, on `TRYON_VIDEO_CLIP`).
 - Rendering goldens (`rendering-goldens.spec.ts`, `tryon-pose-scene.spec.ts`)
   render recorded frozen frames through `?view=scene`, one flag per golden
-  (`occluder`, `light`, `background`, `shadow`, `face`, `lens`, `model`). Local-only, real or
+  (`occluder`, `light`, `background`, `shadow`, `face`, `lens`, `model`, `hair`). Local-only, real or
   SwiftShader GL. After an intended visual change, re-record with
   `npx playwright test <spec> --update-snapshots` and review the PNGs; the
   strict threshold (0.02) is set per assertion, since the default hides faint
@@ -269,6 +283,7 @@ claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
 - MediaPipe WASM and the face model load from CDNs (jsdelivr / Google
   storage) by default — first load needs network unless the host passes
   `mediapipeBasePath` / `mediapipeModelAssetPath` self-hosted overrides (also
+  `mediapipeHairModelAssetPath` for the opt-in hair segmenter and
   `dracoDecoderPath` for the Draco decoder).
 
 ## Security and privacy

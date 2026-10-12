@@ -173,5 +173,6 @@ export interface TryOnSessionMetrics extends TryOnMetrics {
     contactShadow: boolean
     adaptiveLighting: boolean
     physicalLens: boolean
+    hairOcclusion: boolean
   }
 }

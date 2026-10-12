@@ -70,7 +70,8 @@ test.describe('metrics event', () => {
       occluder: expect.any(Boolean),
       contactShadow: expect.any(Boolean),
       adaptiveLighting: expect.any(Boolean),
-      physicalLens: expect.any(Boolean)
+      physicalLens: expect.any(Boolean),
+      hairOcclusion: expect.any(Boolean)
     })
   })
 })
