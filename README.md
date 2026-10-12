@@ -16,7 +16,13 @@ with virtual try-on for every frame in the catalog.
 - **One `modules` entry** — components and composables register themselves.
 - **Private by design** — camera frames never leave the browser.
 - **Accurate fit** — metric scaling from the user's face width, per-frame
-  calibration, and a face-mesh occluder that hides temples behind the head.
+  calibration, a frame seated on the nose bridge, and a face-mesh occluder
+  that hides temples behind the head.
+- **Tells the customer if it fits** — a narrow / good / wide verdict from
+  the frame's width against the tracked face, for your UI and analytics.
+- **Looks real** — lenses with Fresnel reflections and an anti-reflective
+  sheen, a soft shadow of the frame on the skin, and lighting that follows
+  the room the camera sees.
 - **Smooth** — One-Euro filtering on landmarks and pose; detection runs off
   the main thread.
 
@@ -140,7 +146,8 @@ rarely share an origin or scale:
       "translation": { "x": 0, "y": 0, "z": 0 },   // metres
       "rotation": { "x": 0, "y": 0, "z": 0 },      // radians
       "scale": 1,
-      "templeWidthBoost": 1            // optional horizontal-only scale
+      "templeWidthBoost": 1,           // optional horizontal-only scale
+      "lens": { "tint": "#3a4a5c", "density": 0.6 }  // optional lens colour/darkness override
     }
   }
 }
@@ -171,7 +178,9 @@ The full types are exported as `TryOnCalibrationFile` and
 | `occluder` | `boolean` | module option (`true`) | Hides frame parts behind the head (the far temple). Overrides `virtualTryOn.occluder` for this instance. |
 | `tier` | `'low' \| 'mid' \| 'high'` | — | Pins the device capability tier. Omit to classify the device and step down under sustained frame-time load. A pinned tier never steps down. |
 | `adaptiveLighting` | `boolean` | `true` | Lights the frame from the room the camera sees. Needs the `mid` tier or higher. |
-| `contactShadow` | `boolean` | `true` | Soft shadow of the frame on the tracked skin under the bridge and lenses. Needs the face-mesh occluder and the `mid` tier or higher. |
+| `contactShadow` | `boolean` | `true` | Soft shadow the frame casts on the tracked skin (rims, temples, and a partial shadow from tinted lenses). Needs the face-mesh occluder and the `mid` tier or higher. |
+| `physicalLens` | `boolean` | `true` | Lenses that read as glass: opacity rises toward grazing angles, reflections add on top of the tint, and an anti-reflective sheen. Needs the `mid` tier or higher; off keeps the cheaper standard lens. |
+| `fitTolerance` | `number` | `0.06` | Half-width of the "good fit" band of the fit verdict, as a fraction of the ideal frame width. The face estimate itself carries about ±5%. |
 | `reportMetrics` | `boolean` | `false` | Emits the `metrics` event (see below). Off means nothing is measured. |
 
 ### Default slot
@@ -188,8 +197,28 @@ on the component ref.
 | `faceError` | `FaceLandmarkerError \| null` | `'unsupported'` \| `'load_failed'` \| `'runtime_failed'` |
 | `hasFace` | `boolean` | A face is currently tracked. |
 | `guideHint` | `TryOnGuideHint \| null` | `'noFace'` \| `'aligned'`; `null` while the camera is off. |
+| `fit` | `TryOnFit \| null` | `{ verdict, faceWidthMm, frameWidthMm }`: whether the frame suits the face's width. `null` until about a second of tracking, and while no face is tracked. |
 | `start` | `() => Promise<void>` | Start or retry the camera. |
 | `stop` | `() => void` | Stop the camera. |
+
+The ref also exposes a read-only `lighting`: `{ luma, gain, sampleMs }`,
+the smoothed room luma (`null` while lighting is off), the light multiplier
+it drives, and the time of the last room sample.
+
+### Fit verdict
+
+`fit.verdict` is `'narrow'`, `'good'` or `'wide'`: the frame's total width
+against the customer's face width at the temples. Show it in your own words,
+for example "Good fit", "May be wide for you", "May be narrow for you". The
+face width is measured from the tracked landmarks, scaled by an average
+inter-pupillary distance (63 mm), so it is an estimate (about ±5%), not a
+measurement. The verdict has hysteresis, so it doesn't flicker at a band
+edge.
+
+The frame width is `TryOnModel.frameWidthMm` when you pass it (the catalog
+spec, most accurate), else the GLB's width times its calibration scale. Each
+verdict change is reported as a `TRY_ON_FIT` `track` event, so you can relate
+fit to conversion.
 
 ### `v-model:model`
 
@@ -215,6 +244,7 @@ module reports anything. Every payload has this shape:
 | `TRY_ON_CAMERA_GRANTED` | Camera stream started | — |
 | `TRY_ON_CAMERA_DENIED` | Camera permission refused | — |
 | `TRY_ON_FACE_DETECTED` | First face detected in the session | `confidence`, `tier` (device tier at that moment) |
+| `TRY_ON_FIT` | The fit verdict appeared or changed (also on each frame change) | `verdict`, `faceWidthMm`, `frameWidthMm` (whole mm) |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
 | `TRY_ON_TIER` | The device tier stepped down under sustained frame-time load | `tier`, `previousTier`, `p95Ms`, `maxTextureSize`, `deviceMemoryGb` |
 | `TRY_ON_ERROR` | Camera, tracker or asset failure | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment`), `message` |
@@ -239,7 +269,7 @@ unmounts (`final: true`). Each report covers the session so far.
 | `endedWithoutTrack` | `boolean` | No face was tracked and the frame was never changed. The "looked broken" proxy. |
 | `final` | `boolean` | `true` on the report sent at stop or unmount. |
 | `model` | `string` | Active frame file. |
-| `features` | `{ occluder, contactShadow, adaptiveLighting }` | Which opt-in features were on at report time. |
+| `features` | `Record<string, boolean>` | Which opt-in features were on at report time, one flag each (see `TryOnSessionMetrics`). |
 
 No frames, landmarks or other image-derived data are in the payload. It holds
 only these numbers and the frame file name. Forward it to your analytics if
@@ -261,11 +291,15 @@ import type {
   TryOnTier,
   TryOnFeature,
   TryOnMetrics,
-  TryOnSessionMetrics
+  TryOnSessionMetrics,
+  TryOnFit,
+  TryOnFitVerdict
 } from '@eleven.spectacles/virtual-try-on'
 ```
 
-`TryOnModel.file` is the only field the component needs. `label`,
+`TryOnModel.file` is the only field the component needs. Pass
+`frameWidthMm` (the frame's total width from your catalog) to make the fit
+verdict use the spec instead of the GLB's measured width. `label`,
 `family`, `color`, `colorClass` and `thumbnailUrl` are catalog metadata for
 your own picker UI (see the auto-imported `getTryOnModelFamilies()`).
 
