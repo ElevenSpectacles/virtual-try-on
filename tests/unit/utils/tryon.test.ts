@@ -349,12 +349,12 @@ describe('try-on compositing helpers', () => {
       expect(centroid?.z).toBeCloseTo(0.15)
     })
 
-    it('skips indices that are absent (e.g. iris centres on a 468-point model)', () => {
+    it('skips indices that are absent', () => {
       const list = landmarks({
         6: { x: 0.5, y: 0.4 },
         197: { x: 0.5, y: 0.6 }
       })
-      // 468/473 from TRYON_ANCHOR_INDICES are missing — centroid of the rest.
+      // Only 6 and 197 of TRYON_ANCHOR_INDICES are present — centroid of those.
       expect(computeAnchorCentroid(list, TRYON_ANCHOR_INDICES)).toEqual({
         x: 0.5,
         y: 0.5,
@@ -365,6 +365,57 @@ describe('try-on compositing helpers', () => {
     it('returns null when none of the indices are present', () => {
       const list = landmarks({ 0: { x: 0.1, y: 0.1 } })
       expect(computeAnchorCentroid(list, [6, 468])).toBeNull()
+    })
+
+    describe('frame seat (issue #11)', () => {
+      // A frontal face: ridge points down the midline, eye corners and iris
+      // centres on the eye line, eyelids around the iris.
+      const face = (shift = { x: 0, y: 0 }, gaze = { x: 0, y: 0 }, lidOpening = 0.03) => {
+        const p = (x: number, y: number) => ({ x: x + shift.x, y: y + shift.y, z: 0 })
+        return landmarks({
+          168: p(0.5, 0.4),
+          6: p(0.5, 0.42),
+          197: p(0.5, 0.45),
+          5: p(0.5, 0.5),
+          133: p(0.46, 0.44),
+          362: p(0.54, 0.44),
+          33: p(0.4, 0.44),
+          263: p(0.6, 0.44),
+          468: p(0.43 + gaze.x, 0.435 + gaze.y),
+          473: p(0.57 + gaze.x, 0.435 + gaze.y),
+          159: p(0.43, 0.435 - lidOpening / 2),
+          145: p(0.43, 0.435 + lidOpening / 2),
+          386: p(0.57, 0.435 - lidOpening / 2),
+          374: p(0.57, 0.435 + lidOpening / 2)
+        })
+      }
+      const seat = (list: NormalizedLandmark[]) => computeAnchorCentroid(list, TRYON_ANCHOR_INDICES)!
+
+      it('sits on the bridge and eye line', () => {
+        const at = seat(face())
+        expect(at.x).toBeCloseTo(0.5)
+        expect(at.y).toBeCloseTo((0.4 + 0.42 + 0.45 + 0.5 + 0.44 + 0.44) / 6)
+      })
+
+      it('does not move when the customer looks down or sideways', () => {
+        const rest = seat(face())
+        expect(seat(face(undefined, { x: 0, y: 0.015 }))).toEqual(rest)
+        expect(seat(face(undefined, { x: 0.01, y: 0 }))).toEqual(rest)
+      })
+
+      it('does not bob through a blink', () => {
+        const ys = [0.03, 0.02, 0.01, 0.003, 0.01, 0.02, 0.03].map(
+          (opening) => seat(face(undefined, undefined, opening)).y
+        )
+        expect(Math.max(...ys) - Math.min(...ys)).toBe(0)
+      })
+
+      it('follows the head 1:1', () => {
+        const rest = seat(face())
+        const moved = seat(face({ x: 0.03, y: -0.02 }))
+        expect(moved.x - rest.x).toBeCloseTo(0.03)
+        expect(moved.y - rest.y).toBeCloseTo(-0.02)
+      })
     })
   })
 

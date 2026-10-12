@@ -22,8 +22,8 @@ function errorMessage(err: unknown): string {
 export interface UseFaceLandmarkerOptions {
   /**
    * Landmark indices averaged into the anchor point used to position the
-   * frame. Defaults to `TRYON_ANCHOR_INDICES` (nose-bridge ridge + iris
-   * centres — see utils/tryon for why that set).
+   * frame. Defaults to `TRYON_ANCHOR_INDICES` (nose-bridge ridge + inner
+   * eye corners — see utils/tryon for why that set).
    */
   anchorIndices?: readonly number[]
   /**
