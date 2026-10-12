@@ -41,13 +41,14 @@ import {
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
 import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
-import { useFrameLightingSampler } from '../composables/tryon/useFrameLightingSampler'
 import type { TryOnTier } from '../utils/tryon-capability'
 import {
   createMetricsAccumulator,
   type TryOnSessionMetrics
 } from '../utils/tryon-metrics'
 import {
+  LIGHTING_SAMPLE_EVERY,
+  estimateFrameLighting,
   lightingGain,
   smoothFrameLighting,
   type FrameLighting
@@ -361,11 +362,13 @@ const restingRotation = computed(() => ({
   z: calibration.value.rotation.z
 }))
 
-// Room lighting: each detection frame is sampled (16×16) and smoothed. A
-// failed or disabled sample leaves `frameLighting` null, which keeps the
-// neutral studio lighting.
-const lightingSampler = useFrameLightingSampler()
+// Room lighting: while lighting is on, the worker returns a 16×16 downsample
+// of every LIGHTING_SAMPLE_EVERY-th detection frame, which is averaged here
+// and smoothed. With no
+// sample (lighting off, or OffscreenCanvas unavailable in the worker)
+// `frameLighting` stays null, which keeps the neutral studio lighting.
 const frameLighting = ref<FrameLighting | null>(null)
+let detectionsSinceSample = 0
 const lightingEnabled = computed(
   () => props.adaptiveLighting && capability.allows('lightingEstimate')
 )
@@ -389,12 +392,17 @@ const {
     ? { mediapipeModelAssetPath: props.mediapipeModelAssetPath }
     : {}),
   onLatency: (ms) => metrics?.onLatency(ms),
-  onFrame: (bitmap) => {
+  wantFrameSample: () => {
+    if (!lightingEnabled.value) return false
+    detectionsSinceSample = (detectionsSinceSample + 1) % LIGHTING_SAMPLE_EVERY
+    return detectionsSinceSample === 0
+  },
+  onFrameSample: (rgba, width, height) => {
     if (!lightingEnabled.value) return
-    const sampled = lightingSampler.sample(bitmap)
-    frameLighting.value = sampled
-      ? smoothFrameLighting(frameLighting.value, sampled)
-      : null
+    frameLighting.value = smoothFrameLighting(
+      frameLighting.value,
+      estimateFrameLighting(rgba, width, height)
+    )
   }
 })
 

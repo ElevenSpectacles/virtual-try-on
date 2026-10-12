@@ -22,7 +22,17 @@ export type FaceLandmarkerWorkerRequest =
        */
       modelAssetPath?: string | undefined
     }
-  | { type: 'detect'; id: number; bitmap: ImageBitmap; timestamp: number }
+  | {
+      type: 'detect'
+      id: number
+      bitmap: ImageBitmap
+      timestamp: number
+      /**
+       * Also send back a small RGBA downsample of the frame (a `sample`
+       * message after the result), for the room-lighting estimate.
+       */
+      sample?: boolean
+    }
   | { type: 'destroy' }
 
 export type FaceLandmarkerWorkerResponse =
@@ -40,3 +50,13 @@ export type FaceLandmarkerWorkerResponse =
       blink: number | null
     }
   | { type: 'detect_failed'; id: number; message: string }
+  | {
+      type: 'sample'
+      id: number
+      /** RGBA bytes, `width * height * 4`. */
+      pixels: Uint8ClampedArray
+      width: number
+      height: number
+      /** Time the downsample took in the worker, ms. */
+      ms: number
+    }

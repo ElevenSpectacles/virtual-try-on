@@ -71,13 +71,14 @@ Key facts:
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
     per-model calibration.
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
-  - `useFrameLightingSampler.ts` — samples each detection bitmap into a
-    16×16 canvas for the room-lighting estimate; null on failure.
   - `useCapabilityTier.ts` — device probe (WebGL2, max texture size,
     `deviceMemory`) and the frame-time step-down; exposes the tier and
     `allows(feature)`. Samples only while a face is tracked.
 - `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` in a
-  dedicated **classic** Web Worker (see constraints).
+  dedicated **classic** Web Worker (see constraints). On request
+  (`wantFrameSample`) it also returns a 16×16 RGBA downsample of the frame
+  for the room-lighting estimate, after the landmark result, so the GPU
+  readback never runs on the render thread.
   `face-landmarker.worker.types.ts` holds the request/response types consumed
   by the main thread.
 - `utils/` — pure, unit-testable math: `tryon.ts` (landmark→NDC/world
