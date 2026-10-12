@@ -5,7 +5,7 @@ import { missingPrerequisite } from './fixtures'
  * Contact shadow on each recorded face (tests/fixtures/tryon-pose). For every
  * face the frozen frame is rendered with and without the shadow, and the
  * darkening is measured: how much there is, and where it lands relative to
- * the centre of the stage. The shadow sits on the bridge, so its weight should
+ * the centre of the stage. The shadow sits under the frame, so its weight should
  * split either side of the nose rather than piling up on one cheek.
  */
 
@@ -88,7 +88,7 @@ test.describe('contact shadow on each recorded face', () => {
   test.setTimeout(600_000)
 
   for (const face of FACES) {
-    test(`${face}: the shadow darkens skin near the bridge`, async ({ page }, testInfo) => {
+    test(`${face}: the shadow darkens skin under the frame`, async ({ page }, testInfo) => {
       const on = await shoot(page, face, true)
       const off = await shoot(page, face, false)
       const d = await measure(page, on, off)

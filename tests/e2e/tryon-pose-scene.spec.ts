@@ -68,7 +68,7 @@ test.describe('contact shadow, frozen frame', () => {
   test.skip(!!skipReason, skipReason ?? '')
   test.setTimeout(300_000)
 
-  test('the shadow changes the skin under the bridge and nothing else', async ({ page }, testInfo) => {
+  test('the shadow changes the skin under the frame and nothing else', async ({ page }, testInfo) => {
     const onA = await shoot(page, true)
     const onB = await shoot(page, true)
     const off = await shoot(page, false)

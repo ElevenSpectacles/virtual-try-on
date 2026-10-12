@@ -451,6 +451,19 @@ describe('try-on compositing helpers', () => {
       expect(predictOneEuro(state, 2, 0.05, 1.5)).toBeCloseTo(2.5)
     })
 
+    it('predicts nothing below the minSpeed deadband', () => {
+      const state: OneEuroState = { value: 1, derivative: 0.05 }
+      expect(predictOneEuro(state, 2, 0.05, 1.2, 0.06)).toBe(1)
+      expect(predictOneEuro({ value: 1, derivative: -0.05 }, 0, 0.05, 1.2, 0.06)).toBe(1)
+    })
+
+    it('extrapolates only the speed above minSpeed, with no step at the edge', () => {
+      // Velocity +4/s, deadband 1/s: 3/s used, 50ms ahead → 1.15.
+      const state: OneEuroState = { value: 1, derivative: 4 }
+      expect(predictOneEuro(state, 2, 0.05, 1.2, 1)).toBeCloseTo(1.15)
+      expect(predictOneEuro({ value: 1, derivative: -4 }, 0, 0.05, 1.2, 1)).toBeCloseTo(0.85)
+    })
+
     it('caps the lookahead horizon so wild latency spikes cannot fling the value', () => {
       // dt of 5s must be treated as the 100ms cap, not 5s of extrapolation.
       const state: OneEuroState = { value: 0, derivative: 1 }

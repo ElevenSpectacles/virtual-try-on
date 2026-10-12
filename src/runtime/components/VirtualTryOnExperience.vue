@@ -7,7 +7,7 @@
  * default slot (and the component ref) exposes. Slot content is rendered on
  * top of the feed inside the stage.
  */
-import { NeutralToneMapping, Euler, Vector3 } from 'three'
+import { NeutralToneMapping, VSMShadowMap, Euler, Vector3 } from 'three'
 import {
   landmarkToWorld,
   computeMetricBaseScale,
@@ -41,23 +41,19 @@ import {
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
 import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
-import { useFrameLightingSampler } from '../composables/tryon/useFrameLightingSampler'
 import type { TryOnTier } from '../utils/tryon-capability'
 import {
   createMetricsAccumulator,
   type TryOnSessionMetrics
 } from '../utils/tryon-metrics'
 import {
+  LIGHTING_SAMPLE_EVERY,
+  estimateFrameLighting,
   lightingGain,
   smoothFrameLighting,
   type FrameLighting
 } from '../utils/tryon-lighting'
-import {
-  CONTACT_SHADOW_STRENGTH,
-  bridgeContact,
-  computeContactShadowColors,
-  contactShadowEllipse
-} from '../utils/tryon-contact-shadow'
+import { CONTACT_SHADOW_STRENGTH } from '../utils/tryon-contact-shadow'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -134,11 +130,18 @@ const props = withDefaults(
      * setup. Off by default, so nothing is measured or emitted.
      */
     reportMetrics?: boolean
+    /**
+     * Physically-based lenses: Fresnel opacity, reflections that add on top
+     * of the tint, an AR-coating sheen. Off keeps the cheaper standard lens.
+     * Also needs the `mid` tier or higher.
+     */
+    physicalLens?: boolean
   }>(),
   {
     adaptiveLighting: true,
     contactShadow: true,
     reportMetrics: false,
+    physicalLens: true,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -361,11 +364,14 @@ const restingRotation = computed(() => ({
   z: calibration.value.rotation.z
 }))
 
-// Room lighting: each detection frame is sampled (16×16) and smoothed. A
-// failed or disabled sample leaves `frameLighting` null, which keeps the
-// neutral studio lighting.
-const lightingSampler = useFrameLightingSampler()
+// Room lighting: while lighting is on, the worker returns a 16×16 downsample
+// of every LIGHTING_SAMPLE_EVERY-th detection frame, which is averaged here
+// and smoothed. With no
+// sample (lighting off, or OffscreenCanvas unavailable in the worker)
+// `frameLighting` stays null, which keeps the neutral studio lighting.
 const frameLighting = ref<FrameLighting | null>(null)
+const lastSampleMs = ref<number | null>(null)
+let detectionsSinceSample = 0
 const lightingEnabled = computed(
   () => props.adaptiveLighting && capability.allows('lightingEstimate')
 )
@@ -389,12 +395,18 @@ const {
     ? { mediapipeModelAssetPath: props.mediapipeModelAssetPath }
     : {}),
   onLatency: (ms) => metrics?.onLatency(ms),
-  onFrame: (bitmap) => {
+  wantFrameSample: () => {
+    if (!lightingEnabled.value) return false
+    detectionsSinceSample = (detectionsSinceSample + 1) % LIGHTING_SAMPLE_EVERY
+    return detectionsSinceSample === 0
+  },
+  onFrameSample: (rgba, width, height, sampleMs) => {
     if (!lightingEnabled.value) return
-    const sampled = lightingSampler.sample(bitmap)
-    frameLighting.value = sampled
-      ? smoothFrameLighting(frameLighting.value, sampled)
-      : null
+    frameLighting.value = smoothFrameLighting(
+      frameLighting.value,
+      estimateFrameLighting(rgba, width, height)
+    )
+    lastSampleMs.value = sampleMs
   }
 })
 
@@ -411,7 +423,8 @@ function emitMetrics(final: boolean) {
     features: {
       occluder: occluderEnabled.value,
       contactShadow: contactShadowEnabled.value,
-      adaptiveLighting: lightingEnabled.value
+      adaptiveLighting: lightingEnabled.value,
+      physicalLens: physicalLensEnabled.value
     }
   })
 }
@@ -593,7 +606,27 @@ onMounted(() => {
   if (props.autoStart) void start()
 })
 
-defineExpose({ start, stop, status, error, faceError, hasFace, guideHint })
+// Room-lighting state, read-only on the ref (not the slot: hosts don't need
+// it for UI). `luma` is the smoothed room estimate (null while lighting is
+// off or unsampled), `gain` the light multiplier it drives, `sampleMs` the
+// worker's time for the last 16×16 downsample (one per
+// LIGHTING_SAMPLE_EVERY detections).
+const lighting = computed(() => ({
+  luma: lightingEnabled.value ? (frameLighting.value?.luma ?? null) : null,
+  gain: lightGain.value,
+  sampleMs: lastSampleMs.value
+}))
+
+defineExpose({
+  start,
+  stop,
+  status,
+  error,
+  faceError,
+  hasFace,
+  guideHint,
+  lighting
+})
 
 defineSlots<{
   default?: (props: {
@@ -669,20 +702,14 @@ const lightTint = computed<[number, number, number]>(() =>
 const contactShadowEnabled = computed(
   () => props.contactShadow && capability.allows('contactShadow')
 )
-const contactShadowColors = computed<Float32Array | null>(() => {
-  const positions = occluderPositions.value
-  if (!contactShadowEnabled.value || !occluderEnabled.value || !positions) {
-    return null
-  }
-  const contact = bridgeContact(framePosition.value, smoothedEuler.value, smoothedScale.value)
-  const shadow = contactShadowEllipse(contact, faceWorldHalfWidth.value)
-  return computeContactShadowColors(
-    positions,
-    shadow.centre,
-    shadow.radius,
-    CONTACT_SHADOW_STRENGTH * lightGain.value
-  )
-})
+const physicalLensEnabled = computed(
+  () => props.physicalLens && capability.allows('physicalLens')
+)
+
+// Shadow opacity follows the room light: a bright room casts a stronger shadow.
+const contactShadowStrength = computed(
+  () => CONTACT_SHADOW_STRENGTH * lightGain.value
+)
 
 watch(hasFace, (detected) => {
   if (detected && !hasReportedFaceDetected.value) {
@@ -746,6 +773,8 @@ watch(model, (value) => {
           :dpr="[1, 2]"
           :tone-mapping="NeutralToneMapping"
           :tone-mapping-exposure="exposure"
+          :shadows="contactShadowEnabled"
+          :shadow-map-type="VSMShadowMap"
           power-preference="high-performance"
           render-mode="always"
           class="vto-layer"
@@ -764,12 +793,15 @@ watch(model, (value) => {
             :rotation="smoothedEuler"
             :occluder-enabled="occluderEnabled"
             :occluder-positions="occluderPositions"
-            :contact-shadow-colors="contactShadowColors"
+            :contact-shadow="contactShadowEnabled && occluderEnabled"
+            :contact-shadow-strength="contactShadowStrength"
             :light-gain="lightGain"
             :light-tint="lightTint"
             :occluder-position="occluderPosition"
             :occluder-radius="occluderGeometry"
             :occluder-rotation="smoothedEuler"
+            :physical-lens="physicalLensEnabled"
+            :lens="calibration.lens"
             @error="onSceneError"
           />
         </TresCanvas>

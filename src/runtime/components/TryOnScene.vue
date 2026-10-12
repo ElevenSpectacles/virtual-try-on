@@ -11,7 +11,11 @@ import {
   DoubleSide,
   EquirectangularReflectionMapping,
   Matrix4,
+  DirectionalLight,
   Mesh,
+  MeshDepthMaterial,
+  SRGBColorSpace,
+  MeshPhysicalMaterial,
   type Material,
   type MeshStandardMaterial,
   type Texture
@@ -30,6 +34,11 @@ import {
 } from '../utils/tryon'
 import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 import { lightingColor } from '../utils/tryon-lighting'
+import { NO_LENS_OVERRIDE, type TryOnLens } from '../utils/tryon-lens'
+import {
+  CONTACT_SHADOW_STRENGTH,
+  contactShadowLight
+} from '../utils/tryon-contact-shadow'
 
 const props = withDefaults(
   defineProps<{
@@ -76,10 +85,13 @@ const props = withDefaults(
     /** Colour cast of the room, each channel 0…1. White keeps the lights neutral. */
     lightTint?: [number, number, number]
     /**
-     * Per-vertex RGBA of the contact shadow, one entry per occluder vertex
-     * (see `computeContactShadowColors`). Null hides the shadow.
+     * Soft shadow of the frame on the tracked face mesh (shadow map from the
+     * key light, see utils/tryon-contact-shadow). Needs `occluderPositions`;
+     * the host canvas must have shadows enabled.
      */
-    contactShadowColors?: Float32Array | null
+    contactShadow?: boolean
+    /** Shadow opacity on skin, 0…1. */
+    contactShadowStrength?: number
     /** Wireframe box around the model's bbox — the calibration reference. */
     showBoundingBox?: boolean
     /**
@@ -101,6 +113,14 @@ const props = withDefaults(
     draco?: boolean
     /** Draco decoder path override — omit to use the gstatic CDN default. */
     dracoDecoderPath?: string | undefined
+    /**
+     * Physically-based lens: Fresnel opacity, additive reflections, a
+     * clearcoat and the anti-reflective coating's thin-film sheen. Off keeps
+     * the cheaper standard lens.
+     */
+    physicalLens?: boolean
+    /** Per-model lens tint/density override (from calibration). */
+    lens?: TryOnLens
   }>(),
   {
     position: () => ({ x: 0, y: 0, z: 0 }),
@@ -121,11 +141,14 @@ const props = withDefaults(
     occluderDebugVisible: false,
     lightGain: 1,
     lightTint: () => [1, 1, 1],
-    contactShadowColors: null,
+    contactShadow: false,
+    contactShadowStrength: CONTACT_SHADOW_STRENGTH,
     showBoundingBox: false,
     modelOffset: () => ({ x: 0, y: 0, z: 0 }),
     visible: true,
-    draco: true
+    draco: true,
+    physicalLens: false,
+    lens: () => NO_LENS_OVERRIDE
   }
 )
 
@@ -234,40 +257,111 @@ watch(
 // The catalog's lens materials are authored as metalness ≈ 0.7 with
 // alpha-blend transparency — physically wrong for a dielectric: metalness
 // tints and darkens instead of transmitting, and the metallic Fresnel kills
-// the see-through read against the face. Normalize lenses to a true
-// dielectric (metalness 0) and stop them writing depth, so frame geometry
+// the see-through read against the face. Lenses are rebuilt as a true
+// dielectric (metalness 0) that does not write depth, so frame geometry
 // behind the lens is not clipped by the lens surface. Name-scoped — every
 // catalog GLB names its lens material "glass".
 //
-// Two further touches sell "real sunglass glass" in the composite:
+// Further touches sell "real sunglass glass" in the composite:
 // - roughness ≈ 0: lenses are polished; any roughness blurs the reflections
 //   into a plastic-looking haze.
 // - envMapIntensity above 1: a real lens is a curved mirror — it catches
 //   bright, sharp speculars from the room. Boosting the IBL contribution on
 //   lenses only (frame acetate keeps its authored response) gives that glint
 //   that reads as glass over a video feed.
+// - physicalLens (mid tier and up, see utils/tryon-lens.ts): opacity rises
+//   with the Fresnel term toward grazing angles, so the lens rim reads as
+//   glass instead of a flat tinted cut-out; reflections are added on top of
+//   what the lens transmits instead of being scaled down by its opacity (a
+//   light lens still mirrors the room); a clearcoat and a thin-film
+//   iridescence give the faint green/violet sheen of an AR coating.
 const LENS_MATERIAL_NAME = /glass|lens/i
 
+/**
+ * Opacity follows the normalized Schlick term, `lensOpacityAt` in
+ * utils/tryon-lens.ts. Output is premultiplied by hand: only the body
+ * colour is scaled by coverage, reflections add on top.
+ */
+function applyLensFresnel(material: MeshPhysicalMaterial) {
+  material.premultipliedAlpha = true
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <opaque_fragment>',
+        `float lensGrazing = pow( 1.0 - saturate( abs( dot( normal, geometryViewDir ) ) ), 5.0 );
+        diffuseColor.a = diffuseColor.a + ( 1.0 - diffuseColor.a ) * lensGrazing;
+        vec3 lensReflected = max( outgoingLight - totalDiffuse, vec3( 0.0 ) );
+        gl_FragColor = vec4( totalDiffuse * diffuseColor.a + lensReflected, diffuseColor.a );`
+      )
+      .replace('#include <premultiplied_alpha_fragment>', '')
+  }
+  material.customProgramCacheKey = () => 'tryon-lens-fresnel'
+}
+
+function buildLens(
+  authored: MeshStandardMaterial,
+  physical: boolean,
+  lens: TryOnLens
+): Material {
+  const base = {
+    name: authored.name,
+    map: authored.map,
+    alphaMap: authored.alphaMap,
+    color: authored.color.clone(),
+    opacity: authored.opacity,
+    side: authored.side,
+    transparent: true,
+    depthWrite: false,
+    metalness: 0,
+    roughness: physical ? 0.02 : 0.05,
+    envMapIntensity: 1.6
+  }
+  const material = physical
+    ? new MeshPhysicalMaterial({
+        ...base,
+        ior: 1.5,
+        clearcoat: 1,
+        clearcoatRoughness: 0.02,
+        iridescence: 0.35,
+        iridescenceIOR: 1.33,
+        iridescenceThicknessRange: [260, 420]
+      })
+    : Object.assign(authored.clone(), base)
+  if (lens.tint) material.color.setRGB(...lens.tint)
+  if (lens.density !== null) material.opacity = lens.density
+  if (material instanceof MeshPhysicalMaterial) applyLensFresnel(material)
+  return material
+}
+
+// Lens materials we built, so a rebuild (model, tier or override change)
+// can free the previous ones. The GLB's authored materials are kept on each
+// mesh so every rebuild starts from them.
+let builtLenses: Material[] = []
+
 watch(
-  model,
-  (gltf) => {
-    const seen = new Set<Material>()
+  [model, () => props.physicalLens, () => props.lens],
+  ([gltf, physical, lens]) => {
+    const previous = builtLenses
+    builtLenses = []
+    const built = new Map<Material, Material>()
     gltf?.scene.traverse((obj) => {
       if (!(obj instanceof Mesh)) return
-      const materials = Array.isArray(obj.material)
-        ? obj.material
-        : [obj.material]
-      for (const material of materials) {
-        if (seen.has(material) || !LENS_MATERIAL_NAME.test(material.name))
-          continue
-        seen.add(material)
-        const lens = material as MeshStandardMaterial
-        lens.metalness = 0
-        lens.roughness = 0.05
-        lens.envMapIntensity = 1.6
-        material.depthWrite = false
+      const authored: Material | Material[] =
+        obj.userData.tryOnAuthoredMaterial ?? obj.material
+      obj.userData.tryOnAuthoredMaterial = authored
+      const swap = (material: Material) => {
+        if (!LENS_MATERIAL_NAME.test(material.name)) return material
+        let lensMaterial = built.get(material)
+        if (!lensMaterial) {
+          lensMaterial = buildLens(material as MeshStandardMaterial, physical, lens)
+          built.set(material, lensMaterial)
+          builtLenses.push(lensMaterial)
+        }
+        return lensMaterial
       }
+      obj.material = Array.isArray(authored) ? authored.map(swap) : swap(authored)
     })
+    for (const material of previous) material.dispose()
   },
   { immediate: true }
 )
@@ -303,8 +397,10 @@ onUnmounted(() => {
   envLoadId++
   clearEnvironment()
   dracoLoader?.dispose()
+  for (const material of builtLenses) material.dispose()
+  shadowLight.dispose()
+  for (const material of lensDepthMaterials) material.dispose()
   occluderMeshGeometry.value?.dispose()
-  contactShadowGeometry.value?.dispose()
   boundingBoxHelper.value?.dispose()
 })
 
@@ -312,9 +408,9 @@ onUnmounted(() => {
 // hand them Vector3 / Euler objects (fresh instances keep them reactive).
 const cameraPosition = new Vector3(0, 0, TRYON_CAMERA.distance)
 const cameraTarget = new Vector3(0, 0, 0)
-const lightPosition = new Vector3(2, 3, 4)
 // Dimmer fill light opposite the key light — without it, colored
 // acetate/metal reads duller/darker on the unlit side of the frame.
+const lightPosition = new Vector3(2, 3, 4)
 const fillLightPosition = new Vector3(-2, 3, 4)
 
 const groupPosition = computed(
@@ -344,7 +440,6 @@ const occluderPositionVec = computed(
     )
 )
 
-const contactShadowGeometry = shallowRef<BufferGeometry | null>(null)
 
 // Face-mesh occluder: one persistent BufferGeometry whose positions are
 // re-uploaded per frame from `occluderPositions`. Fixed layout (468 tracked
@@ -363,7 +458,6 @@ watch(
       // cycle leaks its GPU buffers.
       occluderMeshGeometry.value?.dispose()
       occluderMeshGeometry.value = null
-      syncContactShadow()
       return
     }
     let geometry = occluderMeshGeometry.value
@@ -379,42 +473,93 @@ watch(
     const attribute = geometry.getAttribute('position') as BufferAttribute
     ;(attribute.array as Float32Array).set(positions)
     attribute.needsUpdate = true
-    syncContactShadow()
   },
   { immediate: true }
 )
 
-// Contact shadow: a second mesh over the same tracked skin, with the
-// per-vertex alpha from `contactShadowColors` (see syncContactShadow). It
-// shares the occluder's position buffer, so the shadow lies exactly on the
-// skin the occluder already depth-tests against. Drawn transparent and
-// depth-tested without depth writes, so the frame in front (drawn opaque)
-// covers it.
-function syncContactShadow() {
-  const occluder = occluderMeshGeometry.value
-  const colors = props.contactShadowColors
-  if (!occluder || !colors) {
-    contactShadowGeometry.value?.dispose()
-    contactShadowGeometry.value = null
-    return
-  }
-  let geometry = contactShadowGeometry.value
-  if (!geometry) {
-    geometry = new BufferGeometry()
-    geometry.setAttribute('position', occluder.getAttribute('position'))
-    geometry.setIndex(new BufferAttribute(FACE_MESH_OCCLUDER_INDEX, 1))
-    contactShadowGeometry.value = geometry
-  }
-  const existing = geometry.getAttribute('color') as BufferAttribute | undefined
-  if (existing && existing.array.length === colors.length) {
-    ;(existing.array as Float32Array).set(colors)
-    existing.needsUpdate = true
-  } else {
-    geometry.setAttribute('color', new BufferAttribute(new Float32Array(colors), 4))
-  }
-}
+// Contact shadow (utils/tryon-contact-shadow): a shadow-only light (no
+// intensity, so it changes no shading) renders a small
+// shadow map of the frame, framed tightly on it, and a ShadowMaterial copy
+// of the face mesh shows that shadow on the skin. The catalog is mostly
+// rimless, so most of a real pair's shadow comes from its tinted lenses: a
+// shadow map has no partial transparency, so lenses cast through an
+// alpha-hashed depth material (a random share of texels, by lens density)
+// that the blur turns into an even half-shadow. The host canvas uses VSM:
+// its blur pass keeps the edge soft, as from a room light rather than a
+// spotlight, without PCF's speckle at a wide radius.
+//
+// The shadow colour is a warm dark brown, not black: light scattering under
+// skin keeps real shadows on skin reddish, and black at low opacity reads
+// as a grey smudge.
+const SHADOW_COLOR = new Color().setRGB(0.16, 0.05, 0.03, SRGBColorSpace)
+const SHADOW_MAP_SIZE = 512
+const SHADOW_RADIUS = 8
+/** Share of light a lens blocks in the shadow, per unit of lens opacity. */
+const LENS_SHADOW_DENSITY = 0.6
 
-watch(() => props.contactShadowColors, syncContactShadow, { immediate: true })
+const shadowLight = new DirectionalLight(0xffffff, 0)
+shadowLight.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE)
+shadowLight.shadow.radius = SHADOW_RADIUS
+shadowLight.shadow.blurSamples = 12
+shadowLight.shadow.bias = -0.0005
+
+watch(
+  () => props.contactShadow,
+  (enabled) => {
+    shadowLight.castShadow = enabled
+  },
+  { immediate: true }
+)
+
+// Frame the shadow camera on the frame. The light is directional and has
+// no intensity, so moving it changes only what the shadow map covers.
+watch(
+  [() => props.position, () => props.scale],
+  ([position, scale]) => {
+    const light = contactShadowLight(position, scale)
+    shadowLight.position.set(light.position.x, light.position.y, light.position.z)
+    shadowLight.target.position.set(light.target.x, light.target.y, light.target.z)
+    shadowLight.target.updateMatrixWorld()
+    const camera = shadowLight.shadow.camera
+    camera.left = -light.halfExtent
+    camera.right = light.halfExtent
+    camera.top = light.halfExtent
+    camera.bottom = -light.halfExtent
+    camera.near = light.near
+    camera.far = light.far
+    camera.updateProjectionMatrix()
+  },
+  { immediate: true }
+)
+
+// Every frame mesh casts; lens meshes through a partial (alpha-hashed)
+// depth material. The receiver never casts.
+let lensDepthMaterials: MeshDepthMaterial[] = []
+
+watch(
+  [model, () => props.contactShadow, () => props.lens],
+  ([gltf, enabled]) => {
+    for (const material of lensDepthMaterials) material.dispose()
+    lensDepthMaterials = []
+    gltf?.scene.traverse((obj) => {
+      if (!(obj instanceof Mesh)) return
+      obj.castShadow = enabled
+      const current = Array.isArray(obj.material) ? obj.material : [obj.material]
+      const lens = current.find((m: Material) => LENS_MATERIAL_NAME.test(m.name))
+      if (!enabled || !lens) {
+        obj.customDepthMaterial = undefined
+        return
+      }
+      const depth = new MeshDepthMaterial({
+        alphaHash: true,
+        opacity: Math.min(lens.opacity * LENS_SHADOW_DENSITY, 1)
+      })
+      lensDepthMaterials.push(depth)
+      obj.customDepthMaterial = depth
+    })
+  },
+  { immediate: true }
+)
 
 // Lights follow the room: intensity scales with the estimated luma, colour
 // takes on the room's cast. Neutral props keep the original studio values.
@@ -423,6 +568,7 @@ const lightColor = computed(
 )
 const ambientIntensity = computed(() => 0.55 * props.lightGain)
 const keyIntensity = computed(() => 1.1 * props.lightGain)
+
 const fillIntensity = computed(() => 0.5 * props.lightGain)
 const occluderScaleVec = computed(
   () =>
@@ -457,6 +603,10 @@ const occluderRotationVec = computed(
     :intensity="keyIntensity"
     :color="lightColor"
   />
+  <!-- Shadow-only light, framed on the frame each update; its target must
+       be in the scene graph. -->
+  <primitive :object="shadowLight" />
+  <primitive :object="shadowLight.target" />
   <TresDirectionalLight
     :position="fillLightPosition"
     :intensity="fillIntensity"
@@ -486,20 +636,25 @@ const occluderRotationVec = computed(
       :side="DoubleSide"
     />
   </TresMesh>
+  <!-- Contact shadow receiver: the same tracked skin, drawing only the
+       shadow the frame casts on it. Transparent and depth-tested without
+       depth writes, so the frame in front (drawn opaque) covers it. -->
   <TresMesh
-    v-if="occluderEnabled && visible && contactShadowGeometry"
-    :geometry="contactShadowGeometry"
+    v-if="occluderEnabled && visible && contactShadow && occluderMeshGeometry"
+    :geometry="occluderMeshGeometry"
     :frustum-culled="false"
+    :receive-shadow="true"
   >
-    <TresMeshBasicMaterial
-      :vertex-colors="true"
+    <TresShadowMaterial
+      :color="SHADOW_COLOR"
+      :opacity="contactShadowStrength"
       :transparent="true"
       :depth-write="false"
       :side="DoubleSide"
     />
   </TresMesh>
   <TresMesh
-    v-else-if="occluderEnabled && visible"
+    v-if="occluderEnabled && visible && !occluderMeshGeometry"
     :position="occluderPositionVec"
     :rotation="occluderRotationVec"
     :scale="occluderScaleVec"

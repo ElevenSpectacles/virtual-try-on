@@ -13,10 +13,19 @@ export const LIGHT_GAIN_RANGE = { min: 0.5, max: 1.5 } as const
 /** How much of the room's colour cast the lights take on, 0 = none, 1 = full. */
 export const TINT_STRENGTH = 0.5
 /**
- * EMA weight of each new estimate. Low, so a passing hand or a screen flash
- * doesn't flicker the lighting.
+ * One room sample every this many detections. The room light changes slowly,
+ * and each sample costs a GPU readback (~1.2 ms in the worker), so ~7 Hz is
+ * plenty: about 0.3 ms per detection.
  */
-export const LIGHTING_SMOOTHING = 0.1
+export const LIGHTING_SAMPLE_EVERY = 4
+
+/**
+ * EMA weight of each new estimate. Low, so a passing hand or a screen flash
+ * doesn't flicker the lighting: 0.1 per detection, compounded over the
+ * LIGHTING_SAMPLE_EVERY detections each sample stands for, so the response
+ * time doesn't depend on the sampling rate.
+ */
+export const LIGHTING_SMOOTHING = 1 - (1 - 0.1) ** LIGHTING_SAMPLE_EVERY
 
 export interface FrameLighting {
   /** Mean luma of the frame, 0 (black) … 1 (white). */
