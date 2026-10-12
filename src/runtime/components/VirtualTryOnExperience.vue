@@ -54,6 +54,16 @@ import {
   type FrameLighting
 } from '../utils/tryon-lighting'
 import { CONTACT_SHADOW_STRENGTH } from '../utils/tryon-contact-shadow'
+import {
+  FIT_DEFAULT_TOLERANCE,
+  FIT_MIN_SAMPLES,
+  estimateFaceWidthMm,
+  faceWidthVerdict,
+  updateFaceWidthEstimate,
+  type FaceWidthEstimate,
+  type TryOnFit,
+  type TryOnFitVerdict
+} from '../utils/tryon-fit'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -131,6 +141,13 @@ const props = withDefaults(
      */
     reportMetrics?: boolean
     /**
+     * Half-width of the "good fit" band of the fit verdict, as a fraction of
+     * the ideal frame width for the tracked face (default 0.06). The face
+     * estimate itself carries about ±5% (it assumes an average IPD), so
+     * tighter bands mostly add noise.
+     */
+    fitTolerance?: number
+    /**
      * Physically-based lenses: Fresnel opacity, reflections that add on top
      * of the tint, an AR-coating sheen. Off keeps the cheaper standard lens.
      * Also needs the `mid` tier or higher.
@@ -141,6 +158,7 @@ const props = withDefaults(
     adaptiveLighting: true,
     contactShadow: true,
     reportMetrics: false,
+    fitTolerance: FIT_DEFAULT_TOLERANCE,
     physicalLens: true,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
@@ -562,6 +580,61 @@ const guideHint = computed<TryOnGuideHint | null>(() => {
   return !hasFace.value || !correctedFaceAnchor.value ? 'noFace' : 'aligned'
 })
 
+// Fit verdict (frame width vs the tracked face's width). The frame width is
+// the catalog spec when the host passes one, else the GLB's measured width
+// (reported once per load) times the calibration scale. The face width is a
+// running average over detections, reset when the face is lost (it may be a
+// different person when it comes back).
+const glbWidthMeters = ref(0)
+const frameWidthMm = computed(() => {
+  const spec = getTryOnModel(props.models, model.value)?.frameWidthMm
+  if (spec && spec > 0) return spec
+  return glbWidthMeters.value * calibration.value.scale * 1000
+})
+const faceWidthEstimate = ref<FaceWidthEstimate | null>(null)
+const fitVerdict = ref<TryOnFitVerdict | null>(null)
+
+watch(faceLandmarks, () => {
+  if (!hasFace.value) {
+    faceWidthEstimate.value = null
+    return
+  }
+  faceWidthEstimate.value = updateFaceWidthEstimate(
+    faceWidthEstimate.value,
+    estimateFaceWidthMm(
+      poseCompensated(correctedEarWidth.value),
+      poseCompensated(correctedIpd.value)
+    )
+  )
+})
+
+watch(
+  [faceWidthEstimate, frameWidthMm, () => props.fitTolerance],
+  ([estimate, frameWidth, tolerance]) => {
+    fitVerdict.value =
+      estimate && estimate.samples >= FIT_MIN_SAMPLES
+        ? faceWidthVerdict(estimate.mean, frameWidth, {
+            tolerance,
+            previous: fitVerdict.value
+          })
+        : null
+  }
+)
+
+const fit = computed<TryOnFit | null>(() =>
+  fitVerdict.value && faceWidthEstimate.value
+    ? {
+        verdict: fitVerdict.value,
+        faceWidthMm: faceWidthEstimate.value.mean,
+        frameWidthMm: frameWidthMm.value
+      }
+    : null
+)
+
+function onModelLoaded(widthMeters: number) {
+  glbWidthMeters.value = widthMeters
+}
+
 const status = computed<TryOnStatus>(() => {
   if (isActive.value) return 'active'
   if (isStarting.value) return 'starting'
@@ -577,6 +650,7 @@ function trackTryOn(
     | 'TRY_ON_FACE_DETECTED'
     | 'TRY_ON_FRAME_CHANGED'
     | 'TRY_ON_TIER'
+    | 'TRY_ON_FIT'
     | 'TRY_ON_ERROR',
   extra: Record<string, unknown> = {}
 ) {
@@ -625,6 +699,7 @@ defineExpose({
   faceError,
   hasFace,
   guideHint,
+  fit,
   lighting
 })
 
@@ -638,6 +713,12 @@ defineSlots<{
     faceError: FaceLandmarkerError | null
     hasFace: boolean
     guideHint: TryOnGuideHint | null
+    /**
+     * Whether the selected frame suits the tracked face's width, with the
+     * two widths in mm. Null until about a second of tracking has given a
+     * stable estimate, and while no face is tracked.
+     */
+    fit: TryOnFit | null
     start: () => Promise<void>
     stop: () => void
   }) => unknown
@@ -721,6 +802,18 @@ watch(hasFace, (detected) => {
   }
 })
 
+// One event per verdict change (per frame model too, since the frame width
+// changes), so the host can relate fit to conversion. Widths are rounded to
+// whole millimetres.
+watch(fitVerdict, (verdict) => {
+  if (!verdict || !faceWidthEstimate.value) return
+  trackTryOn('TRY_ON_FIT', {
+    verdict,
+    faceWidthMm: Math.round(faceWidthEstimate.value.mean),
+    frameWidthMm: Math.round(frameWidthMm.value)
+  })
+})
+
 // Camera stopped: send the session's final report and start the next session fresh.
 watch(isActive, (active, wasActive) => {
   if (!active && wasActive && metrics) {
@@ -737,6 +830,9 @@ watch(model, (value) => {
   metrics?.onModelSwitch()
   // A new GLB compiles its shaders on the next frames: warm up again.
   capability.resetWarmup()
+  // The new frame has its own width: no verdict until its GLB has loaded.
+  glbWidthMeters.value = 0
+  fitVerdict.value = null
   if (hasConsented.value) {
     trackTryOn('TRY_ON_FRAME_CHANGED', { model: value })
   }
@@ -803,6 +899,7 @@ watch(model, (value) => {
             :physical-lens="physicalLensEnabled"
             :lens="calibration.lens"
             @error="onSceneError"
+            @loaded="onModelLoaded"
           />
         </TresCanvas>
       </div>
@@ -815,6 +912,7 @@ watch(model, (value) => {
       :face-error="faceError"
       :has-face="hasFace"
       :guide-hint="guideHint"
+      :fit="fit"
       :start="start"
       :stop="stop"
     />

@@ -50,6 +50,10 @@ function onTrack(event: string, payload: Record<string, unknown>) {
   console.info('[track]', event, payload)
 }
 
+// `?fit=true` shows the fit verdict from the slot (off by default so the
+// experience goldens stay unchanged).
+const showFit = computed(() => route.query.fit === 'true')
+const FIT_LABELS = { narrow: 'May be narrow for you', good: 'Good fit', wide: 'May be wide for you' } as const
 // `?lighting=true` shows the room-lighting estimate read from the component
 // ref (tests/e2e/lighting.spec.ts reads its data attributes).
 const showLighting = computed(() => route.query.lighting === 'true')
@@ -68,7 +72,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
       <header class="flex items-baseline justify-between">
         <h1 class="text-lg font-semibold">Virtual Try-On · Playground</h1>
         <p class="text-xs text-neutral-500">
-          ?model=&lt;file&gt; · ?debug_tryon=true · ?view=experience
+          ?model=&lt;file&gt; · ?debug_tryon=true · ?view=experience · &amp;fit=true
         </p>
       </header>
       <div
@@ -86,7 +90,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
           @track="onTrack"
           @metrics="onMetrics"
         >
-          <template #default="{ status, error, faceError, guideHint, isStarting, start, stop }">
+          <template #default="{ status, error, faceError, guideHint, fit, isStarting, start, stop }">
             <div
               v-if="status !== 'active'"
               class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white"
@@ -105,6 +109,13 @@ function onMetrics(payload: TryOnSessionMetrics) {
             >
               Stop camera
             </UButton>
+            <p
+              v-if="showFit && fit"
+              class="absolute inset-x-0 top-4 text-center text-xs text-white"
+              :data-fit="fit.verdict"
+            >
+              {{ FIT_LABELS[fit.verdict] }} · face {{ Math.round(fit.faceWidthMm) }} mm · frame {{ Math.round(fit.frameWidthMm) }} mm
+            </p>
             <p
               v-if="showLighting && experienceRef?.lighting.luma != null"
               class="absolute inset-x-0 top-4 text-center text-xs text-white"

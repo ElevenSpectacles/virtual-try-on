@@ -3,6 +3,7 @@ import { addComponentsDir, addImportsDir, createResolver, defineNuxtModule } fro
 export type { TryOnModel, TryOnModelFamily } from './runtime/composables/tryon/useTryOnModels'
 export type { TryOnFeature, TryOnTier } from './runtime/utils/tryon-capability'
 export type { TryOnMetrics, TryOnSessionMetrics } from './runtime/utils/tryon-metrics'
+export type { TryOnFit, TryOnFitVerdict } from './runtime/utils/tryon-fit'
 export type {
   TryOnCalibrationFile,
   TryOnFrameCalibration,
