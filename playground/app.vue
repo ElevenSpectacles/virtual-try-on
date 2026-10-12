@@ -33,11 +33,18 @@ const showScene = computed(() => route.query.view === 'scene')
 const sceneShadow = computed(() => route.query.shadow !== 'off')
 const sceneFace = computed(() => (typeof route.query.face === 'string' ? route.query.face : 'iris-moss'))
 // Rendering-golden flags: ?occluder=off, ?light=dim|bright, ?background=light|dark,
-// ?lens=standard, ?model=<file> (another catalog frame on the same pose).
+// ?lens=standard, ?model=<file> (another catalog frame on the same pose),
+// ?hair=band (a painted hair band over the near temple arm).
 const sceneOccluder = computed(() => route.query.occluder !== 'off')
 const sceneLight = computed(() => (route.query.light === 'dim' || route.query.light === 'bright' ? route.query.light : 'neutral'))
 const sceneLens = computed(() => (route.query.lens === 'standard' ? 'standard' : 'physical'))
 const sceneModel = computed(() => (typeof route.query.model === 'string' ? route.query.model : undefined))
+const sceneHair = computed(() => (route.query.hair === 'band' ? 'band' : 'off'))
+// `?hairBand=0.4-0.5`: where the band sits, as stage-width fractions.
+const sceneHairBand = computed<[number, number]>(() => {
+  const [from, to] = String(route.query.hairBand ?? '').split('-').map(Number)
+  return from !== undefined && to !== undefined && from < to ? [from, to] : [0.66, 0.8]
+})
 const sceneBackground = computed(() => (route.query.background === 'light' || route.query.background === 'dark' ? route.query.background : 'mid'))
 // `?tier=low|mid|high` pins the capability tier (disables the step-down) so
 // the experience can be checked at a given tier.
@@ -53,7 +60,19 @@ function onTrack(event: string, payload: Record<string, unknown>) {
 // `?lighting=true` shows the room-lighting estimate read from the component
 // ref (tests/e2e/lighting.spec.ts reads its data attributes).
 const showLighting = computed(() => route.query.lighting === 'true')
-const experienceRef = ref<{ lighting: { luma: number | null; gain: number; sampleMs: number | null } } | null>(null)
+const experienceRef = ref<{
+  lighting: { luma: number | null; gain: number; sampleMs: number | null }
+  hair: {
+    active: boolean
+    coverage: number | null
+    segmentMs: number | null
+    masks: number
+    overBudget: boolean
+    error: string | null
+  }
+} | null>(null)
+// `?hair=on` turns hair occlusion on and shows its state (tests/e2e/hair.spec.ts).
+const hairParam = computed(() => (route.query.hair === 'on' ? 'on' : 'off'))
 
 // `?metrics=true` turns on the metrics event; the e2e spec reads the JSON.
 const reportMetrics = computed(() => route.query.metrics === 'true')
@@ -83,6 +102,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
           :report-metrics="reportMetrics"
           :contact-shadow="route.query.shadow !== 'off'"
           :physical-lens="route.query.lens !== 'standard'"
+          :hair-occlusion="hairParam === 'on'"
           @track="onTrack"
           @metrics="onMetrics"
         >
@@ -116,6 +136,18 @@ function onMetrics(payload: TryOnSessionMetrics) {
               room luma {{ experienceRef.lighting.luma.toFixed(2) }} · light gain {{ experienceRef.lighting.gain.toFixed(2) }}
             </p>
             <p
+              v-if="hairParam === 'on' && experienceRef"
+              class="absolute inset-x-0 top-10 text-center text-xs text-white"
+              data-hair
+              :data-active="experienceRef.hair.active"
+              :data-coverage="experienceRef.hair.coverage ?? ''"
+              :data-segment-ms="experienceRef.hair.segmentMs ?? ''"
+              :data-masks="experienceRef.hair.masks"
+              :data-error="experienceRef.hair.error ?? ''"
+            >
+              hair {{ experienceRef.hair.active ? 'on' : 'off' }} · masks {{ experienceRef.hair.masks }}
+            </p>
+            <p
               v-if="status === 'active' && (faceError || guideHint === 'noFace')"
               class="absolute inset-x-0 bottom-4 text-center text-xs text-white"
             >
@@ -133,6 +165,8 @@ function onMetrics(payload: TryOnSessionMetrics) {
           :background="sceneBackground"
           :lens="sceneLens"
           :model="sceneModel"
+          :hair="sceneHair"
+          :hair-band="sceneHairBand"
         />
       </div>
       <VirtualTryOnPrototype

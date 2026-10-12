@@ -41,6 +41,8 @@ import {
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
 import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
+import { useHairSegmenter } from '../composables/tryon/useHairSegmenter'
+import { maskCoverage } from '../utils/tryon-hair'
 import type { TryOnTier } from '../utils/tryon-capability'
 import {
   createMetricsAccumulator,
@@ -136,12 +138,25 @@ const props = withDefaults(
      * Also needs the `mid` tier or higher.
      */
     physicalLens?: boolean
+    /**
+     * Hide the temple arms behind hair that hangs over them: a hair
+     * segmenter (its own worker, ~0.8 MB model, loaded on the first tracked
+     * face) masks the arms where the camera sees hair, so the real hair
+     * shows in front. Opt-in, because a 2D mask can't tell hair over an arm
+     * from hair under it, and arms usually rest on top of hair. Needs the
+     * occluder and the `high` tier, and switches itself off for the session
+     * if segmentation is too slow.
+     */
+    hairOcclusion?: boolean
+    /** URL/path of `hair_segmenter.tflite`, to self-host it. */
+    mediapipeHairModelAssetPath?: string | undefined
   }>(),
   {
     adaptiveLighting: true,
     contactShadow: true,
     reportMetrics: false,
     physicalLens: true,
+    hairOcclusion: false,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -424,7 +439,8 @@ function emitMetrics(final: boolean) {
       occluder: occluderEnabled.value,
       contactShadow: contactShadowEnabled.value,
       adaptiveLighting: lightingEnabled.value,
-      physicalLens: physicalLensEnabled.value
+      physicalLens: physicalLensEnabled.value,
+      hairOcclusion: hairActive.value
     }
   })
 }
@@ -454,6 +470,27 @@ const capability = useCapabilityTier({
     })
   }
 })
+
+// Hair occlusion (opt-in, high tier). The segmenter starts on the first
+// tracked face so it never delays the first try-on, and pauses while no face
+// is tracked.
+const hairOcclusionAllowed = computed(
+  () =>
+    props.hairOcclusion &&
+    occluderEnabled.value &&
+    capability.allows('segmentationOccluder')
+)
+const hairSegmenter = useHairSegmenter(videoRef, {
+  enabled: () => hairOcclusionAllowed.value && isActive.value && hasFace.value,
+  mediapipeBasePath: props.mediapipeBasePath,
+  modelAssetPath: props.mediapipeHairModelAssetPath
+})
+const hairActive = computed(
+  () =>
+    hairOcclusionAllowed.value &&
+    !hairSegmenter.overBudget.value &&
+    !hairSegmenter.error.value
+)
 
 const correctedFaceLandmarks = computed(() =>
   faceLandmarks.value.map((lm) =>
@@ -617,6 +654,20 @@ const lighting = computed(() => ({
   sampleMs: lastSampleMs.value
 }))
 
+// Hair-occlusion state, read-only on the ref: whether it runs, the share of
+// the frame the current mask calls hair, the worker's mean time per
+// segmentation, masks received, and why it stopped (budget, load error).
+const hair = computed(() => ({
+  active: hairActive.value,
+  coverage: hairSegmenter.mask.value
+    ? maskCoverage(hairSegmenter.mask.value.data)
+    : null,
+  segmentMs: hairSegmenter.segmentMs.value,
+  masks: hairSegmenter.masks.value,
+  overBudget: hairSegmenter.overBudget.value,
+  error: hairSegmenter.error.value
+}))
+
 defineExpose({
   start,
   stop,
@@ -625,7 +676,8 @@ defineExpose({
   faceError,
   hasFace,
   guideHint,
-  lighting
+  lighting,
+  hair
 })
 
 defineSlots<{
@@ -664,6 +716,18 @@ watch(error, (err) => {
     })
   }
 })
+
+watch(
+  () => hairSegmenter.error.value,
+  (message) => {
+    if (!message || !props.hairOcclusion) return
+    trackTryOn('TRY_ON_ERROR', {
+      errorType: message === 'unsupported' ? 'unsupported' : 'load_failed',
+      source: 'hair_segmenter',
+      message
+    })
+  }
+)
 
 watch(faceError, (err) => {
   if (err) {
@@ -802,6 +866,8 @@ watch(model, (value) => {
             :occluder-rotation="smoothedEuler"
             :physical-lens="physicalLensEnabled"
             :lens="calibration.lens"
+            :hair-mask="hairActive ? hairSegmenter.mask.value : null"
+            :media-window="coverWindow"
             @error="onSceneError"
           />
         </TresCanvas>
