@@ -12,6 +12,7 @@ import {
   EquirectangularReflectionMapping,
   Matrix4,
   Mesh,
+  MeshPhysicalMaterial,
   type Material,
   type MeshStandardMaterial,
   type Texture
@@ -30,6 +31,7 @@ import {
 } from '../utils/tryon'
 import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 import { lightingColor } from '../utils/tryon-lighting'
+import { NO_LENS_OVERRIDE, type TryOnLens } from '../utils/tryon-lens'
 
 const props = withDefaults(
   defineProps<{
@@ -101,6 +103,14 @@ const props = withDefaults(
     draco?: boolean
     /** Draco decoder path override — omit to use the gstatic CDN default. */
     dracoDecoderPath?: string | undefined
+    /**
+     * Physically-based lens: Fresnel opacity, additive reflections, a
+     * clearcoat and the anti-reflective coating's thin-film sheen. Off keeps
+     * the cheaper standard lens.
+     */
+    physicalLens?: boolean
+    /** Per-model lens tint/density override (from calibration). */
+    lens?: TryOnLens
   }>(),
   {
     position: () => ({ x: 0, y: 0, z: 0 }),
@@ -125,7 +135,9 @@ const props = withDefaults(
     showBoundingBox: false,
     modelOffset: () => ({ x: 0, y: 0, z: 0 }),
     visible: true,
-    draco: true
+    draco: true,
+    physicalLens: false,
+    lens: () => NO_LENS_OVERRIDE
   }
 )
 
@@ -234,40 +246,111 @@ watch(
 // The catalog's lens materials are authored as metalness ≈ 0.7 with
 // alpha-blend transparency — physically wrong for a dielectric: metalness
 // tints and darkens instead of transmitting, and the metallic Fresnel kills
-// the see-through read against the face. Normalize lenses to a true
-// dielectric (metalness 0) and stop them writing depth, so frame geometry
+// the see-through read against the face. Lenses are rebuilt as a true
+// dielectric (metalness 0) that does not write depth, so frame geometry
 // behind the lens is not clipped by the lens surface. Name-scoped — every
 // catalog GLB names its lens material "glass".
 //
-// Two further touches sell "real sunglass glass" in the composite:
+// Further touches sell "real sunglass glass" in the composite:
 // - roughness ≈ 0: lenses are polished; any roughness blurs the reflections
 //   into a plastic-looking haze.
 // - envMapIntensity above 1: a real lens is a curved mirror — it catches
 //   bright, sharp speculars from the room. Boosting the IBL contribution on
 //   lenses only (frame acetate keeps its authored response) gives that glint
 //   that reads as glass over a video feed.
+// - physicalLens (mid tier and up, see utils/tryon-lens.ts): opacity rises
+//   with the Fresnel term toward grazing angles, so the lens rim reads as
+//   glass instead of a flat tinted cut-out; reflections are added on top of
+//   what the lens transmits instead of being scaled down by its opacity (a
+//   light lens still mirrors the room); a clearcoat and a thin-film
+//   iridescence give the faint green/violet sheen of an AR coating.
 const LENS_MATERIAL_NAME = /glass|lens/i
 
+/**
+ * Opacity follows the normalized Schlick term, `lensOpacityAt` in
+ * utils/tryon-lens.ts. Output is premultiplied by hand: only the body
+ * colour is scaled by coverage, reflections add on top.
+ */
+function applyLensFresnel(material: MeshPhysicalMaterial) {
+  material.premultipliedAlpha = true
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <opaque_fragment>',
+        `float lensGrazing = pow( 1.0 - saturate( abs( dot( normal, geometryViewDir ) ) ), 5.0 );
+        diffuseColor.a = diffuseColor.a + ( 1.0 - diffuseColor.a ) * lensGrazing;
+        vec3 lensReflected = max( outgoingLight - totalDiffuse, vec3( 0.0 ) );
+        gl_FragColor = vec4( totalDiffuse * diffuseColor.a + lensReflected, diffuseColor.a );`
+      )
+      .replace('#include <premultiplied_alpha_fragment>', '')
+  }
+  material.customProgramCacheKey = () => 'tryon-lens-fresnel'
+}
+
+function buildLens(
+  authored: MeshStandardMaterial,
+  physical: boolean,
+  lens: TryOnLens
+): Material {
+  const base = {
+    name: authored.name,
+    map: authored.map,
+    alphaMap: authored.alphaMap,
+    color: authored.color.clone(),
+    opacity: authored.opacity,
+    side: authored.side,
+    transparent: true,
+    depthWrite: false,
+    metalness: 0,
+    roughness: physical ? 0.02 : 0.05,
+    envMapIntensity: 1.6
+  }
+  const material = physical
+    ? new MeshPhysicalMaterial({
+        ...base,
+        ior: 1.5,
+        clearcoat: 1,
+        clearcoatRoughness: 0.02,
+        iridescence: 0.35,
+        iridescenceIOR: 1.33,
+        iridescenceThicknessRange: [260, 420]
+      })
+    : Object.assign(authored.clone(), base)
+  if (lens.tint) material.color.setRGB(...lens.tint)
+  if (lens.density !== null) material.opacity = lens.density
+  if (material instanceof MeshPhysicalMaterial) applyLensFresnel(material)
+  return material
+}
+
+// Lens materials we built, so a rebuild (model, tier or override change)
+// can free the previous ones. The GLB's authored materials are kept on each
+// mesh so every rebuild starts from them.
+let builtLenses: Material[] = []
+
 watch(
-  model,
-  (gltf) => {
-    const seen = new Set<Material>()
+  [model, () => props.physicalLens, () => props.lens],
+  ([gltf, physical, lens]) => {
+    const previous = builtLenses
+    builtLenses = []
+    const built = new Map<Material, Material>()
     gltf?.scene.traverse((obj) => {
       if (!(obj instanceof Mesh)) return
-      const materials = Array.isArray(obj.material)
-        ? obj.material
-        : [obj.material]
-      for (const material of materials) {
-        if (seen.has(material) || !LENS_MATERIAL_NAME.test(material.name))
-          continue
-        seen.add(material)
-        const lens = material as MeshStandardMaterial
-        lens.metalness = 0
-        lens.roughness = 0.05
-        lens.envMapIntensity = 1.6
-        material.depthWrite = false
+      const authored: Material | Material[] =
+        obj.userData.tryOnAuthoredMaterial ?? obj.material
+      obj.userData.tryOnAuthoredMaterial = authored
+      const swap = (material: Material) => {
+        if (!LENS_MATERIAL_NAME.test(material.name)) return material
+        let lensMaterial = built.get(material)
+        if (!lensMaterial) {
+          lensMaterial = buildLens(material as MeshStandardMaterial, physical, lens)
+          built.set(material, lensMaterial)
+          builtLenses.push(lensMaterial)
+        }
+        return lensMaterial
       }
+      obj.material = Array.isArray(authored) ? authored.map(swap) : swap(authored)
     })
+    for (const material of previous) material.dispose()
   },
   { immediate: true }
 )
@@ -303,6 +386,7 @@ onUnmounted(() => {
   envLoadId++
   clearEnvironment()
   dracoLoader?.dispose()
+  for (const material of builtLenses) material.dispose()
   occluderMeshGeometry.value?.dispose()
   contactShadowGeometry.value?.dispose()
   boundingBoxHelper.value?.dispose()

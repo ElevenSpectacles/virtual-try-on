@@ -47,13 +47,17 @@ const props = withDefaults(
     light?: 'neutral' | 'dim' | 'bright'
     /** Flat backdrop behind the frame. */
     background?: 'mid' | 'light' | 'dark'
+    /** Lens material (#10): physical (shipped default) or the standard fallback. */
+    lens?: 'physical' | 'standard'
+    /** Catalog model to render on the recorded pose; defaults to the face's own frame. */
+    model?: string | undefined
   }>(),
-  { face: 'iris-moss', occluder: true, light: 'neutral', background: 'mid' }
+  { face: 'iris-moss', occluder: true, light: 'neutral', background: 'mid', lens: 'physical', model: undefined }
 )
 
 // Gains match LIGHT_GAIN_RANGE in utils/tryon-lighting: dim is the floor, bright the ceiling.
 const LIGHT_GAIN = { neutral: 1, dim: 0.5, bright: 1.5 } as const
-const BACKDROP = { mid: '#c9c9c9', light: '#f2f2f2', dark: '1e1e1e' } as const
+const BACKDROP = { mid: '#c9c9c9', light: '#f2f2f2', dark: '#1e1e1e' } as const
 const lightGain = computed(() => LIGHT_GAIN[props.light])
 
 const fixture = computed<PoseFixture>(() => {
@@ -101,7 +105,7 @@ const contactShadowColors = computed(() => {
         class="absolute inset-0 h-full w-full"
       >
         <TryOnScene
-          :src="`/models/virtual-try-on/${fixture.face}.glb`"
+          :src="`/models/virtual-try-on/${model ?? fixture.face}.glb`"
           :visible="true"
           :position="fixture.framePosition"
           :model-offset="fixture.modelOffset"
@@ -114,6 +118,7 @@ const contactShadowColors = computed(() => {
           :occluder-radius="fixture.occluderRadius"
           :occluder-rotation="fixture.rotation"
           :contact-shadow-colors="contactShadowColors"
+          :physical-lens="lens === 'physical'"
         />
       </TresCanvas>
     </ClientOnly>

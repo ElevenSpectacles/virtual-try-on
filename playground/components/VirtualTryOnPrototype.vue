@@ -695,6 +695,8 @@ watch(selectedModel, (model) => {
           >
             <TryOnScene
               :src="modelSrc"
+              :physical-lens="true"
+              :lens="calibration.lens"
               :visible="frameVisible"
               :position="framePosition"
               :model-offset="calibration.translation"

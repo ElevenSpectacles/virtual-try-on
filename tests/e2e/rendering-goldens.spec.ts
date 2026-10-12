@@ -32,6 +32,12 @@ const CASES: Case[] = [
   { name: 'iris-moss-light-bright', face: 'iris-moss', query: { light: 'bright' } },
   { name: 'iris-moss-background-light', face: 'iris-moss', query: { background: 'light' } },
   { name: 'iris-moss-background-dark', face: 'iris-moss', query: { background: 'dark' } },
+  // Lens material (#10): the physical lens is the default; standard is the
+  // low-tier fallback. kairos-crystal is the lightest catalog lens, iris-moss
+  // a dark gradient; the dark backdrop shows reflections adding on top.
+  { name: 'iris-moss-lens-standard', face: 'iris-moss', query: { lens: 'standard' } },
+  { name: 'kairos-crystal-on-iris-moss', face: 'iris-moss', query: { model: 'kairos-crystal' } },
+  { name: 'pteron-azure-background-dark', face: 'pteron-azure', query: { background: 'dark' } },
   { name: 'pteron-azure-base', face: 'pteron-azure', query: {} },
   { name: 'kairos-amber-base', face: 'kairos-amber', query: {} },
   // Synthetic profile (about -76 yaw): the recorded iris-moss frame rotated about
