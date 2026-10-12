@@ -33,6 +33,14 @@ const POSE_FILTER = { minCutoff: 1.2, beta: 2.4 }
 const ROTATION_FILTER = { minCutoff: 1.0, beta: 2.0, dCutoff: 1 }
 const SCALE_FILTER = { minCutoff: 0.9, beta: 1.8 }
 
+// Prediction deadbands (see `predictOneEuro`): below these speeds the
+// velocity estimate is mostly landmark noise, so a still head predicts
+// nothing. Anchor in normalized frame widths per second, scale as a fraction
+// of the current scale per second, rotation in radians per second.
+const ANCHOR_PREDICTION_DEADBAND = 0.06
+const SCALE_PREDICTION_DEADBAND = 0.3
+const ROTATION_PREDICTION_DEADBAND = 0.25
+
 export function useTryOnSmoothing(options: {
   targetAnchor: ComputedRef<NormalizedLandmark>
   targetEuler: ComputedRef<{ x: number; y: number; z: number }>
@@ -76,6 +84,12 @@ export function useTryOnSmoothing(options: {
   // the scalar signals below.
   let smoothedQuaternion: Quaternion | null = null
   let angularSpeedState = 0
+  // Speed of the smoothed rotation itself (rad/s), for latency prediction.
+  // `angularSpeedState` measures the residual to the raw target, which on a
+  // still head is pure landmark noise; the smoothed rotation barely moves at
+  // rest, so extrapolating along its speed adds no jitter.
+  let smoothedSpeedState = 0
+  const previousQuat = new Quaternion()
   const targetEulerObj = new Euler()
   const targetQuat = new Quaternion()
   // Display-only rotation: filter state quaternion + latency prediction.
@@ -99,6 +113,7 @@ export function useTryOnSmoothing(options: {
       scaleState = null
       smoothedQuaternion = null
       angularSpeedState = 0
+      smoothedSpeedState = 0
     }
     wasTracking = options.isTracking.value
 
@@ -131,7 +146,9 @@ export function useTryOnSmoothing(options: {
     if (!smoothedQuaternion) {
       smoothedQuaternion = targetQuat.clone()
       angularSpeedState = 0
+      smoothedSpeedState = 0
     } else if (dtSeconds > 0) {
+      previousQuat.copy(smoothedQuaternion)
       const rawAngle = smoothedQuaternion.angleTo(targetQuat)
       const rawSpeed = rawAngle / dtSeconds
       const dAlpha = oneEuroAlpha(ROTATION_FILTER.dCutoff, dtSeconds)
@@ -140,6 +157,9 @@ export function useTryOnSmoothing(options: {
         ROTATION_FILTER.minCutoff + ROTATION_FILTER.beta * angularSpeedState
       const alpha = oneEuroAlpha(cutoff, dtSeconds)
       smoothedQuaternion.slerp(targetQuat, alpha)
+      const smoothedSpeed = previousQuat.angleTo(smoothedQuaternion) / dtSeconds
+      smoothedSpeedState =
+        dAlpha * smoothedSpeed + (1 - dAlpha) * smoothedSpeedState
     }
 
     // Latency compensation: the pose targets describe where the head was
@@ -155,21 +175,39 @@ export function useTryOnSmoothing(options: {
       : 0
 
     smoothedAnchor.value = {
-      x: predictOneEuro(anchorXState, targetAnchor.x, predSeconds),
-      y: predictOneEuro(anchorYState, targetAnchor.y, predSeconds)
+      x: predictOneEuro(
+        anchorXState,
+        targetAnchor.x,
+        predSeconds,
+        undefined,
+        ANCHOR_PREDICTION_DEADBAND
+      ),
+      y: predictOneEuro(
+        anchorYState,
+        targetAnchor.y,
+        predSeconds,
+        undefined,
+        ANCHOR_PREDICTION_DEADBAND
+      )
     }
 
-    // Rotation prediction: continue past the filtered quaternion along the
-    // measured angular velocity, overshooting the latest measured rotation
-    // by at most a fifth of the remaining angle (t ≤ 1.2) — the same clamp
-    // as `predictOneEuro`, so a decelerating head turn can't swing the
-    // frame visibly past the face.
+    // Rotation prediction: advance from the filtered quaternion toward the
+    // latest measurement by the angle the smoothed rotation covers in
+    // `predSeconds` at its own speed (less a deadband), overshooting the
+    // measurement by at most a fifth of the remaining angle (t ≤ 1.2) — the
+    // same clamp as `predictOneEuro`, so a decelerating head turn can't
+    // swing the frame visibly past the face. Zero speed leaves the filtered
+    // rotation untouched (t = 0), so a still head keeps its smoothing.
     displayQuat.copy(smoothedQuaternion)
     if (predSeconds > 0) {
       const remaining = displayQuat.angleTo(targetQuat)
       if (remaining > 1e-4) {
-        const extra = Math.min(angularSpeedState * predSeconds, remaining * 0.2)
-        displayQuat.slerp(targetQuat, 1 + extra / remaining)
+        const speed = Math.max(
+          smoothedSpeedState - ROTATION_PREDICTION_DEADBAND,
+          0
+        )
+        const advance = Math.min(speed * predSeconds, remaining * 1.2)
+        displayQuat.slerp(targetQuat, advance / remaining)
       }
     }
     const outEuler = outEulerObj.setFromQuaternion(displayQuat)
@@ -180,7 +218,9 @@ export function useTryOnSmoothing(options: {
       smoothedScale.value = predictOneEuro(
         scaleState,
         targetScale,
-        predSeconds
+        predSeconds,
+        undefined,
+        SCALE_PREDICTION_DEADBAND * Math.abs(scaleState.value)
       )
     }
   })
