@@ -83,7 +83,8 @@ describe('isFeatureAllowed', () => {
     expect(isFeatureAllowed('low', 'contactShadow')).toBe(false)
     expect(isFeatureAllowed('mid', 'contactShadow')).toBe(true)
     expect(isFeatureAllowed('mid', 'segmentationOccluder')).toBe(false)
-    expect(isFeatureAllowed('high', 'lensRefraction')).toBe(true)
+    expect(isFeatureAllowed('high', 'segmentationOccluder')).toBe(true)
+    expect(isFeatureAllowed('low', 'physicalLens')).toBe(false)
   })
 })
 
