@@ -173,6 +173,8 @@ The full types are exported as `TryOnCalibrationFile` and
 | `adaptiveLighting` | `boolean` | `true` | Lights the frame from the room the camera sees. Needs the `mid` tier or higher. |
 | `contactShadow` | `boolean` | `true` | Soft shadow of the frame on the tracked skin under the bridge and lenses. Needs the face-mesh occluder and the `mid` tier or higher. |
 | `reportMetrics` | `boolean` | `false` | Emits the `metrics` event (see below). Off means nothing is measured. |
+| `hairOcclusion` | `boolean` | `false` | Hides the temple arms behind hair that hangs over them (see [Hair occlusion](#hair-occlusion-opt-in)). Needs the occluder and the `high` tier. |
+| `mediapipeHairModelAssetPath` | `string` | Google Storage | URL of `hair_segmenter.tflite`, for self-hosting. |
 
 ### Default slot
 
@@ -217,7 +219,7 @@ module reports anything. Every payload has this shape:
 | `TRY_ON_FACE_DETECTED` | First face detected in the session | `confidence`, `tier` (device tier at that moment) |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
 | `TRY_ON_TIER` | The device tier stepped down under sustained frame-time load | `tier`, `previousTier`, `p95Ms`, `maxTextureSize`, `deviceMemoryGb` |
-| `TRY_ON_ERROR` | Camera, tracker or asset failure | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment`), `message` |
+| `TRY_ON_ERROR` | Camera, tracker or asset failure | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment` \| `hair_segmenter`), `message` |
 
 ### `metrics` event
 
@@ -244,6 +246,21 @@ unmounts (`final: true`). Each report covers the session so far.
 No frames, landmarks or other image-derived data are in the payload. It holds
 only these numbers and the frame file name. Forward it to your analytics if
 you want the before/after baseline; the module sends nothing itself.
+
+### Hair occlusion (opt-in)
+
+With `hair-occlusion`, a MediaPipe hair segmenter finds hair in the camera
+frame, and the temple arms are not drawn where hair hangs over them, so the
+customer's own hair shows in front, as in a mirror. Only the arms behind the
+temple roots can be hidden; lenses, rims and hinges always stay on top.
+
+It is off by default. A 2D mask can't tell hair over an arm from hair under
+it, and arms usually rest on top of hair, so turn it on where long loose
+hair is common, or behind an A/B test. It runs on the `high` tier only, in
+its own Web Worker. The 0.8 MB model downloads on the first tracked face,
+so it never delays the first try-on. It switches itself off for the session
+if segmentation is too slow on the device. The ref exposes its state as a
+read-only `hair`: `{ active, coverage, segmentMs, masks, overBudget, error }`.
 
 ### Exported types
 
@@ -305,6 +322,7 @@ function onTrack(event: string, payload: Record<string, unknown>) {
 | `face_landmarker` | `'unsupported'` \| `'load_failed'` \| `'runtime_failed'` | Feed shows, no tracking; slot `faceError` is set. |
 | `model` | `'load_failed'` | The GLB failed to load; `message` starts with its URL. |
 | `environment` | `'load_failed'` | Reflections lost; the frame still renders. |
+| `hair_segmenter` | `'unsupported'` \| `'load_failed'` | Only with `hair-occlusion`: hair occlusion is off; the face-mesh occluder still works. |
 
 A denied camera permission is reported as `TRY_ON_CAMERA_DENIED`, not as an
 error.
@@ -315,7 +333,8 @@ By default the MediaPipe Wasm, the face model and the Draco decoder load
 from public CDNs on first use. To remove those dependencies (for a strict
 CSP or offline use), serve the files yourself and pass
 `mediapipe-base-path`, `mediapipe-model-asset-path` and
-`draco-decoder-path`. Serve the Wasm fileset from the same
+`draco-decoder-path` (and `mediapipe-hair-model-asset-path` if you turn on
+hair occlusion). Serve the Wasm fileset from the same
 `@mediapipe/tasks-vision` version the module pins (see its `package.json`) —
 mixed versions are unsupported.
 
