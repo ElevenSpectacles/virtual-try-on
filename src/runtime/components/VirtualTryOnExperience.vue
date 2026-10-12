@@ -40,6 +40,7 @@ import {
 } from '../composables/tryon/useTryOnModels'
 import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
 import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
+import { useTryOnFrameLoop } from '../composables/tryon/useTryOnFrameLoop'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
 import { useHairSegmenter } from '../composables/tryon/useHairSegmenter'
 import { maskCoverage } from '../utils/tryon-hair'

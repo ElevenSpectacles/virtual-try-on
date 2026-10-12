@@ -14,6 +14,9 @@ const modelsDir =
   process.env.TRYON_MODELS_DIR ?? r('../../nuxt/public/models/virtual-try-on')
 
 export default defineNuxtConfig({
+  // No auto-imports, like a strict host: the module must import everything
+  // explicitly (AGENTS.md), and `npm run typecheck` fails when it doesn't.
+  imports: { autoImport: false },
   compatibilityDate: '2026-08-01',
 
   // Dogfooding: consume this repo through its own Nuxt module entry so the
