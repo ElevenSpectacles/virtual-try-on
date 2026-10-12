@@ -46,14 +46,44 @@ const props = withDefaults(
     lens?: 'physical' | 'standard'
     /** Catalog model to render on the recorded pose; defaults to the face's own frame. */
     model?: string | undefined
+    /** Hair occluder (#9): a painted hair band over the near temple arm. */
+    hair?: 'off' | 'band'
+    /** Horizontal extent of the hair band, as fractions of the stage width. */
+    hairBand?: [number, number]
   }>(),
-  { face: 'iris-moss', occluder: true, light: 'neutral', background: 'mid', lens: 'physical', model: undefined }
+  {
+    face: 'iris-moss',
+    occluder: true,
+    light: 'neutral',
+    background: 'mid',
+    lens: 'physical',
+    model: undefined,
+    hair: 'off',
+    hairBand: () => [0.66, 0.8]
+  }
 )
 
 // Gains match LIGHT_GAIN_RANGE in utils/tryon-lighting: dim is the floor, bright the ceiling.
 const LIGHT_GAIN = { neutral: 1, dim: 0.5, bright: 1.5 } as const
 const BACKDROP = { mid: '#c9c9c9', light: '#f2f2f2', dark: '#1e1e1e' } as const
 const lightGain = computed(() => LIGHT_GAIN[props.light])
+
+// Hair-occlusion check (#9): a vertical hair band in the stage's screen space
+// (`hairBand`, stage x fractions) over the near temple arm: the arm behind the
+// temple roots is not drawn under the band, so the backdrop shows, while the
+// frame front stays. The mask is in mirrored camera space, like the live one.
+const HAIR_MASK_SIZE = { width: 96, height: 128 } as const
+const hairMask = computed(() => {
+  if (props.hair !== 'band') return null
+  const { width, height } = HAIR_MASK_SIZE
+  const data = new Uint8Array(width * height)
+  for (let x = 0; x < width; x++) {
+    const screenX = 1 - (x + 0.5) / width
+    if (screenX < props.hairBand[0] || screenX > props.hairBand[1]) continue
+    for (let y = 0; y < height; y++) data[y * width + x] = 255
+  }
+  return { data, width, height }
+})
 
 const fixture = computed<PoseFixture>(() => {
   const match = Object.entries(poses).find(([path]) => path.endsWith(`/${props.face}.json`))
@@ -103,6 +133,7 @@ const occluderPositions = computed(() =>
           :occluder-rotation="fixture.rotation"
           :contact-shadow="shadow"
           :physical-lens="lens === 'physical'"
+          :hair-mask="hairMask"
         />
       </TresCanvas>
     </ClientOnly>

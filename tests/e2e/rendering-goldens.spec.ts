@@ -38,6 +38,9 @@ const CASES: Case[] = [
   { name: 'iris-moss-lens-standard', face: 'iris-moss', query: { lens: 'standard' } },
   { name: 'kairos-crystal-on-iris-moss', face: 'iris-moss', query: { model: 'kairos-crystal' } },
   { name: 'pteron-azure-background-dark', face: 'pteron-azure', query: { background: 'dark' } },
+  // Hair occluder (#9): a painted hair band over the near temple arm.
+  { name: 'iris-moss-hair-band', face: 'iris-moss', query: { hair: 'band', hairBand: '0.66-0.8' } },
+  { name: 'synthetic-profile-hair-band', face: 'synthetic-profile', query: { hair: 'band', hairBand: '0.4-0.5' } },
   { name: 'pteron-azure-base', face: 'pteron-azure', query: {} },
   { name: 'kairos-amber-base', face: 'kairos-amber', query: {} },
   // Synthetic profile (about -76 yaw): the recorded iris-moss frame rotated about

@@ -2,20 +2,27 @@
 import { computed, onUnmounted, shallowRef, watch } from 'vue'
 import {
   Vector3,
+  Vector4,
   Euler,
   Box3,
   Box3Helper,
   BufferAttribute,
   BufferGeometry,
   Color,
+  DataTexture,
   DoubleSide,
   EquirectangularReflectionMapping,
+  LinearFilter,
   Matrix4,
   DirectionalLight,
   Mesh,
   MeshDepthMaterial,
   SRGBColorSpace,
   MeshPhysicalMaterial,
+  PlaneGeometry,
+  RedFormat,
+  ShaderMaterial,
+  UnsignedByteType,
   type Material,
   type Object3D,
   type MeshStandardMaterial,
@@ -40,6 +47,12 @@ import {
   CONTACT_SHADOW_STRENGTH,
   contactShadowLight
 } from '../utils/tryon-contact-shadow'
+import {
+  HAIR_PLANE_SETBACK_METERS,
+  HAIR_PLANE_SIZE_METERS,
+  type MediaWindow
+} from '../utils/tryon-hair'
+import type { HairMask } from '../composables/tryon/useHairSegmenter'
 
 const props = withDefaults(
   defineProps<{
@@ -122,6 +135,14 @@ const props = withDefaults(
     physicalLens?: boolean
     /** Per-model lens tint/density override (from calibration). */
     lens?: TryOnLens
+    /**
+     * Hair confidence of the camera frame (see `useHairSegmenter`): temple
+     * arm parts behind the temple roots are not drawn where it says hair,
+     * so the camera's hair shows in front of them. Null turns it off.
+     */
+    hairMask?: HairMask | null
+    /** `object-fit: cover` window of the camera frame in the preview. */
+    mediaWindow?: MediaWindow
   }>(),
   {
     position: () => ({ x: 0, y: 0, z: 0 }),
@@ -149,7 +170,9 @@ const props = withDefaults(
     visible: true,
     draco: true,
     physicalLens: false,
-    lens: () => NO_LENS_OVERRIDE
+    lens: () => NO_LENS_OVERRIDE,
+    hairMask: null,
+    mediaWindow: () => ({ xMin: 0, xMax: 1, yMin: 0, yMax: 1 })
   }
 )
 
@@ -404,6 +427,9 @@ const boundingBoxHelper = computed(() => {
 watch(boundingBoxHelper, (_helper, previous) => previous?.dispose())
 
 onUnmounted(() => {
+  hairMaskTexture.value?.dispose()
+  hairMaterial.dispose()
+  hairPlaneGeometry.dispose()
   envLoadId++
   clearEnvironment()
   dracoLoader?.dispose()
@@ -413,6 +439,104 @@ onUnmounted(() => {
   occluderMeshGeometry.value?.dispose()
   boundingBoxHelper.value?.dispose()
 })
+
+// Hair occluder (utils/tryon-hair.ts): a depth-only plane in head space,
+// HAIR_PLANE_SETBACK_METERS behind the frame front, drawn before the frame
+// and kept only where the hair mask says hair. Arm parts behind the plane
+// fail the depth test there and are not drawn, so the live camera's own hair
+// shows through the empty canvas; lenses, rims and hinges are in front of the
+// plane and stay. Like the face-mesh occluder, no colour is written.
+//
+// The shader maps each fragment back to the camera frame exactly as the
+// preview shows it: mirrored `<video>`, `object-fit: cover` window
+// (`screenToMedia`). The mask is bilinear-sampled and cut at half
+// confidence, which gives a smooth hair contour from a 96-px-wide mask.
+//
+// (Redrawing the camera's pixels over the arm instead, for soft edges, was
+// tried: at antialiased arm edges the redraw is weighted by coverage twice
+// and leaves a dark outline, and it costs a camera-texture upload per frame.)
+const HAIR_VERTEX = /* glsl */ `
+varying vec4 vClip;
+void main() {
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vClip = gl_Position;
+}
+`
+const HAIR_FRAGMENT = /* glsl */ `
+uniform sampler2D uMask;
+uniform vec4 uWindow; // xMin, xMax, yMin, yMax of the raw camera frame
+varying vec4 vClip;
+void main() {
+  vec2 ndc = vClip.xy / vClip.w;
+  vec2 screen = vec2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+  vec2 media = vec2(
+    uWindow.x + (1.0 - screen.x) * (uWindow.y - uWindow.x),
+    uWindow.z + screen.y * (uWindow.w - uWindow.z)
+  );
+  // Mask rows are uploaded top first (flipY off).
+  if (texture2D(uMask, media).r < 0.5) discard;
+  gl_FragColor = vec4(0.0);
+}
+`
+
+const hairMaskTexture = shallowRef<DataTexture | null>(null)
+
+watch(
+  () => props.hairMask,
+  (mask) => {
+    if (!mask) {
+      hairMaskTexture.value?.dispose()
+      hairMaskTexture.value = null
+      return
+    }
+    const current = hairMaskTexture.value
+    if (current && current.image.width === mask.width && current.image.height === mask.height) {
+      ;(current.image.data as Uint8Array).set(mask.data)
+      current.needsUpdate = true
+      return
+    }
+    current?.dispose()
+    const texture = new DataTexture(
+      new Uint8Array(mask.data),
+      mask.width,
+      mask.height,
+      RedFormat,
+      UnsignedByteType
+    )
+    texture.minFilter = LinearFilter
+    texture.magFilter = LinearFilter
+    texture.flipY = false
+    texture.needsUpdate = true
+    hairMaskTexture.value = texture
+  },
+  { immediate: true }
+)
+
+const hairUniforms = {
+  uMask: { value: null as DataTexture | null },
+  uWindow: { value: new Vector4(0, 1, 0, 1) }
+}
+
+const hairMaterial = new ShaderMaterial({
+  vertexShader: HAIR_VERTEX,
+  fragmentShader: HAIR_FRAGMENT,
+  uniforms: hairUniforms,
+  colorWrite: false,
+  depthWrite: true,
+  depthTest: true,
+  side: DoubleSide
+})
+const hairPlaneGeometry = new PlaneGeometry(HAIR_PLANE_SIZE_METERS, HAIR_PLANE_SIZE_METERS)
+const hairPlanePosition = new Vector3(0, 0, -HAIR_PLANE_SETBACK_METERS)
+
+watch(
+  [hairMaskTexture, () => props.mediaWindow],
+  ([mask, window]) => {
+    hairUniforms.uMask.value = mask
+    hairUniforms.uWindow.value.set(window.xMin, window.xMax, window.yMin, window.yMax)
+  },
+  { immediate: true }
+)
 
 // Tres catch-all components type vector props as raw three.js instances, so we
 // hand them Vector3 / Euler objects (fresh instances keep them reactive).
@@ -689,6 +813,16 @@ const occluderRotationVec = computed(
   >
     <!-- Inner group: recentring offset in GLB-local metres, so it inherits
          the outer group's rotation and scale (pivots with the head). -->
+    <!-- Hair occluder: depth-only head-space plane behind the temple
+         roots (see the notes in the script), drawn before the frame. -->
+    <TresMesh
+      v-if="hairMaskTexture"
+      :geometry="hairPlaneGeometry"
+      :material="hairMaterial"
+      :position="hairPlanePosition"
+      :render-order="-1"
+      :frustum-culled="false"
+    />
     <TresGroup :position="modelOffsetVec">
       <primitive :object="model.scene" />
       <primitive v-if="boundingBoxHelper" :object="boundingBoxHelper" />

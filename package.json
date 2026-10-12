@@ -36,6 +36,7 @@
     "prepack": "nuxt-module-build build",
     "generate-calibration": "npx tsx scripts/generate-calibration.ts",
     "compress-models": "npx tsx scripts/compress-models.ts",
+    "fetch-footage": "node scripts/fetch-footage.mjs",
     "playground": "nuxt dev playground --port 4000",
     "typecheck": "nuxt typecheck playground",
     "verify:unit": "npx vitest run",
