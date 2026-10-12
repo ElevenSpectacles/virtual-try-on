@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildCalibration,
   modelCalibration,
+  parseCalibrationFile,
   type MeasuredModel
 } from '../../../scripts/lib/calibration'
 import type { TryOnCalibrationFile } from '../../../src/runtime/types/tryon-calibration'
@@ -109,3 +110,42 @@ describe('buildCalibration', () => {
     expect(() => buildCalibration(models, 'nous-navy')).toThrow(/nous-navy not found/)
   })
 })
+
+describe('parseCalibrationFile', () => {
+  it('reads a manifest and keeps the hand-tuned fields', () => {
+    const file = parseCalibrationFile({
+      schemaVersion: '1.0.0',
+      reference: 'iris-bronze',
+      models: {
+        a: {
+          model: 'a',
+          translation: { x: 0, y: -0.02, z: -0.004 },
+          rotation: { x: 0.1, y: 0, z: 0 },
+          scale: 1.01,
+          templeWidthBoost: 1.05,
+          lens: { tint: '#202020', density: 0.6 }
+        }
+      }
+    })
+    expect(file.models.a).toEqual({
+      model: 'a',
+      translation: { x: 0, y: -0.02, z: -0.004 },
+      rotation: { x: 0.1, y: 0, z: 0 },
+      scale: 1.01,
+      templeWidthBoost: 1.05,
+      lens: { tint: '#202020', density: 0.6 }
+    })
+  })
+
+  it('rejects anything that is not a manifest', () => {
+    expect(() => parseCalibrationFile([])).toThrow(/not a calibration manifest/)
+    expect(() => parseCalibrationFile({ models: { a: 1 } })).toThrow(/a: entry/)
+  })
+
+  it('rejects a mistyped hand-tuned field instead of carrying it over', () => {
+    expect(() => parseCalibrationFile({ models: { a: { rotation: { x: '0' } } } })).toThrow(/rotation/)
+    expect(() => parseCalibrationFile({ models: { a: { templeWidthBoost: '1' } } })).toThrow(/templeWidthBoost/)
+    expect(() => parseCalibrationFile({ models: { a: { lens: { density: 'dark' } } } })).toThrow(/lens/)
+  })
+})
+

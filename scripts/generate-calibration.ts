@@ -13,8 +13,11 @@ import { extname, join } from 'node:path'
 import { NodeIO, getBounds } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import draco3d from 'draco3dgltf'
-import { buildCalibration, type MeasuredModel } from './lib/calibration'
-import type { TryOnCalibrationFile } from '../src/runtime/types/tryon-calibration'
+import {
+  buildCalibration,
+  parseCalibrationFile,
+  type MeasuredModel
+} from './lib/calibration'
 
 function parseArgs() {
   const args = process.argv.slice(2)
@@ -67,7 +70,7 @@ async function main() {
   }
 
   const previous = existsSync(output)
-    ? (JSON.parse(readFileSync(output, 'utf8')) as TryOnCalibrationFile)
+    ? parseCalibrationFile(JSON.parse(readFileSync(output, 'utf8')) as unknown)
     : null
   const calibration = buildCalibration(models, reference, previous)
   writeFileSync(output, `${JSON.stringify(calibration, null, 2)}\n`)

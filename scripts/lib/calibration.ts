@@ -96,3 +96,69 @@ export function buildCalibration(
     )
   }
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isVector(value: unknown): value is { x: number; y: number; z: number } {
+  return (
+    isRecord(value) &&
+    typeof value.x === 'number' &&
+    typeof value.y === 'number' &&
+    typeof value.z === 'number'
+  )
+}
+
+/**
+ * Validate an existing manifest (parsed JSON) before its hand-tuned fields
+ * are carried over. Throws on anything that isn't a calibration manifest, so
+ * a wrong `--output` path or a hand-edit typo fails loudly instead of feeding
+ * bad tuning back in. Only the carried-over fields are checked in depth.
+ */
+export function parseCalibrationFile(value: unknown): TryOnCalibrationFile {
+  if (!isRecord(value) || !isRecord(value.models)) {
+    throw new Error('not a calibration manifest (no "models" object)')
+  }
+  const models: TryOnCalibrationFile['models'] = {}
+  for (const [name, entry] of Object.entries(value.models)) {
+    if (!isRecord(entry)) throw new Error(`${name}: entry is not an object`)
+    if (entry.rotation !== undefined && !isVector(entry.rotation)) {
+      throw new Error(`${name}: rotation must be { x, y, z } numbers`)
+    }
+    if (entry.templeWidthBoost !== undefined && typeof entry.templeWidthBoost !== 'number') {
+      throw new Error(`${name}: templeWidthBoost must be a number`)
+    }
+    const lens = entry.lens
+    if (
+      lens !== undefined &&
+      (!isRecord(lens) ||
+        (lens.tint !== undefined && typeof lens.tint !== 'string') ||
+        (lens.density !== undefined && typeof lens.density !== 'number'))
+    ) {
+      throw new Error(`${name}: lens must be { tint?: string, density?: number }`)
+    }
+    models[name] = {
+      model: typeof entry.model === 'string' ? entry.model : name,
+      translation: isVector(entry.translation) ? entry.translation : { x: 0, y: 0, z: 0 },
+      rotation: isVector(entry.rotation) ? entry.rotation : { x: 0, y: 0, z: 0 },
+      scale: typeof entry.scale === 'number' ? entry.scale : 1,
+      ...(typeof entry.templeWidthBoost === 'number'
+        ? { templeWidthBoost: entry.templeWidthBoost }
+        : {}),
+      ...(isRecord(lens)
+        ? {
+            lens: {
+              ...(typeof lens.tint === 'string' ? { tint: lens.tint } : {}),
+              ...(typeof lens.density === 'number' ? { density: lens.density } : {})
+            }
+          }
+        : {})
+    }
+  }
+  return {
+    schemaVersion: typeof value.schemaVersion === 'string' ? value.schemaVersion : CALIBRATION_SCHEMA_VERSION,
+    reference: typeof value.reference === 'string' ? value.reference : '',
+    models
+  }
+}
