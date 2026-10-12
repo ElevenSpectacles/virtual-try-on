@@ -9,6 +9,8 @@
  * before user-facing scale/yaw fine-tuning.
  */
 
+import type { TryOnLens, TryOnLensCalibration } from '../utils/tryon-lens'
+
 export interface TryOnModelCalibration {
   /** Model identifier — matches the GLB filename without extension. */
   model: string
@@ -44,6 +46,11 @@ export interface TryOnModelCalibration {
     y: number
     z: number
   }
+  /**
+   * Lens tint and density, replacing the GLB's authored lens colour and
+   * opacity — e.g. one GLB shipped in several lens colours. Optional.
+   */
+  lens?: TryOnLensCalibration
 }
 
 export interface TryOnCalibrationFile {
@@ -63,4 +70,5 @@ export interface TryOnFrameCalibration {
   rotation: TryOnModelCalibration['rotation']
   scale: number
   templeWidthBoost: number
+  lens: TryOnLens
 }

@@ -32,9 +32,12 @@ const showExperience = computed(() => route.query.view === 'experience')
 const showScene = computed(() => route.query.view === 'scene')
 const sceneShadow = computed(() => route.query.shadow !== 'off')
 const sceneFace = computed(() => (typeof route.query.face === 'string' ? route.query.face : 'iris-moss'))
-// Rendering-golden flags: ?occluder=off, ?light=dim|bright, ?background=light|dark.
+// Rendering-golden flags: ?occluder=off, ?light=dim|bright, ?background=light|dark,
+// ?lens=standard, ?model=<file> (another catalog frame on the same pose).
 const sceneOccluder = computed(() => route.query.occluder !== 'off')
 const sceneLight = computed(() => (route.query.light === 'dim' || route.query.light === 'bright' ? route.query.light : 'neutral'))
+const sceneLens = computed(() => (route.query.lens === 'standard' ? 'standard' : 'physical'))
+const sceneModel = computed(() => (typeof route.query.model === 'string' ? route.query.model : undefined))
 const sceneBackground = computed(() => (route.query.background === 'light' || route.query.background === 'dark' ? route.query.background : 'mid'))
 // `?tier=low|mid|high` pins the capability tier (disables the step-down) so
 // the experience can be checked at a given tier.
@@ -72,6 +75,8 @@ function onMetrics(payload: TryOnSessionMetrics) {
           calibration-url="/models/virtual-try-on/calibration.json"
           :tier="tierParam"
           :report-metrics="reportMetrics"
+          :contact-shadow="route.query.shadow !== 'off'"
+          :physical-lens="route.query.lens !== 'standard'"
           @track="onTrack"
           @metrics="onMetrics"
         >
@@ -110,6 +115,8 @@ function onMetrics(payload: TryOnSessionMetrics) {
           :occluder="sceneOccluder"
           :light="sceneLight"
           :background="sceneBackground"
+          :lens="sceneLens"
+          :model="sceneModel"
         />
       </div>
       <VirtualTryOnPrototype

@@ -89,7 +89,8 @@ Key facts:
   `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-lighting.ts`
   (room luma and colour cast from a 16×16 frame sample, gain and tint),
   `tryon-contact-shadow.ts` (per-vertex alpha of the frame's shadow on the
-  tracked skin), `tryon-capability.ts`
+  tracked skin), `tryon-lens.ts` (per-model lens tint/density from
+  calibration, the Fresnel term of the physical lens), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
@@ -139,7 +140,7 @@ Key facts:
   (the `metrics` event end to end, on `TRYON_VIDEO_CLIP`).
 - Rendering goldens (`rendering-goldens.spec.ts`, `tryon-pose-scene.spec.ts`)
   render recorded frozen frames through `?view=scene`, one flag per golden
-  (`occluder`, `light`, `background`, `shadow`, `face`). Local-only, real or
+  (`occluder`, `light`, `background`, `shadow`, `face`, `lens`, `model`). Local-only, real or
   SwiftShader GL. After an intended visual change, re-record with
   `npx playwright test <spec> --update-snapshots` and review the PNGs; the
   strict threshold (0.02) is set per assertion, since the default hides faint

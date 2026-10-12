@@ -134,11 +134,18 @@ const props = withDefaults(
      * setup. Off by default, so nothing is measured or emitted.
      */
     reportMetrics?: boolean
+    /**
+     * Physically-based lenses: Fresnel opacity, reflections that add on top
+     * of the tint, an AR-coating sheen. Off keeps the cheaper standard lens.
+     * Also needs the `mid` tier or higher.
+     */
+    physicalLens?: boolean
   }>(),
   {
     adaptiveLighting: true,
     contactShadow: true,
     reportMetrics: false,
+    physicalLens: true,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -411,7 +418,8 @@ function emitMetrics(final: boolean) {
     features: {
       occluder: occluderEnabled.value,
       contactShadow: contactShadowEnabled.value,
-      adaptiveLighting: lightingEnabled.value
+      adaptiveLighting: lightingEnabled.value,
+      physicalLens: physicalLensEnabled.value
     }
   })
 }
@@ -669,6 +677,10 @@ const lightTint = computed<[number, number, number]>(() =>
 const contactShadowEnabled = computed(
   () => props.contactShadow && capability.allows('contactShadow')
 )
+const physicalLensEnabled = computed(
+  () => props.physicalLens && capability.allows('physicalLens')
+)
+
 const contactShadowColors = computed<Float32Array | null>(() => {
   const positions = occluderPositions.value
   if (!contactShadowEnabled.value || !occluderEnabled.value || !positions) {
@@ -770,6 +782,8 @@ watch(model, (value) => {
             :occluder-position="occluderPosition"
             :occluder-radius="occluderGeometry"
             :occluder-rotation="smoothedEuler"
+            :physical-lens="physicalLensEnabled"
+            :lens="calibration.lens"
             @error="onSceneError"
           />
         </TresCanvas>

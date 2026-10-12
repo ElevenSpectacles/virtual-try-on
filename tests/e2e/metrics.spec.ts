@@ -69,7 +69,8 @@ test.describe('metrics event', () => {
     expect(final.features, 'features at report time').toEqual({
       occluder: expect.any(Boolean),
       contactShadow: expect.any(Boolean),
-      adaptiveLighting: expect.any(Boolean)
+      adaptiveLighting: expect.any(Boolean),
+      physicalLens: expect.any(Boolean)
     })
   })
 })
