@@ -120,6 +120,9 @@ Key facts:
   - `trim-temple-tips.ts` — shortens curled ear-hook temple tips on catalog
     GLBs. Only ever run against `public/models/virtual-try-on`, **never**
     `public/models/original` or `public/models/compressed`.
+  - `fetch-footage.mjs` (`npm run fetch-footage`) — downloads stock portrait
+    clips (Mixkit, free licence, no redistribution) into the OS temp dir and
+    converts them to 480×640 Y4M for `TRYON_VIDEO_CLIP`. Never commit them.
   - `verify-playground.mjs` — playground smoke test (build + boot + asset
     checks). Renders the shipped component via the playground's
     `?view=experience` and looks for its `vto-stage` class.
