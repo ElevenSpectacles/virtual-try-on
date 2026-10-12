@@ -2,6 +2,7 @@ import type {
   TryOnCalibrationFile,
   TryOnFrameCalibration
 } from '../../types/tryon-calibration'
+import { NO_LENS_OVERRIDE, resolveLens } from '../../utils/tryon-lens'
 import { useFetch } from '#imports'
 
 const DEFAULT_CALIBRATION: TryOnFrameCalibration = {
@@ -9,7 +10,8 @@ const DEFAULT_CALIBRATION: TryOnFrameCalibration = {
   translation: { x: 0, y: 0, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
   scale: 1,
-  templeWidthBoost: 1
+  templeWidthBoost: 1,
+  lens: NO_LENS_OVERRIDE
 }
 
 export function getCalibrationFromManifest(
@@ -30,7 +32,8 @@ export function getCalibrationFromManifest(
     translation: entry.translation,
     rotation: entry.rotation,
     scale: entry.scale,
-    templeWidthBoost: entry.templeWidthBoost ?? 1
+    templeWidthBoost: entry.templeWidthBoost ?? 1,
+    lens: resolveLens(entry.lens)
   }
 }
 

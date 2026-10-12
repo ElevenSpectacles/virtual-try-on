@@ -71,13 +71,14 @@ Key facts:
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
     per-model calibration.
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
-  - `useFrameLightingSampler.ts` — samples each detection bitmap into a
-    16×16 canvas for the room-lighting estimate; null on failure.
   - `useCapabilityTier.ts` — device probe (WebGL2, max texture size,
     `deviceMemory`) and the frame-time step-down; exposes the tier and
     `allows(feature)`. Samples only while a face is tracked.
 - `workers/face-landmarker.worker.ts` — MediaPipe `FaceLandmarker` in a
-  dedicated **classic** Web Worker (see constraints).
+  dedicated **classic** Web Worker (see constraints). On request
+  (`wantFrameSample`) it also returns a 16×16 RGBA downsample of the frame
+  for the room-lighting estimate, after the landmark result, so the GPU
+  readback never runs on the render thread.
   `face-landmarker.worker.types.ts` holds the request/response types consumed
   by the main thread.
 - `utils/` — pure, unit-testable math: `tryon.ts` (landmark→NDC/world
@@ -88,8 +89,9 @@ Key facts:
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
   `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-lighting.ts`
   (room luma and colour cast from a 16×16 frame sample, gain and tint),
-  `tryon-contact-shadow.ts` (per-vertex alpha of the frame's shadow on the
-  tracked skin), `tryon-fit.ts` (face width in mm from ear width over IPD,
+  `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
+  map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint/density from
+  calibration, the Fresnel term of the physical lens), `tryon-fit.ts` (face width in mm from ear width over IPD,
   and the narrow/good/wide fit verdict with hysteresis), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
@@ -134,7 +136,10 @@ Key facts:
   (`?view=experience`) against goldens in `tests/e2e/__screenshots__/`.
   `tracking-harness.ts` is the shared driver. `fit.spec.ts` checks the fit
   verdict reads "good" for each fixture's own frame (and is where
-  `FIT_IDEAL_RATIO` was measured). Real-footage specs (not run by
+  `FIT_IDEAL_RATIO` was measured). `lighting.spec.ts` checks the
+  room-lighting estimate on dim/bright/still clips (`fixtures.ts` clip
+  kinds) through the shipped component's ref (`?view=experience&lighting=true`).
+  Real-footage specs (not run by
   default; set the env var, footage stays out of git): `video-clip.spec.ts`
   (`TRYON_VIDEO_CLIP`, a Y4M), `upna-pose.spec.ts` (`TRYON_VIDEO_CLIP` +
   `TRYON_UPNA_GT`: head pose vs UPNA ground truth, via `pose-metrics.ts`;
@@ -142,7 +147,7 @@ Key facts:
   (the `metrics` event end to end, on `TRYON_VIDEO_CLIP`).
 - Rendering goldens (`rendering-goldens.spec.ts`, `tryon-pose-scene.spec.ts`)
   render recorded frozen frames through `?view=scene`, one flag per golden
-  (`occluder`, `light`, `background`, `shadow`, `face`). Local-only, real or
+  (`occluder`, `light`, `background`, `shadow`, `face`, `lens`, `model`). Local-only, real or
   SwiftShader GL. After an intended visual change, re-record with
   `npx playwright test <spec> --update-snapshots` and review the PNGs; the
   strict threshold (0.02) is set per assertion, since the default hides faint

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { NeutralToneMapping, Euler, Vector3 } from 'three'
+import { NeutralToneMapping, VSMShadowMap, Euler, Vector3 } from 'three'
 import {
   useElementSize,
   usePreferredReducedMotion,
@@ -689,18 +689,23 @@ watch(selectedModel, (model) => {
             :dpr="[1, 2]"
             :tone-mapping="NeutralToneMapping"
             :tone-mapping-exposure="exposure"
+            :shadows="true"
+            :shadow-map-type="VSMShadowMap"
             power-preference="high-performance"
             render-mode="always"
             class="absolute inset-0 h-full w-full"
           >
             <TryOnScene
               :src="modelSrc"
+              :physical-lens="true"
+              :lens="calibration.lens"
               :visible="frameVisible"
               :position="framePosition"
               :model-offset="calibration.translation"
               :scale="smoothedScale"
               :rotation="smoothedEuler"
               :occluder-enabled="occluderEnabled"
+              :contact-shadow="true"
               :occluder-positions="
                 occluderMeshEnabled ? occluderMeshPositions : null
               "

@@ -9,3 +9,7 @@ node_modules/
 dist/
 test-results/
 playwright-report/
+
+# UPNA-derived fixtures are non-commercial: keep them local.
+tests/fixtures/tryon-pose/upna-*.json
+tests/e2e/__screenshots__/**/upna-*

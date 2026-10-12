@@ -3,7 +3,7 @@ import type { TryOnModel } from '../src/runtime/composables/tryon/useTryOnModels
 import type { TryOnSessionMetrics } from '../src/runtime/utils/tryon-metrics'
 
 import { useRoute } from '#imports'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import VirtualTryOnPrototype from './components/VirtualTryOnPrototype.vue'
 import TryOnFixtureScene from './components/TryOnFixtureScene.vue'
@@ -32,9 +32,12 @@ const showExperience = computed(() => route.query.view === 'experience')
 const showScene = computed(() => route.query.view === 'scene')
 const sceneShadow = computed(() => route.query.shadow !== 'off')
 const sceneFace = computed(() => (typeof route.query.face === 'string' ? route.query.face : 'iris-moss'))
-// Rendering-golden flags: ?occluder=off, ?light=dim|bright, ?background=light|dark.
+// Rendering-golden flags: ?occluder=off, ?light=dim|bright, ?background=light|dark,
+// ?lens=standard, ?model=<file> (another catalog frame on the same pose).
 const sceneOccluder = computed(() => route.query.occluder !== 'off')
 const sceneLight = computed(() => (route.query.light === 'dim' || route.query.light === 'bright' ? route.query.light : 'neutral'))
+const sceneLens = computed(() => (route.query.lens === 'standard' ? 'standard' : 'physical'))
+const sceneModel = computed(() => (typeof route.query.model === 'string' ? route.query.model : undefined))
 const sceneBackground = computed(() => (route.query.background === 'light' || route.query.background === 'dark' ? route.query.background : 'mid'))
 // `?tier=low|mid|high` pins the capability tier (disables the step-down) so
 // the experience can be checked at a given tier.
@@ -51,6 +54,10 @@ function onTrack(event: string, payload: Record<string, unknown>) {
 // experience goldens stay unchanged).
 const showFit = computed(() => route.query.fit === 'true')
 const FIT_LABELS = { narrow: 'May be narrow for you', good: 'Good fit', wide: 'May be wide for you' } as const
+// `?lighting=true` shows the room-lighting estimate read from the component
+// ref (tests/e2e/lighting.spec.ts reads its data attributes).
+const showLighting = computed(() => route.query.lighting === 'true')
+const experienceRef = ref<{ lighting: { luma: number | null; gain: number; sampleMs: number | null } } | null>(null)
 
 // `?metrics=true` turns on the metrics event; the e2e spec reads the JSON.
 const reportMetrics = computed(() => route.query.metrics === 'true')
@@ -73,10 +80,13 @@ function onMetrics(payload: TryOnSessionMetrics) {
         class="relative mx-auto aspect-3/4 w-full max-w-md bg-neutral-900"
       >
         <VirtualTryOnExperience
+          ref="experienceRef"
           :models="models"
           calibration-url="/models/virtual-try-on/calibration.json"
           :tier="tierParam"
           :report-metrics="reportMetrics"
+          :contact-shadow="route.query.shadow !== 'off'"
+          :physical-lens="route.query.lens !== 'standard'"
           @track="onTrack"
           @metrics="onMetrics"
         >
@@ -107,6 +117,16 @@ function onMetrics(payload: TryOnSessionMetrics) {
               {{ FIT_LABELS[fit.verdict] }} · face {{ Math.round(fit.faceWidthMm) }} mm · frame {{ Math.round(fit.frameWidthMm) }} mm
             </p>
             <p
+              v-if="showLighting && experienceRef?.lighting.luma != null"
+              class="absolute inset-x-0 top-4 text-center text-xs text-white"
+              data-lighting
+              :data-luma="experienceRef.lighting.luma"
+              :data-gain="experienceRef.lighting.gain"
+              :data-sample-ms="experienceRef.lighting.sampleMs ?? ''"
+            >
+              room luma {{ experienceRef.lighting.luma.toFixed(2) }} · light gain {{ experienceRef.lighting.gain.toFixed(2) }}
+            </p>
+            <p
               v-if="status === 'active' && (faceError || guideHint === 'noFace')"
               class="absolute inset-x-0 bottom-4 text-center text-xs text-white"
             >
@@ -122,6 +142,8 @@ function onMetrics(payload: TryOnSessionMetrics) {
           :occluder="sceneOccluder"
           :light="sceneLight"
           :background="sceneBackground"
+          :lens="sceneLens"
+          :model="sceneModel"
         />
       </div>
       <VirtualTryOnPrototype
