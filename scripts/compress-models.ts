@@ -6,20 +6,17 @@
 // meshes when present, and is a no-op passthrough for meshes that aren't.
 import { readdirSync, mkdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
+import { parseArgs } from 'node:util'
 import { NodeIO } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import { draco } from '@gltf-transform/functions'
 import draco3d from 'draco3dgltf'
 
-function parseArgs() {
-  const args = process.argv.slice(2)
-  const get = (flag: string) => {
-    const i = args.indexOf(flag)
-    return i === -1 ? undefined : args[i + 1]
-  }
-
-  const input = get('--input')
-  const output = get('--output')
+function readArgs() {
+  const { values } = parseArgs({
+    options: { input: { type: 'string' }, output: { type: 'string' } }
+  })
+  const { input, output } = values
   if (!input || !output) {
     console.error(
       'Usage: compress-models --input <dir> --output <dir>\n' +
@@ -31,7 +28,7 @@ function parseArgs() {
 }
 
 async function main() {
-  const { input, output } = parseArgs()
+  const { input, output } = readArgs()
 
   const io = new NodeIO()
     .registerExtensions(ALL_EXTENSIONS)

@@ -10,6 +10,7 @@
 // templeWidthBoost, lens) are kept.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
+import { parseArgs } from 'node:util'
 import { NodeIO, getBounds } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import draco3d from 'draco3dgltf'
@@ -19,15 +20,15 @@ import {
   type MeasuredModel
 } from './lib/calibration'
 
-function parseArgs() {
-  const args = process.argv.slice(2)
-  const get = (flag: string) => {
-    const i = args.indexOf(flag)
-    return i === -1 ? undefined : args[i + 1]
-  }
-
-  const input = get('--input')
-  const output = get('--output')
+function readArgs() {
+  const { values } = parseArgs({
+    options: {
+      input: { type: 'string' },
+      output: { type: 'string' },
+      reference: { type: 'string', default: 'iris-bronze' }
+    }
+  })
+  const { input, output, reference } = values
   if (!input || !output) {
     console.error(
       'Usage: generate-calibration --input <dir> --output <file> [--reference <model>]\n' +
@@ -35,11 +36,11 @@ function parseArgs() {
     )
     process.exit(1)
   }
-  return { input, output, reference: get('--reference') ?? 'iris-bronze' }
+  return { input, output, reference }
 }
 
 async function main() {
-  const { input, output, reference } = parseArgs()
+  const { input, output, reference } = readArgs()
 
   const io = new NodeIO()
     .registerExtensions(ALL_EXTENSIONS)
