@@ -17,6 +17,7 @@ import {
 } from '../../../../src/runtime/utils/tryon'
 import type { FacePose } from '../../../../src/runtime/utils/tryon-pose'
 import type { TryOnFrameCalibration } from '../../../../src/runtime/types/tryon-calibration'
+import { stubRaf } from '../../support/raf'
 
 /**
  * The placement pipeline shared by VirtualTryOnExperience and the playground
@@ -27,28 +28,6 @@ import type { TryOnFrameCalibration } from '../../../../src/runtime/types/tryon-
 afterEach(() => {
   vi.unstubAllGlobals()
 })
-
-function stubRaf() {
-  let pending: FrameRequestCallback | null = null
-  let now = 0
-  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-    pending = cb
-    return 1
-  })
-  vi.stubGlobal('cancelAnimationFrame', () => {
-    pending = null
-  })
-  return {
-    frames(count: number) {
-      for (let i = 0; i < count; i++) {
-        now += 1000 / 60
-        const cb = pending
-        pending = null
-        cb?.(now)
-      }
-    }
-  }
-}
 
 // 478 landmarks, with the points the pipeline reads placed on a frontal face.
 function face(): NormalizedLandmark[] {

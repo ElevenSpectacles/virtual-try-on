@@ -21,25 +21,31 @@
 // so tilting the tip toward the top of the ear means rotating the kept
 // vertices around the hinge in the local X/Z plane (a pitch around the
 // left/right axis), not touching Y.
+//
+// Run it once per new model, never again on already-trimmed GLBs: the trim
+// finds nothing left to cut, but every run tilts the shaft another
+// --tilt-degrees.
 import { readdirSync, mkdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
+import { parseArgs } from 'node:util'
 import { NodeIO, type Primitive } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
-import { prune } from '@gltf-transform/functions'
+import { compactPrimitive, prune, transformPrimitive } from '@gltf-transform/functions'
+import draco3d from 'draco3dgltf'
+import { Matrix4 } from 'three'
 
 const TEMPLE_NODE_NAME = 'pt2'
 
-function parseArgs() {
-  const args = process.argv.slice(2)
-  const get = (flag: string) => {
-    const i = args.indexOf(flag)
-    return i === -1 ? undefined : args[i + 1]
-  }
-
-  const input = get('--input')
-  const output = get('--output')
-  const threshold = Number(get('--threshold') ?? '0.105')
-  const tiltDegrees = Number(get('--tilt-degrees') ?? '6')
+function readArgs() {
+  const { values } = parseArgs({
+    options: {
+      input: { type: 'string' },
+      output: { type: 'string' },
+      threshold: { type: 'string', default: '0.105' },
+      'tilt-degrees': { type: 'string', default: '6' }
+    }
+  })
+  const { input, output } = values
   if (!input || !output) {
     console.error(
       'Usage: trim-temple-tips --input <dir> --output <dir> [--threshold <localX>] [--tilt-degrees <deg>]\n' +
@@ -48,7 +54,12 @@ function parseArgs() {
     )
     process.exit(1)
   }
-  return { input, output, threshold, tiltDegrees }
+  return {
+    input,
+    output,
+    threshold: Number(values.threshold),
+    tiltDegrees: Number(values['tilt-degrees'])
+  }
 }
 
 /**
@@ -61,7 +72,6 @@ function parseArgs() {
 function tiltPrimitive(prim: Primitive, tiltDegrees: number): void {
   if (tiltDegrees === 0) return
   const position = prim.getAttribute('POSITION')
-  const normal = prim.getAttribute('NORMAL')
   if (!position) return
 
   const count = position.getCount()
@@ -86,31 +96,15 @@ function tiltPrimitive(prim: Primitive, tiltDegrees: number): void {
   const pivotZ = zCount > 0 ? zSum / zCount : 0
 
   // Positive angle raises local +X (the shaft, reaching toward the tip)
-  // toward local +Z, which is world +Y (up) — see file header axis mapping.
+  // toward local +Z, which is world +Y (up) — see file header axis mapping:
+  // a rotation by -angle about local Y, around the hinge. transformPrimitive
+  // turns the normals with it.
   const theta = (tiltDegrees * Math.PI) / 180
-  const cos = Math.cos(theta)
-  const sin = Math.sin(theta)
-
-  for (let i = 0; i < count; i++) {
-    position.getElement(i, v)
-    const dx = v[0]! - pivotX
-    const dz = v[2]! - pivotZ
-    v[0] = pivotX + dx * cos - dz * sin
-    v[2] = pivotZ + dx * sin + dz * cos
-    position.setElement(i, v)
-  }
-
-  if (normal) {
-    const n = [0, 0, 0]
-    for (let i = 0; i < normal.getCount(); i++) {
-      normal.getElement(i, n)
-      const nx = n[0]!
-      const nz = n[2]!
-      n[0] = nx * cos - nz * sin
-      n[2] = nx * sin + nz * cos
-      normal.setElement(i, n)
-    }
-  }
+  const tilt = new Matrix4()
+    .makeTranslation(pivotX, 0, pivotZ)
+    .multiply(new Matrix4().makeRotationY(-theta))
+    .multiply(new Matrix4().makeTranslation(-pivotX, 0, -pivotZ))
+  transformPrimitive(prim, tilt.elements)
 }
 
 function trimPrimitive(prim: Primitive, threshold: number): { before: number; after: number } {
@@ -140,51 +134,26 @@ function trimPrimitive(prim: Primitive, threshold: number): { before: number; af
 
   // Dropping triangles alone leaves the tip's vertices orphaned in the
   // attribute buffers (unreferenced, but still shipped over the wire).
-  // Compact every attribute down to just the vertices the kept triangles
-  // reference, remapping indices to the new, smaller vertex range.
-  const remap = new Map<number, number>()
-  for (const idx of kept) {
-    if (!remap.has(idx)) remap.set(idx, remap.size)
-  }
-
-  const semantics = prim.listSemantics()
-  for (const semantic of semantics) {
-    const attribute = prim.getAttribute(semantic)!
-    const itemSize = attribute.getElementSize()
-    const oldArray = attribute.getArray()!
-    const newArray = new (oldArray.constructor as new (n: number) => typeof oldArray)(
-      remap.size * itemSize
-    )
-    const elem = new Array(itemSize).fill(0)
-    for (const [oldIdx, newIdx] of remap) {
-      attribute.getElement(oldIdx, elem)
-      newArray.set(elem, newIdx * itemSize)
-    }
-    // Clone rather than mutate in place — an accessor could in principle be
-    // shared with another primitive; a fresh accessor for the compacted data
-    // keeps this trim scoped to pt2 no matter what.
-    const compacted = attribute.clone().setArray(newArray)
-    prim.setAttribute(semantic, compacted)
-  }
-
-  const remappedIndices = kept.map((idx) => remap.get(idx)!)
-  const newIndex = index
-    .clone()
-    .setArray(
-      remap.size <= 65535
-        ? Uint16Array.from(remappedIndices)
-        : Uint32Array.from(remappedIndices)
-    )
-  prim.setIndices(newIndex)
-  index.dispose()
+  // compactPrimitive moves the primitive onto fresh accessors holding only
+  // the vertices the kept triangles reference, so the trim stays scoped to
+  // pt2 even if an accessor is shared with another primitive.
+  prim.setIndices(index.clone().setArray(Uint32Array.from(kept)))
+  compactPrimitive(prim)
 
   return { before, after: kept.length / 3 }
 }
 
 async function main() {
-  const { input, output, threshold, tiltDegrees } = parseArgs()
+  const { input, output, threshold, tiltDegrees } = readArgs()
 
-  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS)
+  // The catalog GLBs are Draco-compressed (compress-models): decode them to
+  // edit the geometry, and re-encode on write.
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({
+      'draco3d.encoder': await draco3d.createEncoderModule(),
+      'draco3d.decoder': await draco3d.createDecoderModule()
+    })
 
   mkdirSync(output, { recursive: true })
 
