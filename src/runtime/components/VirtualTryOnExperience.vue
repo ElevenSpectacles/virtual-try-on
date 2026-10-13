@@ -17,6 +17,8 @@ import {
   type TryOnModel
 } from '../composables/tryon/useTryOnModels'
 import { useTryOnPlacement } from '../composables/tryon/useTryOnPlacement'
+import { useTryOnFit } from '../composables/tryon/useTryOnFit'
+import { useTryOnLighting } from '../composables/tryon/useTryOnLighting'
 import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
 import { useTryOnFrameLoop } from '../composables/tryon/useTryOnFrameLoop'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
@@ -27,24 +29,8 @@ import {
   createMetricsAccumulator,
   type TryOnSessionMetrics
 } from '../utils/tryon-metrics'
-import {
-  LIGHTING_SAMPLE_EVERY,
-  estimateFrameLighting,
-  lightingGain,
-  smoothFrameLighting,
-  type FrameLighting
-} from '../utils/tryon-lighting'
 import { CONTACT_SHADOW_STRENGTH } from '../utils/tryon-contact-shadow'
-import {
-  FIT_DEFAULT_TOLERANCE,
-  FIT_MIN_SAMPLES,
-  estimateFaceWidthMm,
-  faceWidthVerdict,
-  updateFaceWidthEstimate,
-  type FaceWidthEstimate,
-  type TryOnFit,
-  type TryOnFitVerdict
-} from '../utils/tryon-fit'
+import { FIT_DEFAULT_TOLERANCE, type TryOnFit } from '../utils/tryon-fit'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -236,17 +222,13 @@ const occluderEnabled = computed(
     capability.allows('occluder')
 )
 
-// Room lighting: while lighting is on, the worker returns a 16×16 downsample
-// of every LIGHTING_SAMPLE_EVERY-th detection frame, which is averaged here
-// and smoothed. With no
-// sample (lighting off, or OffscreenCanvas unavailable in the worker)
-// `frameLighting` stays null, which keeps the neutral studio lighting.
-const frameLighting = ref<FrameLighting | null>(null)
-const lastSampleMs = ref<number | null>(null)
-let detectionsSinceSample = 0
+// Room lighting (adaptive, mid tier): the face-landmarker worker returns a
+// small downsample of some detection frames, turned into a light gain/tint.
 const lightingEnabled = computed(
   () => props.adaptiveLighting && capability.allows('lightingEstimate')
 )
+const { wantFrameSample, onFrameSample, lightGain, lightTint, lighting } =
+  useTryOnLighting({ enabled: () => lightingEnabled.value })
 
 const {
   error: faceError,
@@ -267,19 +249,8 @@ const {
     ? { mediapipeModelAssetPath: props.mediapipeModelAssetPath }
     : {}),
   onLatency: (ms) => metrics?.onLatency(ms),
-  wantFrameSample: () => {
-    if (!lightingEnabled.value) return false
-    detectionsSinceSample = (detectionsSinceSample + 1) % LIGHTING_SAMPLE_EVERY
-    return detectionsSinceSample === 0
-  },
-  onFrameSample: (rgba, width, height, sampleMs) => {
-    if (!lightingEnabled.value) return
-    frameLighting.value = smoothFrameLighting(
-      frameLighting.value,
-      estimateFrameLighting(rgba, width, height)
-    )
-    lastSampleMs.value = sampleMs
-  }
+  wantFrameSample,
+  onFrameSample
 })
 
 // Session metrics (opt-in). With reportMetrics off there is no accumulator
@@ -405,45 +376,15 @@ const frameWidthMm = computed(() => {
   if (spec && spec > 0) return spec
   return glbWidthMeters.value * calibration.value.scale * 1000
 })
-const faceWidthEstimate = ref<FaceWidthEstimate | null>(null)
-const fitVerdict = ref<TryOnFitVerdict | null>(null)
-
-watch(faceLandmarks, () => {
-  if (!hasFace.value) {
-    faceWidthEstimate.value = null
-    return
-  }
-  faceWidthEstimate.value = updateFaceWidthEstimate(
-    faceWidthEstimate.value,
-    estimateFaceWidthMm(
-      poseCompensated(correctedEarWidth.value),
-      poseCompensated(correctedIpd.value)
-    )
-  )
+const fitState = useTryOnFit({
+  landmarks: faceLandmarks,
+  hasFace,
+  earWidth: () => poseCompensated(correctedEarWidth.value),
+  ipd: () => poseCompensated(correctedIpd.value),
+  frameWidthMm: () => frameWidthMm.value,
+  tolerance: () => props.fitTolerance
 })
-
-watch(
-  [faceWidthEstimate, frameWidthMm, () => props.fitTolerance],
-  ([estimate, frameWidth, tolerance]) => {
-    fitVerdict.value =
-      estimate && estimate.samples >= FIT_MIN_SAMPLES
-        ? faceWidthVerdict(estimate.mean, frameWidth, {
-            tolerance,
-            previous: fitVerdict.value
-          })
-        : null
-  }
-)
-
-const fit = computed<TryOnFit | null>(() =>
-  fitVerdict.value && faceWidthEstimate.value
-    ? {
-        verdict: fitVerdict.value,
-        faceWidthMm: faceWidthEstimate.value.mean,
-        frameWidthMm: frameWidthMm.value
-      }
-    : null
-)
+const fit = fitState.fit
 
 function onModelLoaded(widthMeters: number) {
   glbWidthMeters.value = widthMeters
@@ -493,17 +434,6 @@ async function start() {
 onMounted(() => {
   if (props.autoStart) void start()
 })
-
-// Room-lighting state, read-only on the ref (not the slot: hosts don't need
-// it for UI). `luma` is the smoothed room estimate (null while lighting is
-// off or unsampled), `gain` the light multiplier it drives, `sampleMs` the
-// worker's time for the last 16×16 downsample (one per
-// LIGHTING_SAMPLE_EVERY detections).
-const lighting = computed(() => ({
-  luma: lightingEnabled.value ? (frameLighting.value?.luma ?? null) : null,
-  gain: lightGain.value,
-  sampleMs: lastSampleMs.value
-}))
 
 // Hair-occlusion state, read-only on the ref: whether it runs, the share of
 // the frame the current mask calls hair, the worker's mean time per
@@ -605,19 +535,6 @@ function onSceneError(source: 'model' | 'environment', message: string) {
   })
 }
 
-// Light gain and tint from the smoothed room estimate; neutral (gain 1,
-// white) whenever lighting is disabled or no estimate is available.
-const lightGain = computed(() =>
-  lightingEnabled.value && frameLighting.value
-    ? lightingGain(frameLighting.value.luma)
-    : 1
-)
-const lightTint = computed<[number, number, number]>(() =>
-  lightingEnabled.value && frameLighting.value
-    ? frameLighting.value.tint
-    : [1, 1, 1]
-)
-
 // Contact shadow under the bridge and lenses, on the tracked skin only (the
 // occluder mesh is the skin). Its ellipse follows the face width, and its
 // strength follows the room light.
@@ -646,11 +563,12 @@ watch(hasFace, (detected) => {
 // One event per verdict change (per frame model too, since the frame width
 // changes), so the host can relate fit to conversion. Widths are rounded to
 // whole millimetres.
-watch(fitVerdict, (verdict) => {
-  if (!verdict || !faceWidthEstimate.value) return
+watch(fitState.verdict, (verdict) => {
+  const estimate = fitState.faceWidthEstimate.value
+  if (!verdict || !estimate) return
   trackTryOn('TRY_ON_FIT', {
     verdict,
-    faceWidthMm: Math.round(faceWidthEstimate.value.mean),
+    faceWidthMm: Math.round(estimate.mean),
     frameWidthMm: Math.round(frameWidthMm.value)
   })
 })
@@ -673,7 +591,7 @@ watch(model, (value) => {
   capability.resetWarmup()
   // The new frame has its own width: no verdict until its GLB has loaded.
   glbWidthMeters.value = 0
-  fitVerdict.value = null
+  fitState.reset()
   if (hasConsented.value) {
     trackTryOn('TRY_ON_FRAME_CHANGED', { model: value })
   }

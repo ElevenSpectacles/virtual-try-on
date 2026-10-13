@@ -52,13 +52,16 @@ face fixtures, not an eyeball verdict on one screenshot.
 
 ## Where fit lives
 
-- Scale: `autoMetricScale` in `VirtualTryOnExperience.vue` (ear width →
-  metric, `FRAME_FIT_SCALE_BOOST`), mirrored in the playground prototype —
-  change both.
-- Position: `framePosition` (anchor + `FRAME_BRIDGE_STANDOFF_METERS` along
-  the head's forward axis).
+- Scale and position: `composables/tryon/useTryOnPlacement.ts`, shared by
+  the shipped component and the playground prototype, so one change covers
+  both. Scale is `autoMetricScale` (ear width → metric,
+  `FRAME_FIT_SCALE_BOOST`); position is `framePosition` (anchor +
+  `FRAME_BRIDGE_STANDOFF_METERS` along the head's forward axis). The
+  prototype's sliders are its options; at their defaults it renders exactly
+  what ships.
 - Occluder: `utils/tryon-occluder.ts` (`inflate`, `collarFlare`,
-  `nearSideWeight`). Shipped component has it **off**; check the prototype.
+  `nearSideWeight`). On by default in the shipped component (module option
+  `occluder`); the prototype exposes its tuning knobs.
 - Per-model offsets: the host's `calibration.json`.
 
 ## Report
