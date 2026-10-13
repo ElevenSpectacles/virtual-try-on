@@ -4,7 +4,7 @@ import { useFaceLandmarker } from '../../../../src/runtime/composables/tryon/use
 import type {
   FaceLandmarkerWorkerRequest,
   FaceLandmarkerWorkerResponse
-} from '../../../../src/runtime/workers/face-landmarker.worker.types'
+} from '../../../../src/runtime/types/face-landmarker-worker'
 
 /**
  * Detection now runs in a Worker, so the tests fake the worker side: a

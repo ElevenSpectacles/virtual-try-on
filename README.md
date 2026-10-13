@@ -418,7 +418,15 @@ npm run compress-models -- --input <dir> --output <dir>
 ```
 
 Regenerate `calibration.json` after compressing, because compression can
-shift bounding boxes slightly.
+shift bounding boxes slightly:
+
+```bash
+npm run generate-calibration -- --input <dir> --output <dir>/calibration.json [--reference iris-bronze]
+```
+
+It recentres and scales every GLB against the reference frame, and keeps
+the fields you tuned by hand (`rotation`, `templeWidthBoost`, `lens`) when
+the output file already exists.
 
 ## Releasing
 

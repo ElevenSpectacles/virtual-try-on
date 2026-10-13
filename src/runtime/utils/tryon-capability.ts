@@ -18,7 +18,6 @@ export type TryOnFeature =
   | 'contactShadow'
   | 'lightingEstimate'
   | 'segmentationOccluder'
-  | 'lensRefraction'
   | 'physicalLens'
 
 /** Ascending: a higher index is a more capable device. */
@@ -26,17 +25,13 @@ export const TRY_ON_TIERS: readonly TryOnTier[] = ['low', 'mid', 'high']
 
 /**
  * Lowest tier that runs each feature — the single place that decides what a
- * feature costs. Features not built yet are listed so their gate is settled
- * before they land (see umbrella #4). `lensRefraction` stays unbuilt: the
- * catalog's plano lenses bend the background by under a pixel (see
- * utils/tryon-lens.ts); `physicalLens` is the lens realism that is visible.
+ * feature costs.
  */
 export const FEATURE_MIN_TIER: Record<TryOnFeature, TryOnTier> = {
   occluder: 'low',
   contactShadow: 'mid',
   lightingEstimate: 'mid',
   segmentationOccluder: 'high',
-  lensRefraction: 'high',
   // Fresnel opacity, clearcoat and thin-film sheen on the lens pixels only.
   physicalLens: 'mid'
 }

@@ -38,15 +38,6 @@ export interface TryOnModelCalibration {
    */
   templeWidthBoost?: number
   /**
-   * Approximate nose-bridge anchor relative to the model's bounding-box center.
-   * Used by future authoring tools; not consumed by the runtime composable yet.
-   */
-  noseBridgeOffset?: {
-    x: number
-    y: number
-    z: number
-  }
-  /**
    * Lens tint and density, replacing the GLB's authored lens colour and
    * opacity — e.g. one GLB shipped in several lens colours. Optional.
    */
