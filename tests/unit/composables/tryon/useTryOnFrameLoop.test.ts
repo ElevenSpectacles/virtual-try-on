@@ -2,32 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 import { useTryOnFrameLoop } from '../../../../src/runtime/composables/tryon/useTryOnFrameLoop'
 import { useTryOnElementSize } from '../../../../src/runtime/composables/tryon/useTryOnElementSize'
+import { stubRaf } from '../../support/raf'
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
 describe('useTryOnFrameLoop', () => {
-  function stubRaf() {
-    const queue = new Map<number, FrameRequestCallback>()
-    let nextId = 1
-    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-      queue.set(nextId, cb)
-      return nextId++
-    })
-    vi.stubGlobal('cancelAnimationFrame', (id: number) => queue.delete(id))
-    return {
-      frame(now: number) {
-        const pending = [...queue.values()]
-        queue.clear()
-        for (const cb of pending) cb(now)
-      },
-      get pending() {
-        return queue.size
-      }
-    }
-  }
-
   it('reports 0 on the first frame, then ms since the previous frame', () => {
     const raf = stubRaf()
     const deltas: number[] = []

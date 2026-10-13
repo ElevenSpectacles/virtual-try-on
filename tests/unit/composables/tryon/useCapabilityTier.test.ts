@@ -2,29 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 import { useCapabilityTier } from '../../../../src/runtime/composables/tryon/useCapabilityTier'
 import { FRAME_BUDGET_MS, type TryOnTier } from '../../../../src/runtime/utils/tryon-capability'
+import { stubRaf as stubFrames } from '../../support/raf'
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-/** rAF stand-in: `frame(now)` runs the pending callbacks with that timestamp. */
+/** Stubbed rAF (see support/raf) on a visible page. */
 function stubRaf() {
-  let pending: FrameRequestCallback | null = null
-  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-    pending = cb
-    return 1
-  })
-  vi.stubGlobal('cancelAnimationFrame', () => {
-    pending = null
-  })
   vi.stubGlobal('document', { hidden: false })
-  return {
-    frame(now: number) {
-      const cb = pending
-      pending = null
-      cb?.(now)
-    }
-  }
+  return stubFrames()
 }
 
 describe('useCapabilityTier forced tier', () => {

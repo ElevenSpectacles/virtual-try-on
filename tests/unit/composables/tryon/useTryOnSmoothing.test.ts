@@ -8,6 +8,7 @@ import {
   type Pose,
   type StreamFrame
 } from '../../support/landmark-stream'
+import { stubRaf } from '../../support/raf'
 
 /**
  * Smoothing against synthetic tracker output with known ground truth
@@ -22,27 +23,6 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-/** rAF stand-in: `frame()` runs the pending callback with the next timestamp. */
-function stubRaf() {
-  let pending: FrameRequestCallback | null = null
-  let now = 0
-  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-    pending = cb
-    return 1
-  })
-  vi.stubGlobal('cancelAnimationFrame', () => {
-    pending = null
-  })
-  return {
-    frame() {
-      now += FRAME_MS
-      const cb = pending
-      pending = null
-      cb?.(now)
-    }
-  }
-}
-
 interface Output {
   anchor: { x: number; y: number }
   euler: { x: number; y: number; z: number }
@@ -51,7 +31,7 @@ interface Output {
 
 /** Feed `stream` through the smoothing, one frame at a time, recording its outputs. */
 function run(stream: StreamFrame[], latencyMs = 0): Output[] {
-  const raf = stubRaf()
+  const raf = stubRaf(FRAME_MS)
   const anchor = ref({ x: 0, y: 0, z: 0 })
   const euler = ref({ x: 0, y: 0, z: 0 })
   const scale = ref(0)
