@@ -26,6 +26,7 @@ import { extname, join } from 'node:path'
 import { NodeIO, type Primitive } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import { prune } from '@gltf-transform/functions'
+import draco3d from 'draco3dgltf'
 
 const TEMPLE_NODE_NAME = 'pt2'
 
@@ -184,7 +185,14 @@ function trimPrimitive(prim: Primitive, threshold: number): { before: number; af
 async function main() {
   const { input, output, threshold, tiltDegrees } = parseArgs()
 
-  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS)
+  // The catalog GLBs are Draco-compressed (compress-models): decode them to
+  // edit the geometry, and re-encode on write.
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({
+      'draco3d.encoder': await draco3d.createEncoderModule(),
+      'draco3d.decoder': await draco3d.createDecoderModule()
+    })
 
   mkdirSync(output, { recursive: true })
 
