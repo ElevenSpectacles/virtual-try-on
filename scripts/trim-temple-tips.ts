@@ -21,6 +21,10 @@
 // so tilting the tip toward the top of the ear means rotating the kept
 // vertices around the hinge in the local X/Z plane (a pitch around the
 // left/right axis), not touching Y.
+//
+// Run it once per new model, never again on already-trimmed GLBs: the trim
+// finds nothing left to cut, but every run tilts the shaft another
+// --tilt-degrees.
 import { readdirSync, mkdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { parseArgs } from 'node:util'

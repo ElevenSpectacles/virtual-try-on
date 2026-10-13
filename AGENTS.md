@@ -141,7 +141,9 @@ Key facts:
     bounding boxes by float rounding).
   - `trim-temple-tips.ts` — shortens curled ear-hook temple tips on catalog
     GLBs. Only ever run against `public/models/virtual-try-on`, **never**
-    `public/models/original` or `public/models/compressed`.
+    `public/models/original` or `public/models/compressed`. Run it once per
+    new model, never again on already-trimmed GLBs: every run tilts the
+    temples another `--tilt-degrees` (6° by default).
   - `fetch-footage.mjs` (`npm run fetch-footage`) — downloads stock portrait
     clips (Mixkit, free licence, no redistribution) into the OS temp dir and
     converts them to 480×640 Y4M for `TRYON_VIDEO_CLIP`. Never commit them.
