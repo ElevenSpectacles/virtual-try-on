@@ -7,30 +7,8 @@
  * default slot (and the component ref) exposes. Slot content is rendered on
  * top of the feed inside the stage.
  */
-import { NeutralToneMapping, VSMShadowMap, Euler, Vector3 } from 'three'
-import {
-  landmarkToWorld,
-  computeMetricBaseScale,
-  computeMetricScaleFromMeasure,
-  compensateMeasureForPose,
-  getInterPupillaryDistance,
-  computeHeadOccluderGeometry,
-  worldPlaneWidth,
-  objectCoverWindow,
-  mapLandmarkToObjectCover,
-  getFaceWidth,
-  getEarWidth,
-  shouldHoldScaleForBlink,
-  ASSUMED_FACE_WIDTH_METERS,
-  ASSUMED_EAR_WIDTH_METERS,
-  ASSUMED_IPD_METERS,
-  FRAME_FIT_SCALE_BOOST,
-  FRAME_BRIDGE_STANDOFF_METERS,
-  headForwardOffset,
-  type NormalizedLandmark
-} from '../utils/tryon'
-import { faceEulerToThree } from '../utils/tryon-pose'
-import { buildFaceMeshOccluderPositions } from '../utils/tryon-occluder'
+import { NeutralToneMapping, VSMShadowMap } from 'three'
+import { objectCoverWindow } from '../utils/tryon'
 import { useWebcamStream } from '../composables/tryon/useWebcamStream'
 import { useFaceLandmarker } from '../composables/tryon/useFaceLandmarker'
 import { useFrameCalibration } from '../composables/tryon/useFrameCalibration'
@@ -38,8 +16,11 @@ import {
   getTryOnModel,
   type TryOnModel
 } from '../composables/tryon/useTryOnModels'
-import { useTryOnSmoothing } from '../composables/tryon/useTryOnSmoothing'
+import { useTryOnPlacement } from '../composables/tryon/useTryOnPlacement'
+import { useTryOnFit } from '../composables/tryon/useTryOnFit'
+import { useTryOnLighting } from '../composables/tryon/useTryOnLighting'
 import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
+import { useTryOnFrameLoop } from '../composables/tryon/useTryOnFrameLoop'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
 import { useHairSegmenter } from '../composables/tryon/useHairSegmenter'
 import { maskCoverage } from '../utils/tryon-hair'
@@ -48,24 +29,8 @@ import {
   createMetricsAccumulator,
   type TryOnSessionMetrics
 } from '../utils/tryon-metrics'
-import {
-  LIGHTING_SAMPLE_EVERY,
-  estimateFrameLighting,
-  lightingGain,
-  smoothFrameLighting,
-  type FrameLighting
-} from '../utils/tryon-lighting'
 import { CONTACT_SHADOW_STRENGTH } from '../utils/tryon-contact-shadow'
-import {
-  FIT_DEFAULT_TOLERANCE,
-  FIT_MIN_SAMPLES,
-  estimateFaceWidthMm,
-  faceWidthVerdict,
-  updateFaceWidthEstimate,
-  type FaceWidthEstimate,
-  type TryOnFit,
-  type TryOnFitVerdict
-} from '../utils/tryon-fit'
+import { FIT_DEFAULT_TOLERANCE, type TryOnFit } from '../utils/tryon-fit'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -247,15 +212,6 @@ if (!model.value) {
 }
 const modelSrc = computed(() => `${props.modelBaseUrl}/${model.value}.glb`)
 const calibration = computed(() => getCalibration(model.value ?? initialModel))
-const referenceFaceWidth = ref(0.32)
-// The calibration translation now y-centers each model's bbox on the anchor
-// landmark, which is where the lens line naturally sits — the old -0.08
-// world-unit drop predates that recentring and would double-lower the frame.
-const DEFAULT_ANCHOR_Y_OFFSET = 0
-const debugYOffset = ref(0)
-const debugZOffset = ref(0)
-const debugScaleBoost = ref(1)
-const mirrorLandmarks = true
 const useFaceTracking = ref(true)
 const runtimeConfig = useRuntimeConfig()
 // Each feature runs only when the host opted in AND the device tier allows
@@ -266,148 +222,13 @@ const occluderEnabled = computed(
     capability.allows('occluder')
 )
 
-// Normalized inter-pupillary distance from the iris landmarks — varies far
-// less between people than cheek-to-cheek width, so it stays the fallback
-// when face width isn't trackable.
-const correctedIpd = computed(() =>
-  getInterPupillaryDistance(correctedFaceLandmarks.value)
-)
-
-// Normalized ear-to-ear width (face-oval points at temple height) — the
-// measure a real frame is sized from: the temple arms must span it. Drives
-// the metric scale when trackable.
-const correctedEarWidth = computed(() =>
-  getEarWidth(correctedFaceLandmarks.value)
-)
-
-// Undo the cos(yaw)·cos(pitch) foreshortening of an on-screen measure so the
-// frame does not shrink when the head turns.
-function poseCompensated(measure: number): number {
-  if (!facePose.value) return measure
-  return compensateMeasureForPose(
-    measure,
-    facePose.value.euler.yaw,
-    facePose.value.euler.pitch
-  )
-}
-
-// GLBs are authored in metres — derive scale metrically from the tracked
-// ear-to-ear width (what a frame's temple arms actually span), falling back
-// to cheek width, to IPD, and to the static reference width while no face
-// is tracked. Same chain as VirtualTryOnPrototype, so playground tuning transfers
-// 1:1.
-const scaleSource = computed<'ear' | 'width' | 'ipd' | 'manual'>(() => {
-  if (!hasFace.value) return 'manual'
-  if (correctedEarWidth.value > 0) return 'ear'
-  return correctedFaceWidth.value > 0 ? 'width' : 'ipd'
-})
-
-const autoMetricScale = computed(() => {
-  if (scaleSource.value === 'manual') {
-    return computeMetricBaseScale(aspect.value, referenceFaceWidth.value)
-  }
-  const measure =
-    scaleSource.value === 'ear'
-      ? ([correctedEarWidth.value, ASSUMED_EAR_WIDTH_METERS] as const)
-      : scaleSource.value === 'width'
-        ? ([correctedFaceWidth.value, ASSUMED_FACE_WIDTH_METERS] as const)
-        : ([correctedIpd.value, ASSUMED_IPD_METERS] as const)
-  // Tracked sources get the fit boost on top — a real frame is worn
-  // slightly wider than the skull (see FRAME_FIT_SCALE_BOOST).
-  return (
-    computeMetricScaleFromMeasure(aspect.value, poseCompensated(measure[0]), measure[1]) *
-    FRAME_FIT_SCALE_BOOST
-  )
-})
-
-const calibratedScale = computed(
-  () =>
-    autoMetricScale.value *
-    calibration.value.scale *
-    debugScaleBoost.value *
-    props.frameScale
-)
-
-// The occluder must stay skull-sized when the head turns: the cheek-to-cheek
-// measure foreshortens by cos(yaw)·cos(pitch), so compensate it the same way
-// the scale path does — otherwise the ellipsoid shrinks at yaw and the far
-// temple arm escapes it, rendering on top of the face.
-const faceWorldHalfWidth = computed(
-  () =>
-    (worldPlaneWidth(aspect.value) *
-      (correctedFaceWidth.value
-        ? poseCompensated(correctedFaceWidth.value)
-        : referenceFaceWidth.value)) /
-    2
-)
-
-const occluderGeometry = computed(() =>
-  computeHeadOccluderGeometry(faceWorldHalfWidth.value, {
-    widthRatio: 1.3,
-    heightRatio: 1.3,
-    depthRatio: 1.4
-  })
-)
-
-// Push-back is applied along the head's own backward axis, not the camera's:
-// at yaw the skull sits diagonally behind the nose bridge, and pushing
-// straight back along camera Z drifts the ellipsoid off the head, exposing
-// the far temple arm it exists to hide.
-//
-// Calibration anchors each frame at its front face, so the ellipsoid's front
-// surface must sit behind that plane — at the eye/cheek plane a real face
-// recesses behind the nose-ridge anchor (same convention as the head-shell
-// cap: just past the frame's endpiece wrap, ~15mm). Pushing it back by a
-// frame half-depth on top (the pre-shell convention) leaves a gap where the
-// frame's front half renders on top of the head.
-const EYE_PLANE_SETBACK_METERS = 0.015
-const occluderPosition = computed(() => {
-  const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
-    mirror: mirrorLandmarks
-  })
-  const setback = EYE_PLANE_SETBACK_METERS * smoothedScale.value
-  const rot = smoothedEuler.value
-  const back = new Vector3(
-    0,
-    0,
-    -(occluderGeometry.value.radiusZ + setback)
-  ).applyEuler(new Euler(rot.x, rot.y, rot.z))
-  return {
-    x: position.x + back.x,
-    y: position.y + back.y,
-    z: debugZOffset.value + back.z
-  }
-})
-
-const faceRotation = computed(() => {
-  if (!useFaceTracking.value || !facePose.value) return null
-  const euler = faceEulerToThree(facePose.value.euler)
-  return {
-    x: euler.x + calibration.value.rotation.x,
-    y: euler.y + calibration.value.rotation.y,
-    z: euler.z + calibration.value.rotation.z
-  }
-})
-
-// Rotation target while no face is tracked — the frame is hidden then, so
-// this only keeps the smoothing filters fed with a sane value.
-const restingRotation = computed(() => ({
-  x: calibration.value.rotation.x,
-  y: calibration.value.rotation.y,
-  z: calibration.value.rotation.z
-}))
-
-// Room lighting: while lighting is on, the worker returns a 16×16 downsample
-// of every LIGHTING_SAMPLE_EVERY-th detection frame, which is averaged here
-// and smoothed. With no
-// sample (lighting off, or OffscreenCanvas unavailable in the worker)
-// `frameLighting` stays null, which keeps the neutral studio lighting.
-const frameLighting = ref<FrameLighting | null>(null)
-const lastSampleMs = ref<number | null>(null)
-let detectionsSinceSample = 0
+// Room lighting (adaptive, mid tier): the face-landmarker worker returns a
+// small downsample of some detection frames, turned into a light gain/tint.
 const lightingEnabled = computed(
   () => props.adaptiveLighting && capability.allows('lightingEstimate')
 )
+const { wantFrameSample, onFrameSample, lightGain, lightTint, lighting } =
+  useTryOnLighting({ enabled: () => lightingEnabled.value })
 
 const {
   error: faceError,
@@ -428,19 +249,8 @@ const {
     ? { mediapipeModelAssetPath: props.mediapipeModelAssetPath }
     : {}),
   onLatency: (ms) => metrics?.onLatency(ms),
-  wantFrameSample: () => {
-    if (!lightingEnabled.value) return false
-    detectionsSinceSample = (detectionsSinceSample + 1) % LIGHTING_SAMPLE_EVERY
-    return detectionsSinceSample === 0
-  },
-  onFrameSample: (rgba, width, height, sampleMs) => {
-    if (!lightingEnabled.value) return
-    frameLighting.value = smoothFrameLighting(
-      frameLighting.value,
-      estimateFrameLighting(rgba, width, height)
-    )
-    lastSampleMs.value = sampleMs
-  }
+  wantFrameSample,
+  onFrameSample
 })
 
 // Session metrics (opt-in). With reportMetrics off there is no accumulator
@@ -510,33 +320,9 @@ const hairActive = computed(
     !hairSegmenter.error.value
 )
 
-const correctedFaceLandmarks = computed(() =>
-  faceLandmarks.value.map((lm) =>
-    mapLandmarkToObjectCover(lm, coverWindow.value)
-  )
-)
-const correctedFaceAnchor = computed(() =>
-  faceAnchor.value
-    ? mapLandmarkToObjectCover(faceAnchor.value, coverWindow.value)
-    : null
-)
-const correctedFaceWidth = computed(() =>
-  getFaceWidth(correctedFaceLandmarks.value)
-)
-
 const templeScaleBoost = computed(
   () => calibration.value.templeWidthBoost * props.templeWidth
 )
-
-// Anchor target while no face is tracked (hidden frame, see above).
-const RESTING_ANCHOR: NormalizedLandmark = { x: 0.5, y: 0.45 }
-
-const effectiveLandmark = computed<NormalizedLandmark>(() => {
-  if (useFaceTracking.value && hasFace.value && correctedFaceAnchor.value) {
-    return correctedFaceAnchor.value
-  }
-  return RESTING_ANCHOR
-})
 
 // The frame renders only on a tracked face: never before the camera starts
 // (the host owns that screen — consent, previews), and not while tracking
@@ -546,70 +332,32 @@ const frameVisible = computed(
   () => isActive.value && useFaceTracking.value && hasFace.value
 )
 
-const { smoothedAnchor, smoothedEuler, smoothedScale } = useTryOnSmoothing({
-  targetAnchor: effectiveLandmark,
-  targetEuler: computed(() => faceRotation.value ?? restingRotation.value),
-  targetScale: calibratedScale,
-  isTracking: computed(() => useFaceTracking.value && hasFace.value),
+// Where the frame goes (shared with the playground prototype): scale from
+// the tracked face, smoothed pose, world position and the occluders.
+const {
+  correctedAnchor: correctedFaceAnchor,
+  earWidth: correctedEarWidth,
+  ipd: correctedIpd,
+  poseCompensated,
+  smoothedEuler,
+  smoothedScale,
+  framePosition,
+  occluderGeometry,
+  occluderPosition,
+  occluderPositions
+} = useTryOnPlacement({
+  landmarks: faceLandmarks,
+  anchor: faceAnchor,
+  pose: facePose,
+  blinkScore: faceBlinkScore,
   latencyMs: faceLatencyMs,
-  // Iris landmarks drift while the eyelid covers the iris — freeze scale
-  // for the blink instead of letting the frame visibly change size.
-  holdScale: computed(() =>
-    shouldHoldScaleForBlink(
-      faceBlinkScore.value,
-      faceLandmarks.value,
-      mediaAspect.value || 1
-    )
-  )
-})
-
-// Face-mesh occluder vertices, rebuilt per detection. Shape comes from the
-// RAW landmarks/pose (so the mesh hugs the real face surface); placement
-// comes from the SMOOTHED anchor/euler/scale the glasses render with — the
-// mesh and frame move as one rigid body and occluder edges never shimmer
-// against the glasses. Null when no face is tracked → the scene falls back
-// to the ellipsoid proxy.
-const occluderPositions = computed(() => {
-  if (
-    !useFaceTracking.value ||
-    !hasFace.value ||
-    !facePose.value ||
-    !faceRotation.value ||
-    !correctedFaceAnchor.value
-  ) {
-    return null
-  }
-  return buildFaceMeshOccluderPositions({
-    landmarks: correctedFaceLandmarks.value,
-    aspect: aspect.value,
-    mirror: mirrorLandmarks,
-    rawAnchor: correctedFaceAnchor.value,
-    rawEuler: faceRotation.value,
-    smoothedAnchor: smoothedAnchor.value,
-    smoothedEuler: smoothedEuler.value,
-    scale: smoothedScale.value
-  })
-})
-
-// The calibration recentring translation is NOT applied here — it is passed
-// to the scene as `model-offset` and applied inside the rotated group, so it
-// pivots with the head. Adding it to this world-space position kept the
-// recentring un-rotated and drifted the frame sideways at yaw.
-const framePosition = computed(() => {
-  const position = landmarkToWorld(smoothedAnchor.value, aspect.value, {
-    mirror: mirrorLandmarks
-  })
-  // The frame front stands off the face along the head's forward axis
-  // (see FRAME_BRIDGE_STANDOFF_METERS).
-  const standoff = headForwardOffset(
-    smoothedEuler.value,
-    FRAME_BRIDGE_STANDOFF_METERS * smoothedScale.value
-  )
-  return {
-    x: position.x + standoff.x,
-    y: position.y + standoff.y + DEFAULT_ANCHOR_Y_OFFSET + debugYOffset.value,
-    z: standoff.z + debugZOffset.value
-  }
+  hasFace,
+  faceTracking: () => useFaceTracking.value,
+  aspect,
+  coverWindow,
+  mediaAspect,
+  calibration,
+  scaleMultiplier: () => props.frameScale
 })
 
 const guideHint = computed<TryOnGuideHint | null>(() => {
@@ -628,45 +376,15 @@ const frameWidthMm = computed(() => {
   if (spec && spec > 0) return spec
   return glbWidthMeters.value * calibration.value.scale * 1000
 })
-const faceWidthEstimate = ref<FaceWidthEstimate | null>(null)
-const fitVerdict = ref<TryOnFitVerdict | null>(null)
-
-watch(faceLandmarks, () => {
-  if (!hasFace.value) {
-    faceWidthEstimate.value = null
-    return
-  }
-  faceWidthEstimate.value = updateFaceWidthEstimate(
-    faceWidthEstimate.value,
-    estimateFaceWidthMm(
-      poseCompensated(correctedEarWidth.value),
-      poseCompensated(correctedIpd.value)
-    )
-  )
+const fitState = useTryOnFit({
+  landmarks: faceLandmarks,
+  hasFace,
+  earWidth: () => poseCompensated(correctedEarWidth.value),
+  ipd: () => poseCompensated(correctedIpd.value),
+  frameWidthMm: () => frameWidthMm.value,
+  tolerance: () => props.fitTolerance
 })
-
-watch(
-  [faceWidthEstimate, frameWidthMm, () => props.fitTolerance],
-  ([estimate, frameWidth, tolerance]) => {
-    fitVerdict.value =
-      estimate && estimate.samples >= FIT_MIN_SAMPLES
-        ? faceWidthVerdict(estimate.mean, frameWidth, {
-            tolerance,
-            previous: fitVerdict.value
-          })
-        : null
-  }
-)
-
-const fit = computed<TryOnFit | null>(() =>
-  fitVerdict.value && faceWidthEstimate.value
-    ? {
-        verdict: fitVerdict.value,
-        faceWidthMm: faceWidthEstimate.value.mean,
-        frameWidthMm: frameWidthMm.value
-      }
-    : null
-)
+const fit = fitState.fit
 
 function onModelLoaded(widthMeters: number) {
   glbWidthMeters.value = widthMeters
@@ -716,17 +434,6 @@ async function start() {
 onMounted(() => {
   if (props.autoStart) void start()
 })
-
-// Room-lighting state, read-only on the ref (not the slot: hosts don't need
-// it for UI). `luma` is the smoothed room estimate (null while lighting is
-// off or unsampled), `gain` the light multiplier it drives, `sampleMs` the
-// worker's time for the last 16×16 downsample (one per
-// LIGHTING_SAMPLE_EVERY detections).
-const lighting = computed(() => ({
-  luma: lightingEnabled.value ? (frameLighting.value?.luma ?? null) : null,
-  gain: lightGain.value,
-  sampleMs: lastSampleMs.value
-}))
 
 // Hair-occlusion state, read-only on the ref: whether it runs, the share of
 // the frame the current mask calls hair, the worker's mean time per
@@ -828,19 +535,6 @@ function onSceneError(source: 'model' | 'environment', message: string) {
   })
 }
 
-// Light gain and tint from the smoothed room estimate; neutral (gain 1,
-// white) whenever lighting is disabled or no estimate is available.
-const lightGain = computed(() =>
-  lightingEnabled.value && frameLighting.value
-    ? lightingGain(frameLighting.value.luma)
-    : 1
-)
-const lightTint = computed<[number, number, number]>(() =>
-  lightingEnabled.value && frameLighting.value
-    ? frameLighting.value.tint
-    : [1, 1, 1]
-)
-
 // Contact shadow under the bridge and lenses, on the tracked skin only (the
 // occluder mesh is the skin). Its ellipse follows the face width, and its
 // strength follows the room light.
@@ -869,11 +563,12 @@ watch(hasFace, (detected) => {
 // One event per verdict change (per frame model too, since the frame width
 // changes), so the host can relate fit to conversion. Widths are rounded to
 // whole millimetres.
-watch(fitVerdict, (verdict) => {
-  if (!verdict || !faceWidthEstimate.value) return
+watch(fitState.verdict, (verdict) => {
+  const estimate = fitState.faceWidthEstimate.value
+  if (!verdict || !estimate) return
   trackTryOn('TRY_ON_FIT', {
     verdict,
-    faceWidthMm: Math.round(faceWidthEstimate.value.mean),
+    faceWidthMm: Math.round(estimate.mean),
     frameWidthMm: Math.round(frameWidthMm.value)
   })
 })
@@ -896,7 +591,7 @@ watch(model, (value) => {
   capability.resetWarmup()
   // The new frame has its own width: no verdict until its GLB has loaded.
   glbWidthMeters.value = 0
-  fitVerdict.value = null
+  fitState.reset()
   if (hasConsented.value) {
     trackTryOn('TRY_ON_FRAME_CHANGED', { model: value })
   }

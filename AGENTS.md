@@ -66,6 +66,14 @@ Key facts:
     loop, pose/confidence exposure.
   - `useWebcamStream.ts` — webcam lifecycle (`getUserMedia`).
   - `useTryOnSmoothing.ts` — One-Euro filtering of landmarks/pose.
+  - `useTryOnPlacement.ts` — landmarks → scale, smoothed pose, frame
+    position and occluders for `TryOnScene`. Shared by the component and the
+    playground prototype (its tuning knobs are the options), so a fit change
+    is made once.
+  - `useTryOnFit.ts` — fit-verdict glue: per-detection face-width estimate,
+    verdict with hysteresis, `reset()` on a frame change.
+  - `useTryOnLighting.ts` — room-lighting glue: which detections ask the
+    worker for a sample, and the smoothed light gain/tint.
   - `useTryOnFrameLoop.ts` / `useTryOnElementSize.ts` — rAF loop and
     ResizeObserver size, the module's own stand-ins for VueUse.
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
@@ -116,8 +124,9 @@ Key facts:
 - `playground/` — standalone dev-only Nuxt app (`npm run playground`, port
   4000). Consumes this repo through `src/module.ts` itself (dogfooding the exact
   host integration), mounts `playground/components/VirtualTryOnPrototype.vue`
-  (tuning UI: model picker, sliders, occluder/bounding-box debug views,
-  `?model=` + `?debug_tryon=true`), and serves GLBs + `calibration.json` from
+  (tuning UI on the same `useTryOnPlacement` as the component: model picker,
+  sliders, occluder/bounding-box debug views, `?model=` + `?debug_tryon=true`),
+  runs with auto-imports off like a strict host, and serves GLBs + `calibration.json` from
   the host checkout via nitro `publicAssets` (override with
   `TRYON_MODELS_DIR`). Not part of the shipped module.
 - `scripts/` — CLIs:
