@@ -1,5 +1,53 @@
 # Changelog
 
+## [4.8.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.7.1...v4.8.0) (2026-10-13)
+
+
+### Features
+
+* contact shadow from a shadow map of the frame ([#6](https://github.com/ElevenSpectacles/virtual-try-on/issues/6)) ([d59fe50](https://github.com/ElevenSpectacles/virtual-try-on/commit/d59fe509e284f9eee988aedff7a2c3dda1dbfad6))
+* contact shadow from a shadow map of the frame ([#6](https://github.com/ElevenSpectacles/virtual-try-on/issues/6)) ([a69146e](https://github.com/ElevenSpectacles/virtual-try-on/commit/a69146e967cd9be39f7a8f0f61bc48c5883c2d1a))
+* fit verdict, frame width vs the tracked face's width ([#12](https://github.com/ElevenSpectacles/virtual-try-on/issues/12)) ([4046a25](https://github.com/ElevenSpectacles/virtual-try-on/commit/4046a25f83918d44c36a408dabfb9c02243197c4))
+* fit verdict, frame width vs the tracked face's width ([#12](https://github.com/ElevenSpectacles/virtual-try-on/issues/12)) ([ff72909](https://github.com/ElevenSpectacles/virtual-try-on/commit/ff729090d70bd72622d8944efc69de02bcb7495a))
+* opt-in hair occlusion of the temple arms ([#9](https://github.com/ElevenSpectacles/virtual-try-on/issues/9)) ([a9425b9](https://github.com/ElevenSpectacles/virtual-try-on/commit/a9425b9783a466a5a65cd1b6bd32a1d9b954779e))
+* opt-in hair occlusion of the temple arms ([#9](https://github.com/ElevenSpectacles/virtual-try-on/issues/9)) ([b4d42c5](https://github.com/ElevenSpectacles/virtual-try-on/commit/b4d42c58a20be27dca78957e98a765ae389bea22))
+* physically-based lens, Fresnel opacity and AR-coating sheen ([#10](https://github.com/ElevenSpectacles/virtual-try-on/issues/10)) ([0e60039](https://github.com/ElevenSpectacles/virtual-try-on/commit/0e60039bb60ec20ccb7fab356ae42ebc3d7ce2c4))
+* physically-based lens, Fresnel opacity and AR-coating sheen ([#10](https://github.com/ElevenSpectacles/virtual-try-on/issues/10)) ([5bbfc24](https://github.com/ElevenSpectacles/virtual-try-on/commit/5bbfc24043bd36a97bb7deef5eff453033b826e0))
+
+
+### Bug Fixes
+
+* import useTryOnFrameLoop in the experience component ([caceb3b](https://github.com/ElevenSpectacles/virtual-try-on/commit/caceb3b87f5c5fd94cf484714be91b76b5890d49))
+* keep rotation smoothing on and a still head still under latency prediction ([647332b](https://github.com/ElevenSpectacles/virtual-try-on/commit/647332b401688bf4f314f363339344d29ba82d6c)), closes [#15](https://github.com/ElevenSpectacles/virtual-try-on/issues/15)
+* seat the frame on rigid bridge landmarks, not the iris ([#11](https://github.com/ElevenSpectacles/virtual-try-on/issues/11)) ([4889694](https://github.com/ElevenSpectacles/virtual-try-on/commit/4889694bdd1db2e32e754f29a75be461e988dd0b))
+* seat the frame on rigid bridge landmarks, not the iris ([#11](https://github.com/ElevenSpectacles/virtual-try-on/issues/11)) ([c23d9d4](https://github.com/ElevenSpectacles/virtual-try-on/commit/c23d9d470894c3a207db1e39eb9c0a3b082f989a))
+
+
+### Performance
+
+* sample room lighting in the worker, one frame in four ([#5](https://github.com/ElevenSpectacles/virtual-try-on/issues/5)) ([7de3122](https://github.com/ElevenSpectacles/virtual-try-on/commit/7de3122831edf075ef31f8edee5e96a95f1543f7))
+
+
+### Documentation
+
+* README for hair occlusion ([#9](https://github.com/ElevenSpectacles/virtual-try-on/issues/9)) ([0cd2601](https://github.com/ElevenSpectacles/virtual-try-on/commit/0cd26014b9853451f11ef460ae33024be37508e4))
+* README for the fit verdict, physical lens, contact shadow and lighting state ([c7486f1](https://github.com/ElevenSpectacles/virtual-try-on/commit/c7486f1c7a1f85f5e53931341303ec9a9103a4e5))
+* README for the fit verdict, physical lens, contact shadow and lighting state ([62ccf6a](https://github.com/ElevenSpectacles/virtual-try-on/commit/62ccf6a242d74f874bf42e3e8ddc921ec59d065e))
+* README note on fetching real footage ([e64a0ac](https://github.com/ElevenSpectacles/virtual-try-on/commit/e64a0acc9102cbae33059b98d853e9793c17b740))
+* research spike on a web path to TrueDepth / metric depth ([#19](https://github.com/ElevenSpectacles/virtual-try-on/issues/19)) ([d563bd7](https://github.com/ElevenSpectacles/virtual-try-on/commit/d563bd79fda2720a26f4969c7338aa3b8ebb0ae2))
+* research spike on a web path to TrueDepth / metric depth ([#19](https://github.com/ElevenSpectacles/virtual-try-on/issues/19)) ([a8e74c9](https://github.com/ElevenSpectacles/virtual-try-on/commit/a8e74c93a00b9a099d5db689fb3419de5acbf283))
+* run trim-temple-tips once per model ([612d8a8](https://github.com/ElevenSpectacles/virtual-try-on/commit/612d8a811261f013973f91f444d72c9bdbe39bbe))
+
+
+### Refactoring
+
+* drop the never-built lensRefraction tier and unused noseBridgeOffset ([f056ba6](https://github.com/ElevenSpectacles/virtual-try-on/commit/f056ba60f630dc5a573e2f9721005cec705ab090))
+* keep both workers' message types in types/ ([efb6a89](https://github.com/ElevenSpectacles/virtual-try-on/commit/efb6a8997d2d5a955ec0e49dbcd9b56df098505e))
+* move fit-verdict and room-lighting glue into composables ([54a2c43](https://github.com/ElevenSpectacles/virtual-try-on/commit/54a2c43339101b2ecda1b9159257eb663626f49e))
+* move frame placement into useTryOnPlacement ([fbd4263](https://github.com/ElevenSpectacles/virtual-try-on/commit/fbd426301b63029ade39c8af5c37aac73bb57f87))
+* one placement pipeline for the component and the playground ([43ecc80](https://github.com/ElevenSpectacles/virtual-try-on/commit/43ecc80ec8c6e7050865a3fa0d165ed3a40f3abd))
+* run the playground prototype on useTryOnPlacement ([d80a23f](https://github.com/ElevenSpectacles/virtual-try-on/commit/d80a23f85bb4b72c3f692b272b9e0b8b9dd35fc9))
+
 ## [4.7.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.7.0...v4.7.1) (2026-10-10)
 
 
