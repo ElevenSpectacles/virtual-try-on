@@ -80,6 +80,7 @@ current state and actions:
 
 ```vue
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { TryOnModel } from '@eleven.spectacles/virtual-try-on'
 
 const models: TryOnModel[] = [
