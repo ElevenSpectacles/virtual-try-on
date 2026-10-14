@@ -279,7 +279,7 @@ you want the before/after baseline; the module sends nothing itself.
 
 ### Hair occlusion (opt-in)
 
-With `hair-occlusion`, a MediaPipe hair segmenter finds hair in the camera
+With `hairOcclusion`, a MediaPipe hair segmenter finds hair in the camera
 frame, and the temple arms are not drawn where hair hangs over them, so the
 customer's own hair shows in front, as in a mirror. Only the arms behind the
 temple roots can be hidden; lenses, rims and hinges always stay on top.
@@ -356,7 +356,7 @@ function onTrack(event: string, payload: Record<string, unknown>) {
 | `face_landmarker` | `'unsupported'` \| `'load_failed'` \| `'runtime_failed'` | Feed shows, no tracking; slot `faceError` is set. |
 | `model` | `'load_failed'` | The GLB failed to load; `message` starts with its URL. |
 | `environment` | `'load_failed'` | Reflections lost; the frame still renders. |
-| `hair_segmenter` | `'unsupported'` \| `'load_failed'` | Only with `hair-occlusion`: hair occlusion is off; the face-mesh occluder still works. |
+| `hair_segmenter` | `'unsupported'` \| `'load_failed'` | Only with `hairOcclusion`: hair occlusion is off; the face-mesh occluder still works. |
 
 A denied camera permission is reported as `TRY_ON_CAMERA_DENIED`, not as an
 error.
