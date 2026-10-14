@@ -366,8 +366,8 @@ error.
 By default the MediaPipe Wasm, the face model and the Draco decoder load
 from public CDNs on first use. To remove those dependencies (for a strict
 CSP or offline use), serve the files yourself and pass
-`mediapipe-base-path`, `mediapipe-model-asset-path` and
-`draco-decoder-path` (and `mediapipe-hair-model-asset-path` if you turn on
+`mediapipeBasePath`, `mediapipeModelAssetPath` and
+`dracoDecoderPath` (and `mediapipeHairModelAssetPath` if you turn on
 hair occlusion). Serve the Wasm fileset from the same
 `@mediapipe/tasks-vision` version the module pins (see its `package.json`) —
 mixed versions are unsupported.
