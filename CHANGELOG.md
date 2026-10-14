@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.8.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.8.0...v4.8.1) (2026-10-14)
+
+
+### Documentation
+
+* import ref in the usage example ([980c62d](https://github.com/ElevenSpectacles/virtual-try-on/commit/980c62dfbc60c6b7dbfa135f7cf87901a31a7e0a))
+* import ref in the usage example ([725c0b0](https://github.com/ElevenSpectacles/virtual-try-on/commit/725c0b002e4d1f965ed35be8ea336c34e53de090))
+* use camelCase prop names in self-hosting section ([0c3a2f1](https://github.com/ElevenSpectacles/virtual-try-on/commit/0c3a2f1da4c1c6df30eaffa4433899f8af054e82))
+* use camelCase prop names in self-hosting section ([08b6741](https://github.com/ElevenSpectacles/virtual-try-on/commit/08b67415c1c05827e1aa2ecb81ba8783d108c3a9))
+
 ## [4.8.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.7.1...v4.8.0) (2026-10-13)
 
 
