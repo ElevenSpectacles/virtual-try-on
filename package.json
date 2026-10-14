@@ -2,8 +2,29 @@
   "name": "@eleven.spectacles/virtual-try-on",
   "version": "4.8.0",
   "description": "Nuxt module: virtual try-on for 3D eyewear over a live camera feed (MediaPipe + TresJS).",
+  "keywords": [
+    "nuxt",
+    "nuxt-module",
+    "vue",
+    "virtual-try-on",
+    "try-on",
+    "eyewear",
+    "glasses",
+    "face-tracking",
+    "face-landmarker",
+    "mediapipe",
+    "tresjs",
+    "threejs",
+    "webgl",
+    "webcam",
+    "augmented-reality",
+    "glb"
+  ],
   "license": "UNLICENSED",
   "homepage": "https://elevenspectacles.com",
+  "bugs": {
+    "url": "https://github.com/ElevenSpectacles/virtual-try-on/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ElevenSpectacles/virtual-try-on.git"
@@ -30,6 +51,9 @@
   "sideEffects": false,
   "publishConfig": {
     "access": "public"
+  },
+  "engines": {
+    "node": "^22.19.0 || ^24.11.0 || >=26.0.0"
   },
   "scripts": {
     "build": "nuxt-module-build build",
