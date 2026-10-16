@@ -454,6 +454,5 @@ ships with `npm pack --dry-run` — only `dist/`, `CHANGELOG.md`,
 
 ## License
 
-UNLICENSED — © Nikta 11 Ltd. The package is public on npm so it can be
-installed, but it is not licensed for use outside Eleven Spectacles
-projects.
+UNLICENSED. The package is public on npm so it can be installed, but it
+is not licensed for use outside Eleven Spectacles projects.
