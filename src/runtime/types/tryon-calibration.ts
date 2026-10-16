@@ -32,9 +32,12 @@ export interface TryOnModelCalibration {
    */
   scale: number
   /**
-   * Horizontal-only multiplier on top of the uniform scale, widening or
-   * narrowing temple reach without inflating lens height/depth. Optional —
+   * Horizontal-only multiplier on top of the uniform scale. Optional —
    * defaults to 1 (no-op) when absent.
+   *
+   * @deprecated It stretches the whole frame, lenses included. The temple
+   * arms now open at the hinge to meet the tracked head (utils/tryon-temples),
+   * so leave it at 1. Removed in 5.0.
    */
   templeWidthBoost?: number
   /**

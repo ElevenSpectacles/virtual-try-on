@@ -106,6 +106,8 @@ Key facts:
   (room luma and colour cast from a 16×16 frame sample, gain and tint),
   `tryon-hair.ts` (hair occluder: screen→camera-frame mapping, mask
   downsampling/smoothing, the segmentation-time budget),
+  `tryon-temples.ts` (splits the GLB's `pt2` temple mesh into two arms on
+  hinge pivots at load, and the opening angle that meets the tracked head),
   `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
   map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint/density from
   calibration, the Fresnel term of the physical lens), `tryon-fit.ts` (face width in mm from ear width over IPD,

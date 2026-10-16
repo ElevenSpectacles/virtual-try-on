@@ -63,7 +63,11 @@ const props = withDefaults(
      * tracked face, which supplies its rotation. Removed in 5.0.
      */
     frameYaw?: number
-    /** Multiplier on the calibrated temple-width boost. */
+    /**
+     * @deprecated Multiplier on the calibrated `templeWidthBoost`, which
+     * stretches the whole frame; the temple arms now open at the hinge to
+     * meet the tracked head. Removed in 5.0.
+     */
     templeWidth?: number
     /**
      * Directory the MediaPipe Wasm fileset is served from. Omit to use the
