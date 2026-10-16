@@ -202,7 +202,7 @@ npm run typecheck      # vue-tsc against the playground's generated tsconfig
 npm run verify:e2e     # face-fixture tracking + golden screenshots (needs ffmpeg)
 npm run verify         # vitest + playground smoke test + face-fixture e2e
 npm run build          # dist/ via nuxt-module-build
-npm pack --dry-run     # tarball must hold only dist/, CHANGELOG.md, README.md, package.json
+npm pack --dry-run     # tarball must hold only dist/, CHANGELOG.md, LICENSE, README.md, package.json
 ```
 
 Releases run only through release-please
