@@ -450,10 +450,8 @@ publishing until the trusted publisher on npmjs.com is updated. The repo
 also needs **Allow GitHub Actions to create and approve pull requests**
 enabled. Check what
 ships with `npm pack --dry-run` — only `dist/`, `CHANGELOG.md`,
-`README.md` and `package.json`.
+`LICENSE`, `README.md` and `package.json`.
 
 ## License
 
-UNLICENSED — © Nikta 11 Ltd. The package is public on npm so it can be
-installed, but it is not licensed for use outside Eleven Spectacles
-projects.
+[MIT](LICENSE).

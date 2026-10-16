@@ -20,7 +20,7 @@
     "augmented-reality",
     "glb"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "homepage": "https://elevenspectacles.com",
   "bugs": {
     "url": "https://github.com/ElevenSpectacles/virtual-try-on/issues"
