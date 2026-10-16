@@ -17,11 +17,11 @@ import {
   DirectionalLight,
   Mesh,
   MeshDepthMaterial,
-  SRGBColorSpace,
   MeshPhysicalMaterial,
   PlaneGeometry,
   RedFormat,
   ShaderMaterial,
+  ShadowMaterial,
   UnsignedByteType,
   type Material,
   type Object3D,
@@ -47,6 +47,19 @@ import {
   CONTACT_SHADOW_STRENGTH,
   contactShadowLight
 } from '../utils/tryon-contact-shadow'
+import {
+  FRAME_SPHERE_CELL_METERS,
+  LENS_SPHERE_CELL_METERS,
+  MAX_OCCLUDER_SPHERES,
+  CONTACT_OCCLUSION_GAIN,
+  MAX_SPHERE_OCCLUSION,
+  OCCLUSION_RANGE_METERS,
+  SILHOUETTE_FADE_END,
+  SILHOUETTE_FADE_START,
+  fitFrameOccluders,
+  type OccluderPart,
+  type OccluderSphere
+} from '../utils/tryon-contact-occlusion'
 import {
   HAIR_PLANE_SETBACK_METERS,
   HAIR_PLANE_SIZE_METERS,
@@ -435,6 +448,7 @@ onUnmounted(() => {
   dracoLoader?.dispose()
   for (const material of builtLenses) material.dispose()
   shadowLight.dispose()
+  shadowReceiverMaterial.dispose()
   for (const material of lensDepthMaterials) material.dispose()
   occluderMeshGeometry.value?.dispose()
   boundingBoxHelper.value?.dispose()
@@ -607,6 +621,9 @@ watch(
     const attribute = geometry.getAttribute('position') as BufferAttribute
     ;(attribute.array as Float32Array).set(positions)
     attribute.needsUpdate = true
+    // The contact-occlusion receiver needs the skin's normals (468 vertices:
+    // cheap); the depth-only occluder ignores them.
+    if (props.contactShadow) geometry.computeVertexNormals()
   },
   { immediate: true }
 )
@@ -622,10 +639,15 @@ watch(
 // its blur pass keeps the edge soft, as from a room light rather than a
 // spotlight, without PCF's speckle at a wide radius.
 //
-// The shadow colour is a warm dark brown, not black: light scattering under
-// skin keeps real shadows on skin reddish, and black at low opacity reads
-// as a grey smudge.
-const SHADOW_COLOR = new Color().setRGB(0.16, 0.05, 0.03, SRGBColorSpace)
+// The shadow is black, which makes it a multiply: the canvas is transparent
+// over the DOM <video> and the browser composites it premultiplied, so a
+// black texel of alpha a leaves `video × (1 − a)`. A shadow removes light in
+// proportion, so dark skin barely changes and the skin keeps its own hue (the
+// reddish cast of real skin shadows comes from the skin itself). A coloured
+// shadow would add `colour × a` on top instead, which shows as a brown stain
+// on dark skin. A tinted multiply (warm shadow, tinted lens shadow) would
+// need the video pixels in the shader, a follow-up to issue #88.
+const SHADOW_COLOR = new Color(0, 0, 0)
 const SHADOW_MAP_SIZE = 512
 const SHADOW_RADIUS = 8
 /** Share of light a lens blocks in the shadow, per unit of lens opacity. */
@@ -669,6 +691,8 @@ watch(
 // Every frame mesh casts; lens meshes through a partial (alpha-hashed)
 // depth material. The receiver never casts.
 let lensDepthMaterials: MeshDepthMaterial[] = []
+/** Contact-occlusion spheres of the current frame, GLB-local (see below). */
+let occluderSpheres: OccluderSphere[] = []
 
 watch(
   [model, () => props.contactShadow, () => props.lens],
@@ -691,6 +715,152 @@ watch(
       lensDepthMaterials.push(depth)
       obj.customDepthMaterial = depth
     })
+    occluderSpheres = enabled && gltf ? frameOccluderSpheres(gltf.scene) : []
+  },
+  { immediate: true }
+)
+
+// Contact occlusion (utils/tryon-contact-occlusion): the soft darkening where
+// the frame lies on or close to the skin (pads, bridge, temples), which a
+// one-light shadow map does not produce. Spheres fitted to the frame's own
+// vertices, in GLB-local metres, are moved into world space every render and
+// the receiver darkens each skin point by the solid angle they cover. Lenses
+// count by their density, like their shadow. The spheres are refitted with
+// the lens depth materials above (`occluderSpheres`).
+
+function frameOccluderSpheres(root: Object3D): OccluderSphere[] {
+  root.updateMatrixWorld(true)
+  const sceneInverse = new Matrix4().copy(root.matrixWorld).invert()
+  const relative = new Matrix4()
+  const point = new Vector3()
+  const parts: OccluderPart[] = []
+  root.traverse((obj) => {
+    if (!(obj instanceof Mesh) || !obj.geometry) return
+    const position = obj.geometry.getAttribute('position')
+    if (!position) return
+    relative.multiplyMatrices(sceneInverse, obj.matrixWorld)
+    const points = new Float32Array(position.count * 3)
+    for (let i = 0; i < position.count; i++) {
+      point.fromBufferAttribute(position, i).applyMatrix4(relative)
+      points.set([point.x, point.y, point.z], i * 3)
+    }
+    const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
+    const lens = materials.find((m: Material) => LENS_MATERIAL_NAME.test(m.name))
+    parts.push(
+      lens
+        ? {
+            points,
+            cellSize: LENS_SPHERE_CELL_METERS,
+            weight: Math.min(lens.opacity * LENS_SHADOW_DENSITY, 1)
+          }
+        : { points, cellSize: FRAME_SPHERE_CELL_METERS, weight: 1 }
+    )
+  })
+  return fitFrameOccluders(parts)
+}
+
+const receiverUniforms = {
+  uSpheres: {
+    value: Array.from({ length: MAX_OCCLUDER_SPHERES }, () => new Vector4())
+  },
+  uSphereCount: { value: 0 },
+  uOcclusionRange: { value: 0 },
+  uOcclusionStrength: { value: 0 }
+}
+
+// ShadowMaterial with the occlusion folded into its alpha, mirroring
+// `contactShadowAlpha`: shadow and occlusion darken independently, so their
+// visibilities multiply. The skin normal is turned toward the camera, since
+// the mesh is drawn double-sided, and the occlusion fades out toward the
+// mesh's silhouette (`silhouetteFade`).
+const shadowReceiverMaterial = new ShadowMaterial({
+  color: SHADOW_COLOR,
+  transparent: true,
+  depthWrite: false,
+  side: DoubleSide
+})
+shadowReceiverMaterial.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, receiverUniforms)
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      '#include <common>',
+      '#include <common>\nvarying vec3 vAoPosition;\nvarying vec3 vAoNormal;'
+    )
+    .replace(
+      '#include <worldpos_vertex>',
+      `#include <worldpos_vertex>
+  vAoPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;
+  vAoNormal = mat3(modelMatrix) * objectNormal;`
+    )
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      '#include <common>',
+      `#include <common>
+varying vec3 vAoPosition;
+varying vec3 vAoNormal;
+uniform vec4 uSpheres[${MAX_OCCLUDER_SPHERES}];
+uniform int uSphereCount;
+uniform float uOcclusionRange;
+uniform float uOcclusionStrength;
+
+// utils/tryon-contact-occlusion: contactOcclusion / sphereOcclusion.
+float contactOcclusion(vec3 p, vec3 n) {
+  float visible = 1.0;
+  for (int i = 0; i < ${MAX_OCCLUDER_SPHERES}; i++) {
+    if (i >= uSphereCount) break;
+    vec3 d = uSpheres[i].xyz - p;
+    float r = uSpheres[i].w;
+    float d2 = max(dot(d, d), r * r);
+    float dist = sqrt(d2);
+    float fade = max(1.0 - (dist - r) / uOcclusionRange, 0.0);
+    float cosine = clamp((dot(n, d) + r) / (dist + r), 0.0, 1.0);
+    float occlusion = min(cosine * r * r / d2 * fade * fade, ${MAX_SPHERE_OCCLUSION.toFixed(2)});
+    visible *= 1.0 - occlusion;
+  }
+  return 1.0 - visible;
+}`
+    )
+    .replace(
+      'gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) );',
+      `vec3 aoNormal = dot(vAoNormal, vAoNormal) > 0.0 ? normalize(vAoNormal) : vec3(0.0, 0.0, 1.0);
+  vec3 aoView = normalize(cameraPosition - vAoPosition);
+  if (dot(aoNormal, aoView) < 0.0) aoNormal = -aoNormal;
+  // silhouetteFade: none where the skin turns away, at the mesh's edge.
+  float aoFacing = smoothstep(${SILHOUETTE_FADE_START.toFixed(2)}, ${SILHOUETTE_FADE_END.toFixed(2)}, dot(aoNormal, aoView));
+  float shadowed = 1.0 - opacity * (1.0 - getShadowMask());
+  float occluded = 1.0 - uOcclusionStrength * aoFacing * contactOcclusion(vAoPosition, aoNormal);
+  gl_FragColor = vec4(color, 1.0 - shadowed * occluded);`
+    )
+}
+
+// Spheres follow the frame: its world matrix is current by the time the
+// receiver draws.
+const sphereCentre = new Vector3()
+shadowReceiverMaterial.onBeforeRender = () => {
+  const root = model.value?.scene
+  const spheres = root ? occluderSpheres : []
+  const scale = root ? root.matrixWorld.getMaxScaleOnAxis() : 0
+  spheres.forEach((sphere, i) => {
+    sphereCentre.set(sphere.x, sphere.y, sphere.z).applyMatrix4(root!.matrixWorld)
+    receiverUniforms.uSpheres.value[i]!.set(
+      sphereCentre.x,
+      sphereCentre.y,
+      sphereCentre.z,
+      sphere.r * scale
+    )
+  })
+  receiverUniforms.uSphereCount.value = spheres.length
+  receiverUniforms.uOcclusionRange.value = OCCLUSION_RANGE_METERS * scale
+}
+
+watch(
+  () => props.contactShadowStrength,
+  (strength) => {
+    shadowReceiverMaterial.opacity = strength
+    receiverUniforms.uOcclusionStrength.value = Math.min(
+      strength * CONTACT_OCCLUSION_GAIN,
+      1
+    )
   },
   { immediate: true }
 )
@@ -777,16 +947,9 @@ const occluderRotationVec = computed(
     v-if="occluderEnabled && visible && contactShadow && occluderMeshGeometry"
     :geometry="occluderMeshGeometry"
     :frustum-culled="false"
+    :material="shadowReceiverMaterial"
     :receive-shadow="true"
-  >
-    <TresShadowMaterial
-      :color="SHADOW_COLOR"
-      :opacity="contactShadowStrength"
-      :transparent="true"
-      :depth-write="false"
-      :side="DoubleSide"
-    />
-  </TresMesh>
+  />
   <TresMesh
     v-if="occluderEnabled && visible && !occluderMeshGeometry"
     :position="occluderPositionVec"

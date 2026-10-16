@@ -107,7 +107,9 @@ Key facts:
   `tryon-hair.ts` (hair occluder: screen→camera-frame mapping, mask
   downsampling/smoothing, the segmentation-time budget),
   `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
-  map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint/density from
+  map puts the frame's soft shadow on the tracked skin),
+  `tryon-contact-occlusion.ts` (spheres fitted to the GLB and the analytic
+  contact darkening they put on the skin under pads, bridge and temples), `tryon-lens.ts` (per-model lens tint/density from
   calibration, the Fresnel term of the physical lens), `tryon-fit.ts` (face width in mm from ear width over IPD,
   and the narrow/good/wide fit verdict with hysteresis), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
