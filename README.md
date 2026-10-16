@@ -147,7 +147,7 @@ rarely share an origin or scale:
       "translation": { "x": 0, "y": 0, "z": 0 },   // metres
       "rotation": { "x": 0, "y": 0, "z": 0 },      // radians
       "scale": 1,
-      "templeWidthBoost": 1,           // optional horizontal-only scale
+      "templeWidthBoost": 1,           // deprecated: stretches the whole frame; leave at 1
       "lens": { "tint": "#3a4a5c", "density": 0.6 }  // optional lens colour/darkness override
     }
   }
@@ -171,7 +171,7 @@ The full types are exported as `TryOnCalibrationFile` and
 | `exposure` | `number` | `1` | Renderer tone-mapping exposure. |
 | `frameScale` | `number` | `1` | Multiplier on the computed frame scale. |
 | `frameYaw` | `number` | `0` | **Deprecated**, no effect since 4.4.0 — the frame renders only on a tracked face. Removed in 5.0. |
-| `templeWidth` | `number` | `1` | Multiplier on the calibrated temple width. |
+| `templeWidth` | `number` | `1` | **Deprecated**: multiplier on the calibrated `templeWidthBoost`, which stretches the whole frame. The temple arms open at the hinge to meet the tracked head. Removed in 5.0. |
 | `mediapipeBasePath` | `string` | jsDelivr CDN | Directory of the MediaPipe Wasm fileset, for self-hosting. |
 | `mediapipeModelAssetPath` | `string` | Google Storage | URL of `face_landmarker.task`, for self-hosting. |
 | `draco` | `boolean` | `true` | Enables Draco decompression in the GLB loader. |

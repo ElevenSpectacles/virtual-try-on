@@ -14,6 +14,7 @@ import {
   EquirectangularReflectionMapping,
   LinearFilter,
   Matrix4,
+  Quaternion,
   DirectionalLight,
   Mesh,
   MeshDepthMaterial,
@@ -36,10 +37,15 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 import { useTres } from '@tresjs/core'
 import {
+  EAR_LEVEL_LEFT,
+  EAR_LEVEL_RIGHT,
   TRYON_CAMERA,
+  oneEuroFilter,
   type EnvPreset,
-  type HeadOccluderGeometry
+  type HeadOccluderGeometry,
+  type OneEuroState
 } from '../utils/tryon'
+import { rigTemples, templeAngles, type TempleRig } from '../utils/tryon-temples'
 import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 import { lightingColor } from '../utils/tryon-lighting'
 import { NO_LENS_OVERRIDE, type TryOnLens } from '../utils/tryon-lens'
@@ -63,8 +69,9 @@ const props = withDefaults(
     /** Uniform scale (GLBs are modelled in metres). */
     scale?: number
     /**
-     * Horizontal-only multiplier on top of `scale`, widening/narrowing
-     * temple reach without inflating lens height/depth.
+     * Horizontal-only multiplier on top of `scale` (the deprecated
+     * `templeWidthBoost`). It stretches the lenses too; `templeFit` opens
+     * the arms at the hinge instead.
      */
     scaleXBoost?: number
     /** Yaw (radians) so the lenses can be faced at the camera. */
@@ -86,6 +93,12 @@ const props = withDefaults(
      * arms are occluded exactly where the real head would occlude them.
      */
     occluderPositions?: Float32Array | null
+    /**
+     * Open the temple arms at the hinge to meet the side of the tracked head
+     * (utils/tryon-temples). Needs `occluderPositions`; off keeps them as
+     * authored.
+     */
+    templeFit?: boolean
     occluderPosition?: { x: number; y: number; z?: number }
     occluderRadius?: HeadOccluderGeometry
     occluderRotation?: { x: number; y: number; z: number }
@@ -157,6 +170,7 @@ const props = withDefaults(
     useEnvironment: true,
     occluderEnabled: false,
     occluderPositions: null,
+    templeFit: true,
     occluderPosition: () => ({ x: 0, y: 0, z: 0 }),
     occluderRadius: () => ({ radiusX: 0.1, radiusY: 0.13, radiusZ: 0.12 }),
     occluderRotation: () => ({ x: 0, y: 0, z: 0 }),
@@ -208,6 +222,11 @@ if (dracoLoader) gltfLoader.setDRACOLoader(dracoLoader)
 // superseded `src` are dropped.
 const model = shallowRef<GLTF | null>(null)
 let modelLoadId = 0
+// The loaded GLB's temples on hinge pivots (null: kept as authored), and
+// the One-Euro state of each arm's opening angle.
+let templeRig: TempleRig | null = null
+let templeFilters: (OneEuroState | null)[] = []
+let templeFilterTime = 0
 watch(
   () => props.src,
   async (src) => {
@@ -215,6 +234,8 @@ watch(
     try {
       const gltf = await gltfLoader.loadAsync(src)
       if (id === modelLoadId) {
+        templeRig = rigTemples(gltf.scene)
+        templeFilters = []
         model.value = gltf
         emit('loaded', localBounds(gltf.scene).getSize(new Vector3()).x)
       }
@@ -563,6 +584,60 @@ const groupRotation = computed(() => {
 const modelOffsetVec = computed(
   () =>
     new Vector3(props.modelOffset.x, props.modelOffset.y, props.modelOffset.z)
+)
+
+// Temple fit (utils/tryon-temples): the face-mesh occluder's oval points at
+// temple height, the surface the arms pass, are taken into the GLB's frame
+// through the inverse of the frame group's transform and the recentring
+// offset, and the arms open or close on their hinges to clear them. The
+// occluder's shape follows the raw landmarks, so the angle is smoothed;
+// head width does not change while someone wears a frame, so it is slow.
+const TEMPLE_FILTER = { minCutoff: 0.5, beta: 1 }
+const groupMatrix = new Matrix4()
+const groupQuaternion = new Quaternion()
+const earPoint = new Vector3()
+
+watch(
+  [
+    () => props.occluderPositions,
+    () => props.templeFit,
+    groupPosition,
+    groupRotation,
+    groupScale,
+    modelOffsetVec,
+    model
+  ],
+  ([positions, enabled, position, rotation, scale, offset, gltf]) => {
+    const rig = templeRig
+    if (!rig || !gltf) return
+    if (!enabled) {
+      for (const temple of rig.temples) temple.pivot.rotation.z = 0
+      templeFilters = []
+      return
+    }
+    if (!positions) return
+    groupMatrix
+      .compose(position, groupQuaternion.setFromEuler(rotation), scale)
+      .invert()
+    const sceneInverse = gltf.scene.matrix.clone().invert()
+    const points = [EAR_LEVEL_RIGHT, EAR_LEVEL_LEFT].map((i) => {
+      earPoint
+        .fromArray(positions, i * 3)
+        .applyMatrix4(groupMatrix)
+        .sub(offset)
+        .applyMatrix4(sceneInverse)
+      return { x: earPoint.x, y: earPoint.y, z: earPoint.z }
+    })
+    const now = performance.now()
+    const dt = templeFilterTime ? (now - templeFilterTime) / 1000 : 0
+    templeFilterTime = now
+    templeAngles(rig, points).forEach((angle, i) => {
+      const state = oneEuroFilter(templeFilters[i] ?? null, angle, dt, TEMPLE_FILTER)
+      templeFilters[i] = state
+      rig.temples[i]!.pivot.rotation.z = state.value
+    })
+  },
+  { immediate: true }
 )
 
 const occluderPositionVec = computed(
