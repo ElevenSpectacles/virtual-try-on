@@ -34,7 +34,6 @@ describe('getCalibrationFromManifest', () => {
       translation: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       scale: 1,
-      templeWidthBoost: 1,
       lens: { tint: null, density: null, gradient: null },
       padSpacingMm: null,
       frameWidthMm: 0
@@ -77,6 +76,16 @@ describe('getCalibrationFromManifest', () => {
       density: null,
       gradient: null
     })
+  })
+
+  it('ignores templeWidthBoost from a pre-5.0 manifest', () => {
+    const old = {
+      ...manifest,
+      models: {
+        a: { ...manifest.models['iris-bronze']!, model: 'a', templeWidthBoost: 1.1 }
+      }
+    } as unknown as TryOnCalibrationFile
+    expect(getCalibrationFromManifest(old, 'a')).not.toHaveProperty('templeWidthBoost')
   })
 
   it('reads the frame width, 0 when the entry has none', () => {

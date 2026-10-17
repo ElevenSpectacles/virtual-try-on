@@ -152,12 +152,6 @@ const props = withDefaults(
     position?: { x: number; y: number; z?: number }
     /** Uniform scale (GLBs are modelled in metres). */
     scale?: number
-    /**
-     * Horizontal-only multiplier on top of `scale` (the deprecated
-     * `templeWidthBoost`). It stretches the lenses too; `templeFit` opens
-     * the arms at the hinge instead.
-     */
-    scaleXBoost?: number
     /** Yaw (radians) so the lenses can be faced at the camera. */
     rotationY?: number
     /** Full Euler rotation (radians). Overrides rotationY when provided. */
@@ -283,7 +277,6 @@ const props = withDefaults(
   {
     position: () => ({ x: 0, y: 0, z: 0 }),
     scale: 6,
-    scaleXBoost: 1,
     rotationY: 0,
     // 'city' reads as neutral architectural reflections rather than a
     // photo-studio product shot — at low intensity it lifts color/specular
@@ -895,7 +888,7 @@ const groupPosition = computed(
   () => new Vector3(props.position.x, props.position.y, props.position.z ?? 0)
 )
 const groupScale = computed(
-  () => new Vector3(props.scale * props.scaleXBoost, props.scale, props.scale)
+  () => new Vector3(props.scale, props.scale, props.scale)
 )
 const groupRotation = computed(() => {
   if (props.rotation) {

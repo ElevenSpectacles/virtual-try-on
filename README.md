@@ -34,6 +34,7 @@ with virtual try-on for every frame in the catalog.
 - [Serving models and calibration](#serving-models-and-calibration)
 - [API](#api)
 - [Configuration](#configuration)
+- [Migrating to 5.0](#migrating-to-50)
 - [Privacy](#privacy)
 - [Development](#development)
 - [Releasing](#releasing)
@@ -147,7 +148,6 @@ rarely share an origin or scale:
       "translation": { "x": 0, "y": 0, "z": 0 },   // metres
       "rotation": { "x": 0, "y": 0, "z": 0 },      // radians
       "scale": 1,
-      "templeWidthBoost": 1,           // deprecated: stretches the whole frame; leave at 1
       "lens": { "tint": "#3a4a5c", "category": 3 },  // optional lens colour/darkness override (see below)
       "frameWidthMm": 139.7            // rendered width, written by generate-calibration (fit ranking)
     }
@@ -195,8 +195,6 @@ product's own units, from its sheet:
 | `autoStart` | `boolean` | `false` | Starts the camera on mount. Use when your app already collected consent. |
 | `exposure` | `number` | `1` | Renderer tone-mapping exposure. |
 | `frameScale` | `number` | `1` | Multiplier on the computed frame scale. |
-| `frameYaw` | `number` | `0` | **Deprecated**, no effect since 4.4.0 — the frame renders only on a tracked face. Removed in 5.0. |
-| `templeWidth` | `number` | `1` | **Deprecated**: multiplier on the calibrated `templeWidthBoost`, which stretches the whole frame. The temple arms open at the hinge to meet the tracked head. Removed in 5.0. |
 | `mediapipeBasePath` | `string` | jsDelivr CDN | Directory of the MediaPipe Wasm fileset, for self-hosting. |
 | `mediapipeModelAssetPath` | `string` | Google Storage | URL of `face_landmarker.task`, for self-hosting. |
 | `draco` | `boolean` | `true` | Enables Draco decompression in the GLB loader. |
@@ -595,6 +593,21 @@ your button). It loads the tracker without touching the camera. Report
 `timeToFirstFrameMs` and `assetTimings` from the `metrics` event to see the
 effect in the field.
 
+## Migrating to 5.0
+
+5.0 removes the API deprecated in 4.x:
+
+- **`frameYaw` prop**: it had no effect since 4.4.0 (the frame renders only
+  on a tracked face, which supplies its rotation). Delete it.
+- **`templeWidth` prop and the calibration field `templeWidthBoost`**: they
+  stretched the whole frame, lenses included. Since 4.9 the temple arms open
+  at the hinge to meet each head instead. Delete the prop; regenerate
+  `calibration.json` with `generate-calibration` (it no longer writes the
+  field) or leave old manifests as they are: the component ignores the
+  field.
+
+Nothing else changed: hosts that never set these props need no change.
+
 ## Privacy
 
 Camera frames are processed entirely in the browser. No video or image data
@@ -676,7 +689,7 @@ npm run generate-calibration -- --input <dir> --output <dir>/calibration.json [-
 ```
 
 It recentres and scales every GLB against the reference frame, and keeps
-the fields you tuned by hand (`rotation`, `templeWidthBoost`, `lens`) when
+the fields you tuned by hand (`rotation`, `lens`) when
 the output file already exists.
 
 ## Releasing
