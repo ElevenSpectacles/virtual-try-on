@@ -1,3 +1,7 @@
+import type { TryOnCardCalibration } from '../composables/tryon/useTryOnCardCalibration'
+import type { TryOnCaptureOptions } from '../utils/tryon-capture'
+import type { TryOnFit } from '../utils/tryon-fit'
+
 /** Camera failure reported by `useWebcamStream`. */
 export type WebcamError = 'unsupported' | 'denied' | 'unavailable'
 
@@ -39,4 +43,41 @@ export interface TryOnMeasurements {
   faceShape: 'oval' | 'round' | 'square' | 'heart' | 'oblong' | null
   /** 0 … 1: margin of `faceShape` over the next-closest class. */
   faceShapeConfidence: number
+}
+
+/** Props of `<VirtualTryOnExperience>`'s default slot. */
+export interface VirtualTryOnExperienceSlotProps {
+  status: TryOnStatus
+  isStarting: boolean
+  /** Camera failure: 'denied' | 'unsupported' | 'unavailable'. */
+  error: WebcamError | null
+  /** Face tracker failure: 'unsupported' | 'load_failed' | 'runtime_failed'. */
+  faceError: FaceLandmarkerError | null
+  hasFace: boolean
+  guideHint: TryOnGuideHint | null
+  /**
+   * Whether the selected frame suits the tracked face's width, with the
+   * two widths in mm. Null until about a second of tracking has given a
+   * stable estimate, and while no face is tracked.
+   */
+  fit: TryOnFit | null
+  /**
+   * On-device face measurements: PD, face width, face shape. Null until
+   * something is measured.
+   */
+  measurements: TryOnMeasurements | null
+  start: () => Promise<void>
+  stop: () => void
+  /** Card calibration: `{ status, progress, pdMm }` ('idle' until started). */
+  calibration: TryOnCardCalibration
+  startCalibration: () => void
+  cancelCalibration: () => void
+  /** Snapshot of the composited try-on as an image Blob (on-device). */
+  capture: (options?: TryOnCaptureOptions) => Promise<Blob>
+  /** The camera frame and pose are held (see `freeze`). */
+  frozen: boolean
+  /** Hold the current frame and pose, e.g. to compare frames on one look. */
+  freeze: () => Promise<void>
+  /** Back to the live camera. */
+  unfreeze: () => Promise<void>
 }
