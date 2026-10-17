@@ -29,6 +29,7 @@ import { guideHintFor } from '../utils/tryon-guide'
 import { maskCoverage } from '../utils/tryon-hair'
 import { useTryOnModelCache } from '../composables/tryon/useTryOnModelCache'
 import { modelCacheCapacity, neighbourFiles } from '../utils/tryon-model-cache'
+import { faceRegion } from '../utils/tryon-room'
 import type { TryOnTier } from '../utils/tryon-capability'
 import {
   createMetricsAccumulator,
@@ -187,6 +188,14 @@ const props = withDefaults(
      * environment instead and downloads nothing.
      */
     environmentUrl?: string | undefined
+    /**
+     * Reflect the shopper's own room in the lenses (the camera's view,
+     * blended with the studio environment) and aim the key light and the
+     * contact shadow at where the room's light comes from. Needs
+     * `adaptiveLighting` (and so the `mid` tier). On-device: it uses the
+     * 16×16 room sample the lighting already takes.
+     */
+    roomReflections?: boolean
   }>(),
   {
     adaptiveLighting: true,
@@ -198,6 +207,7 @@ const props = withDefaults(
     hairOcclusion: false,
     templeEarBend: false,
     preload: 1,
+    roomReflections: false,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -291,11 +301,23 @@ const lightingEnabled = computed(
 // The room is sampled on every tier while the camera is on, for the guide's
 // `tooDark` hint (one 16×16 readback in the worker every few detections);
 // the lighting itself still needs the mid tier.
-const { wantFrameSample, onFrameSample, lightGain, lightTint, lighting, roomLuma } =
-  useTryOnLighting({
-    enabled: () => lightingEnabled.value,
-    sample: () => isActive.value
-  })
+const {
+  wantFrameSample,
+  onFrameSample,
+  lightGain,
+  lightTint,
+  lighting,
+  roomLuma,
+  roomSample,
+  lightDirection
+} = useTryOnLighting({
+  enabled: () => lightingEnabled.value,
+  sample: () => isActive.value,
+  room: () => props.roomReflections,
+  // The face's box in the raw frame, for the light direction. Read when a
+  // sample arrives, after its detection.
+  faceRegion: () => faceRegion(faceLandmarks.value)
+})
 
 const {
   error: faceError,
@@ -1099,6 +1121,8 @@ watch(model, (value) => {
             :contact-shadow-strength="contactShadowStrength"
             :light-gain="lightGain"
             :light-tint="lightTint"
+            :room-sample="roomSample"
+            :light-direction="lightDirection"
             :occluder-position="occluderPosition"
             :occluder-radius="occluderGeometry"
             :occluder-rotation="smoothedEuler"

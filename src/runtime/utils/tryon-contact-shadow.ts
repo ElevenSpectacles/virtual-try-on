@@ -50,14 +50,16 @@ export interface ContactShadowLight {
 
 /**
  * Frame the shadow light's camera on the frame: aimed at the frame
- * position along `SHADOW_LIGHT_DIRECTION`, sized to the frame's scale (the GLB
- * is in metres, scaled into world units by `scale`).
+ * position along `direction` (default `SHADOW_LIGHT_DIRECTION`; the room's
+ * light direction when estimated, utils/tryon-room), sized to the frame's
+ * scale (the GLB is in metres, scaled into world units by `scale`).
  */
 export function contactShadowLight(
   framePosition: { x: number; y: number; z?: number },
-  scale: number
+  scale: number,
+  direction: { x: number; y: number; z: number } = SHADOW_LIGHT_DIRECTION
 ): ContactShadowLight {
-  const d = SHADOW_LIGHT_DIRECTION
+  const d = direction
   const length = Math.hypot(d.x, d.y, d.z)
   const distance = SHADOW_LIGHT_DISTANCE_METERS * scale
   const target = { x: framePosition.x, y: framePosition.y, z: framePosition.z ?? 0 }
