@@ -69,6 +69,9 @@ Key facts:
     detect loop and hair segmenter idle on a paused video), detects the held
     frame once (`useFaceLandmarker().detectHeld`), resumes on play.
   - `useTryOnSmoothing.ts` — One-Euro filtering of landmarks/pose.
+  - `useTryOnTrackingHold.ts` — keeps the last face for `TRACKING_HOLD_MS`
+    after the tracker loses it, so short dropouts never hide or pop the
+    frame; everything downstream of the tracker reads the held face.
   - `useTryOnPlacement.ts` — landmarks → scale, smoothed pose, frame
     position and occluders for `TryOnScene`. Shared by the component and the
     playground prototype (its tuning knobs are the options), so a fit change
@@ -85,7 +88,9 @@ Key facts:
   - `useTryOnFrameLoop.ts` / `useTryOnElementSize.ts` — rAF loop and
     ResizeObserver size, the module's own stand-ins for VueUse.
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
-    per-model calibration.
+    per-model calibration; `validateCalibration` falls back field by field
+    and lists problems, which the component reports as `TRY_ON_ERROR`
+    (`source: 'calibration'`).
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
   - `useTryOnModelCache.ts` — parsed-GLB cache (GLTF/Draco loaders, LRU of
     loaded + rigged frames, disposed on eviction, the shown frame pinned) and
@@ -117,14 +122,18 @@ Key facts:
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
   `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-lighting.ts`
   (room luma and colour cast from a 16×16 frame sample, gain and tint),
-  `tryon-hair.ts` (hair occluder: screen→camera-frame mapping, mask
+  `tryon-room.ts` (camera reflections: the room sample as an equirect
+  environment blended with the studio map, and the light direction over the
+  face that aims the key and shadow lights), `tryon-camera-match.ts` (grain amount from room luma, light wrap, the
+  frame-material shader patch; the CSS blur is the component's), `tryon-hair.ts` (hair occluder: screen→camera-frame mapping, mask
   downsampling/smoothing, the segmentation-time budget),
   `tryon-temples.ts` (splits the GLB's `pt2` temple mesh into two arms on
   hinge pivots at load, the opening angle that meets the tracked head, and
   the opt-in ear bend: `earBendPoint` and the matching vertex-shader patch),
   `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
-  map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint/density from
-  calibration, the Fresnel term of the physical lens), `tryon-seat.ts` (pad-contact seat: nose side-wall profile from the face
+  map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint and darkness from
+  calibration — ISO 12312-1 category, transmittance or density — gradient
+  lenses and their shader patch, the Fresnel term of the physical lens), `tryon-seat.ts` (pad-contact seat: nose side-wall profile from the face
   mesh, where pads of a given spacing rest, the offset from the reference
   nose; opt-in by calibration `pads`), `tryon-card.ts` (card calibration: forehead search band, card-edge
   finder on a grey crop, card ruler → PD with the card-to-eye depth
@@ -139,7 +148,8 @@ Key facts:
   pure step-down sampler), `tryon-model-cache.ts` (the LRU, neighbour prefetch order, cache capacity
   per tier), `tryon-preconnect.ts` (default CDN origins to preconnect, minus
   self-hosted ones; a test keeps them in step with the workers and scene),
-  `tryon-frame-schedule.ts` (detect scheduling: one
+  `tryon-guide.ts` (guide hints — noFace / aligned / turnBack / tooDark —
+  and the tracking-hold window), `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
   (session telemetry: uptime, loss rate, FPS, latency percentiles; the
   `metrics` event payload, opt-in via `reportMetrics`).
@@ -157,17 +167,35 @@ Key facts:
   runs with auto-imports off like a strict host, and serves GLBs + `calibration.json` from
   the host checkout via nitro `publicAssets` (override with
   `TRYON_MODELS_DIR`). Not part of the shipped module.
+- `demo/` — the public static demo (`npm run demo`, port 4100;
+  `npm run demo:generate`), deployed to GitHub Pages by
+  `.github/workflows/demo.yml`. A plain host page with no UI library and
+  auto-imports off. Its controls are built from the default slot, so keep
+  it in step with the slot/ref API. `scripts/prepare-demo.mjs` stages
+  everything in `demo/public/` (gitignored): the MediaPipe Wasm and the
+  Draco decoder from `node_modules`, `face_landmarker.task` and the HDR
+  (SHA-256 pinned), and the frames from `DEMO_MODELS_DIR`. The page sets
+  every self-hosting prop and a same-origin CSP, so it makes no
+  third-party requests. Keep it that way. Not part of the shipped module.
 - `scripts/` — CLIs:
   - `generate-calibration.ts` — scans a GLB directory and emits
     `calibration.json` (bounding-box recentring + scale normalization against
     a reference model, and each frame's rendered `frameWidthMm` for fit
     ranking; `--input`, `--output`, `--reference`). Keeps the
-    hand-tuned fields (`rotation`, `templeWidthBoost`, `lens`) of an existing
+    hand-tuned fields (`rotation`, `lens`, `pads`) of an existing
     `--output`. The maths lives in `scripts/lib/calibration.ts`, unit-tested
     in `tests/unit/scripts/`.
   - `audit-tilt.ts` — pantoscopic tilt audit: fits each GLB's lens plane
     (`scripts/lib/tilt.ts`), adds the calibration `rotation.x`, flags models
     outside 7–12° and suggests the value for 9°.
+  - `prepare-model.ts` (`npm run prepare-model`) — the one command for a
+    new catalog frame: trim temple tips → Draco-compress → lint →
+    regenerate `calibration.json`. Steps record themselves in the GLB's
+    `extras.tryOnPrepared` and never run twice (`scripts/lib/model-prep.ts`);
+    a second run changes nothing. Prefer it over the single-step scripts.
+  - `lint-models.ts` (`npm run lint-models`) — model lint
+    (`scripts/lib/model-lint.ts`): lens material, `pt2`, bounds/units,
+    placeholder lens colour, size and texture budgets, compression.
   - `compress-models.ts` — Draco-compresses GLBs via `@gltf-transform`. Run
     `generate-calibration` against the compressed output (compression shifts
     bounding boxes by float rounding).
@@ -182,6 +210,9 @@ Key facts:
   - `verify-playground.mjs` — playground smoke test (build + boot + asset
     checks). Renders the shipped component via the playground's
     `?view=experience` and looks for its `vto-stage` class.
+- `scripts/lib/colour.ts` — sRGB → CIELAB and CIEDE2000 for the colour QA
+  spec (`tests/e2e/colour.spec.ts`, swatches in
+  `tests/fixtures/colour-swatches.json`; skips until swatches are filled).
 - `tests/unit/` — Vitest unit tests (run from this repo). `tests/nuxt/` —
   Nuxt-environment tests, run from the host project.
 - `tests/e2e/` — Playwright face-fixture harness (`npm run verify:e2e`,
@@ -198,6 +229,9 @@ Key facts:
   segmenter live (`?view=experience&hair=on&tier=high`: mask, cadence,
   budget, tracking latency/fps on vs off) and `hair-scene.spec.ts` proves the
   hiding on frozen frames with a painted band (`?view=scene&hair=band`).
+  `robustness.spec.ts` checks the hold through a 200 ms `dropout` clip and
+  the `tooDark` hint on the `dark` clip; `tracking.spec.ts` also runs the
+  `backlit`, `occluded` and `dropout` kinds with per-kind thresholds.
   `lighting.spec.ts` checks the
   room-lighting estimate on dim/bright/still clips (`fixtures.ts` clip
   kinds) through the shipped component's ref (`?view=experience&lighting=true`).
