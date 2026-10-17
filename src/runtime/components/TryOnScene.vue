@@ -58,6 +58,7 @@ import {
 import {
   EAR_BEND_RAMP_METERS,
   earBendFor,
+  earBendPoint,
   patchEarBendShader,
   templeAngles,
   templeFramePoints,
@@ -147,7 +148,7 @@ import {
   OCCLUSION_RANGE_METERS,
   SILHOUETTE_FADE_END,
   SILHOUETTE_FADE_START,
-  fitFrameOccluders,
+  fitFrameOccludersByPart,
   type OccluderPart,
   type OccluderSphere
 } from '../utils/tryon-contact-occlusion'
@@ -1208,8 +1209,16 @@ watch(
 // Every frame mesh casts; lens meshes through a partial (alpha-hashed)
 // depth material. The receiver never casts.
 let lensDepthMaterials: MeshDepthMaterial[] = []
-/** Contact-occlusion spheres of the current frame, GLB-local (see below). */
-let occluderSpheres: OccluderSphere[] = []
+/**
+ * A contact-occlusion sphere in the local space of the mesh it was fitted
+ * to, so it moves with that mesh: the temple arms turn at their hinges
+ * every frame (utils/tryon-temples) and may bend behind the ears.
+ */
+interface MeshOccluderSphere extends OccluderSphere {
+  mesh: Mesh
+}
+/** Contact-occlusion spheres of the current frame (see below). */
+let occluderSpheres: MeshOccluderSphere[] = []
 
 watch(
   [model, () => props.contactShadow, () => props.lens, tinted],
@@ -1262,17 +1271,26 @@ watch(
 // count by their density, like their shadow. The spheres are refitted with
 // the lens depth materials above (`occluderSpheres`).
 
-function frameOccluderSpheres(root: Object3D): OccluderSphere[] {
+function frameOccluderSpheres(root: Object3D): MeshOccluderSphere[] {
   root.updateMatrixWorld(true)
   const sceneInverse = new Matrix4().copy(root.matrixWorld).invert()
   const relative = new Matrix4()
   const point = new Vector3()
   const parts: OccluderPart[] = []
+  // Per part: its mesh and the GLB-root → mesh-local transform. The cells are
+  // fitted in root space (one grid for the whole frame), then each sphere is
+  // kept in its own mesh's space.
+  const owners: { mesh: Mesh; toLocal: Matrix4; scale: number }[] = []
   root.traverse((obj) => {
     if (!(obj instanceof Mesh) || !obj.geometry) return
     const position = obj.geometry.getAttribute('position')
     if (!position) return
     relative.multiplyMatrices(sceneInverse, obj.matrixWorld)
+    owners.push({
+      mesh: obj,
+      toLocal: relative.clone().invert(),
+      scale: relative.getMaxScaleOnAxis()
+    })
     const points = new Float32Array(position.count * 3)
     for (let i = 0; i < position.count; i++) {
       point.fromBufferAttribute(position, i).applyMatrix4(relative)
@@ -1290,7 +1308,13 @@ function frameOccluderSpheres(root: Object3D): OccluderSphere[] {
         : { points, cellSize: FRAME_SPHERE_CELL_METERS, weight: 1 }
     )
   })
-  return fitFrameOccluders(parts)
+  return fitFrameOccludersByPart(parts).flatMap((spheres, i) => {
+    const { mesh, toLocal, scale } = owners[i]!
+    return spheres.map((sphere) => {
+      point.set(sphere.x, sphere.y, sphere.z).applyMatrix4(toLocal)
+      return { mesh, x: point.x, y: point.y, z: point.z, r: sphere.r / scale }
+    })
+  })
 }
 
 
@@ -1409,20 +1433,26 @@ watch(
   { immediate: true }
 )
 
-// Spheres follow the frame: its world matrix is current by the time the
-// receiver draws.
+// Spheres follow their meshes: the world matrices (the frame's pose and each
+// arm's hinge angle) are current by the time the receiver draws. An arm with
+// the ear bend on bends its spheres like its vertices (`earBendPoint` is the
+// shader's maths).
 const sphereCentre = new Vector3()
 shadowReceiverMaterial.onBeforeRender = () => {
   const root = model.value?.scene
   const spheres = root ? occluderSpheres : []
   const scale = root ? root.matrixWorld.getMaxScaleOnAxis() : 0
   spheres.forEach((sphere, i) => {
-    sphereCentre.set(sphere.x, sphere.y, sphere.z).applyMatrix4(root!.matrixWorld)
+    const bend = earBendMaterials.get(sphere.mesh)?.uniform.value
+    const local = bend
+      ? earBendPoint(sphere, { start: bend.x, z: bend.y, angle: bend.z }, bend.w)
+      : sphere
+    sphereCentre.set(local.x, local.y, local.z).applyMatrix4(sphere.mesh.matrixWorld)
     receiverUniforms.uSpheres.value[i]!.set(
       sphereCentre.x,
       sphereCentre.y,
       sphereCentre.z,
-      sphere.r * scale
+      sphere.r * sphere.mesh.matrixWorld.getMaxScaleOnAxis()
     )
   })
   receiverUniforms.uSphereCount.value = spheres.length

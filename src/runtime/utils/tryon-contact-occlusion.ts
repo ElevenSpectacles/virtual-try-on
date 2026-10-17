@@ -136,21 +136,30 @@ export interface OccluderPart {
 
 /**
  * Fit all parts of a frame, coarsening every cell size by 25 % until the total
- * fits in `max` spheres.
+ * fits in `max` spheres. One list per part, in part order, so each sphere can
+ * follow the mesh it came from (the temple arms turn at their hinges).
  */
+export function fitFrameOccludersByPart(
+  parts: readonly OccluderPart[],
+  max: number = MAX_OCCLUDER_SPHERES
+): OccluderSphere[][] {
+  let coarsen = 1
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const byPart = parts.map((part) =>
+      fitOccluderSpheres(part.points, part.cellSize * coarsen, part.weight)
+    )
+    if (byPart.reduce((total, spheres) => total + spheres.length, 0) <= max) return byPart
+    coarsen *= 1.25
+  }
+  return parts.map(() => [])
+}
+
+/** `fitFrameOccludersByPart`, flattened. */
 export function fitFrameOccluders(
   parts: readonly OccluderPart[],
   max: number = MAX_OCCLUDER_SPHERES
 ): OccluderSphere[] {
-  let coarsen = 1
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const spheres = parts.flatMap((part) =>
-      fitOccluderSpheres(part.points, part.cellSize * coarsen, part.weight)
-    )
-    if (spheres.length <= max) return spheres
-    coarsen *= 1.25
-  }
-  return []
+  return fitFrameOccludersByPart(parts, max).flat()
 }
 
 /**
