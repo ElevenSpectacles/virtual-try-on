@@ -17,6 +17,11 @@ export interface UseTryOnFitOptions {
   /** Pose-compensated ear-level width and IPD, normalized (see useTryOnPlacement). */
   earWidth: () => number
   ipd: () => number
+  /**
+   * PD the IPD is measured against, mm (the measured one once known, see
+   * utils/tryon-measure). Default the assumed population average.
+   */
+  ipdMm?: () => number
   /** Total width of the selected frame, mm; 0 while unknown (GLB loading). */
   frameWidthMm: () => number
   /** Half-width of the good band (see `faceWidthVerdict`). */
@@ -43,7 +48,7 @@ export function useTryOnFit(options: UseTryOnFitOptions) {
     }
     faceWidthEstimate.value = updateFaceWidthEstimate(
       faceWidthEstimate.value,
-      estimateFaceWidthMm(options.earWidth(), options.ipd())
+      estimateFaceWidthMm(options.earWidth(), options.ipd(), options.ipdMm?.())
     )
   })
 

@@ -23,24 +23,51 @@ import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
 import { useTryOnFrameLoop } from '../composables/tryon/useTryOnFrameLoop'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
 import { useHairSegmenter } from '../composables/tryon/useHairSegmenter'
+import { useTryOnFreeze } from '../composables/tryon/useTryOnFreeze'
+import { useTryOnTrackingHold } from '../composables/tryon/useTryOnTrackingHold'
+import { guideHintFor } from '../utils/tryon-guide'
 import { maskCoverage } from '../utils/tryon-hair'
+import { useTryOnModelCache } from '../composables/tryon/useTryOnModelCache'
+import { modelCacheCapacity, neighbourFiles } from '../utils/tryon-model-cache'
+import { faceRegion } from '../utils/tryon-room'
 import type { TryOnTier } from '../utils/tryon-capability'
 import {
   createMetricsAccumulator,
   type TryOnSessionMetrics
 } from '../utils/tryon-metrics'
 import { CONTACT_SHADOW_STRENGTH } from '../utils/tryon-contact-shadow'
-import { FIT_DEFAULT_TOLERANCE, type TryOnFit } from '../utils/tryon-fit'
+import {
+  FIT_DEFAULT_TOLERANCE,
+  FIT_MIN_SAMPLES,
+  fitVerdictFor,
+  rankByFit,
+  type TryOnFit,
+  type TryOnFitRank
+} from '../utils/tryon-fit'
+import { useTryOnFaceShape } from '../composables/tryon/useTryOnFaceShape'
+import { pdConfidence } from '../utils/tryon-measure'
+import {
+  useTryOnCardCalibration,
+  type TryOnCardCalibration
+} from '../composables/tryon/useTryOnCardCalibration'
+import {
+  captureLayout,
+  captureQuality,
+  type TryOnCaptureOptions
+} from '../utils/tryon-capture'
+import { preconnectOrigins } from '../utils/tryon-preconnect'
+import { CAMERA_BLUR_PX } from '../utils/tryon-camera-match'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
+  TryOnMeasurements,
   TryOnStatus,
   WebcamError
 } from '../types/tryon-experience'
 
 import TryOnScene from './TryOnScene.vue'
-import { useRoute, useRuntimeConfig } from '#imports'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useHead, useRoute, useRuntimeConfig } from '#imports'
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -58,17 +85,6 @@ const props = withDefaults(
     exposure?: number
     /** Multiplier on the computed frame scale. */
     frameScale?: number
-    /**
-     * @deprecated No effect since 4.4.0 — the frame renders only on a
-     * tracked face, which supplies its rotation. Removed in 5.0.
-     */
-    frameYaw?: number
-    /**
-     * @deprecated Multiplier on the calibrated `templeWidthBoost`, which
-     * stretches the whole frame; the temple arms now open at the hinge to
-     * meet the tracked head. Removed in 5.0.
-     */
-    templeWidth?: number
     /**
      * Directory the MediaPipe Wasm fileset is served from. Omit to use the
      * built-in jsDelivr CDN default; pass a same-origin path (e.g.
@@ -113,11 +129,18 @@ const props = withDefaults(
     reportMetrics?: boolean
     /**
      * Half-width of the "good fit" band of the fit verdict, as a fraction of
-     * the ideal frame width for the tracked face (default 0.06). The face
-     * estimate itself carries about ±5% (it assumes an average IPD), so
-     * tighter bands mostly add noise.
+     * the ideal frame width for the tracked face (default 0.06). Until the
+     * PD is measured the face estimate assumes an average IPD (about ±5%),
+     * so tighter bands mostly add noise.
      */
     fitTolerance?: number
+    /**
+     * Show the frame at its real size: measure the shopper's PD against the
+     * iris (on-device, over the first seconds of frontal tracking) and size
+     * the frame and the fit verdict from it instead of population averages.
+     * Off keeps the average-face sizing.
+     */
+    trueToSize?: boolean
     /**
      * Physically-based lenses: Fresnel opacity, reflections that add on top
      * of the tint, an AR-coating sheen. Off keeps the cheaper standard lens.
@@ -142,21 +165,50 @@ const props = withDefaults(
      * the straight authored tips.
      */
     templeEarBend?: boolean
+    /**
+     * Frames to prefetch on each side of the active one in `models` (its
+     * neighbouring colourways), in idle time once a face is tracked, so
+     * switching to them is instant. `false` or 0 turns it off. The low tier
+     * never prefetches.
+     */
+    preload?: number | false
+    /**
+     * URL of the equirect `.hdr` environment map, to self-host it. Omit for
+     * the built-in preset (GitHub raw CDN). The `low` tier uses a procedural
+     * environment instead and downloads nothing.
+     */
+    environmentUrl?: string | undefined
+    /**
+     * Reflect the shopper's own room in the lenses (the camera's view,
+     * blended with the studio environment) and aim the key light and the
+     * contact shadow at where the room's light comes from. Needs
+     * `adaptiveLighting` (and so the `mid` tier). On-device: it uses the
+     * 16×16 room sample the lighting already takes.
+     */
+    roomReflections?: boolean
+    /**
+     * Make the frame look filmed with the face: grain that grows in dim
+     * rooms, a sub-pixel blur, and light wrap at its edges. Needs the `mid`
+     * tier or higher.
+     */
+    cameraMatch?: boolean
   }>(),
   {
     adaptiveLighting: true,
     contactShadow: true,
     reportMetrics: false,
     fitTolerance: FIT_DEFAULT_TOLERANCE,
+    trueToSize: true,
     physicalLens: true,
     hairOcclusion: false,
     templeEarBend: false,
+    preload: 1,
+    roomReflections: false,
+    cameraMatch: false,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
     frameScale: 1,
-    frameYaw: 0,
-    templeWidth: 1,
     draco: true,
     // Explicit undefined, not Vue's absent-boolean `false`, so an omitted
     // prop falls through to the module option.
@@ -171,7 +223,7 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const { getCalibration } = useFrameCalibration(props.calibrationUrl)
+const { getCalibration, getCalibrationProblems } = useFrameCalibration(props.calibrationUrl)
 
 const queryModel = route.query.model as string | undefined
 const initialModel =
@@ -221,7 +273,10 @@ const model = defineModel<string>('model')
 if (!model.value) {
   model.value = initialModel
 }
-const modelSrc = computed(() => `${props.modelBaseUrl}/${model.value}.glb`)
+function srcFor(file: string): string {
+  return `${props.modelBaseUrl}/${file}.glb`
+}
+const modelSrc = computed(() => srcFor(model.value ?? initialModel))
 const calibration = computed(() => getCalibration(model.value ?? initialModel))
 const useFaceTracking = ref(true)
 const runtimeConfig = useRuntimeConfig()
@@ -238,20 +293,40 @@ const occluderEnabled = computed(
 const lightingEnabled = computed(
   () => props.adaptiveLighting && capability.allows('lightingEstimate')
 )
-const { wantFrameSample, onFrameSample, lightGain, lightTint, lighting } =
-  useTryOnLighting({ enabled: () => lightingEnabled.value })
+// The room is sampled on every tier while the camera is on, for the guide's
+// `tooDark` hint (one 16×16 readback in the worker every few detections);
+// the lighting itself still needs the mid tier.
+const {
+  wantFrameSample,
+  onFrameSample,
+  lightGain,
+  lightTint,
+  lighting,
+  roomLuma,
+  roomSample,
+  lightDirection
+} = useTryOnLighting({
+  enabled: () => lightingEnabled.value,
+  sample: () => isActive.value,
+  room: () => props.roomReflections,
+  // The face's box in the raw frame, for the light direction. Read when a
+  // sample arrives, after its detection.
+  faceRegion: () => faceRegion(faceLandmarks.value)
+})
 
 const {
   error: faceError,
   errorDetail: faceErrorDetail,
-  hasFace,
+  hasFace: trackerHasFace,
   confidence,
-  landmarks: faceLandmarks,
-  pose: facePose,
-  blinkScore: faceBlinkScore,
-  anchor: faceAnchor,
+  landmarks: trackerLandmarks,
+  pose: trackerPose,
+  blinkScore: trackerBlinkScore,
+  anchor: trackerAnchor,
   latencyMs: faceLatencyMs,
-  init: initFaceLandmarker
+  isReady: faceReady,
+  init: initFaceLandmarker,
+  detectHeld
 } = useFaceLandmarker(videoRef, {
   ...(props.mediapipeBasePath !== undefined
     ? { mediapipeBasePath: props.mediapipeBasePath }
@@ -261,8 +336,59 @@ const {
     : {}),
   onLatency: (ms) => metrics?.onLatency(ms),
   wantFrameSample,
-  onFrameSample
+  onFrameSample,
+  wantCardRegion: () => cardCalibration.wantCardRegion(),
+  onCardCrop: (gray, width, height, region) =>
+    cardCalibration.onCardCrop(gray, width, height, region)
 })
+
+// Tracking hold: a dropout shorter than TRACKING_HOLD_MS keeps the last
+// pose, so the frame doesn't vanish and pop back. Everything downstream
+// reads the held face; only the session metrics see the raw tracker.
+const {
+  landmarks: faceLandmarks,
+  pose: facePose,
+  blinkScore: faceBlinkScore,
+  anchor: faceAnchor,
+  hasFace,
+  lastYaw
+} = useTryOnTrackingHold({
+  landmarks: trackerLandmarks,
+  pose: trackerPose,
+  blinkScore: trackerBlinkScore,
+  anchor: trackerAnchor
+})
+
+// Card calibration (optional, ±1 mm PD): the host shows its own "hold a
+// card to your forehead" UI and calls `startCalibration()`; the result
+// replaces the iris PD for the session (memory only).
+const cardCalibration = useTryOnCardCalibration({
+  landmarks: faceLandmarks,
+  pose: facePose,
+  mediaAspect
+})
+
+// Freeze / unfreeze (compare frames on a held pose): the video and the
+// tracked pose are held; tracking idles until unfreeze.
+const {
+  frozen,
+  freeze: freezeTryOn,
+  unfreeze: unfreezeTryOn
+} = useTryOnFreeze(videoRef, { active: isActive, detectHeld })
+
+/** Hold the current camera frame and pose; switching `model` re-renders on it. */
+async function freeze() {
+  const wasFrozen = frozen.value
+  await freezeTryOn()
+  if (frozen.value && !wasFrozen) trackTryOn('TRY_ON_FREEZE', { frozen: true })
+}
+
+/** Back to the live camera; tracking resumes on the next frame. */
+async function unfreeze() {
+  const wasFrozen = frozen.value
+  await unfreezeTryOn()
+  if (wasFrozen) trackTryOn('TRY_ON_FREEZE', { frozen: false })
+}
 
 // Session metrics (opt-in). With reportMetrics off there is no accumulator
 // and no extra frame loop, so there is no cost to hosts that don't use it.
@@ -279,14 +405,15 @@ function emitMetrics(final: boolean) {
       contactShadow: contactShadowEnabled.value,
       adaptiveLighting: lightingEnabled.value,
       physicalLens: physicalLensEnabled.value,
-      hairOcclusion: hairActive.value
+      hairOcclusion: hairActive.value,
+      cameraMatch: cameraMatchEnabled.value
     }
   })
 }
 
 if (metrics) {
   useTryOnFrameLoop((deltaMs) => {
-    if (metrics.onFrame(deltaMs, isActive.value, hasFace.value)) emitMetrics(false)
+    if (metrics.onFrame(deltaMs, isActive.value, trackerHasFace.value)) emitMetrics(false)
   })
 }
 
@@ -310,6 +437,41 @@ const capability = useCapabilityTier({
   }
 })
 
+// Parsed-GLB cache (issue #94): switching back to a frame, or to a
+// prefetched neighbour, mounts it at once. Prefetch runs only while a face is
+// tracked, so it never competes with the first frame or loads anything
+// before the camera starts; the low tier keeps two GLBs and never prefetches.
+const preloadPerSide = computed(() =>
+  props.preload === false ? 0 : Math.max(0, Math.floor(props.preload))
+)
+const modelCache = useTryOnModelCache({
+  draco: props.draco,
+  dracoDecoderPath: props.dracoDecoderPath,
+  capacity: modelCacheCapacity(false, preloadPerSide.value)
+})
+watch(
+  [() => capability.tier.value, preloadPerSide],
+  ([tier, perSide]) => modelCache.resize(modelCacheCapacity(tier === 'low', perSide)),
+  { immediate: true }
+)
+watch(
+  [model, () => isActive.value && hasFace.value, () => capability.tier.value, preloadPerSide],
+  ([file, tracking, tier, perSide]) => {
+    if (!tracking || tier === 'low' || perSide <= 0) return
+    const files = props.models.map((m) => m.file)
+    modelCache.prefetch(neighbourFiles(files, file, perSide).map(srcFor))
+  }
+)
+
+/**
+ * Fetch and parse a frame ahead of a likely switch (e.g. hover on a swatch),
+ * in idle time. Unknown files are ignored.
+ */
+function preloadModel(file: string) {
+  if (!getTryOnModel(props.models, file)) return
+  modelCache.prefetch([srcFor(file)])
+}
+
 // Hair occlusion (opt-in, high tier). The segmenter starts on the first
 // tracked face so it never delays the first try-on, and pauses while no face
 // is tracked.
@@ -331,10 +493,6 @@ const hairActive = computed(
     !hairSegmenter.error.value
 )
 
-const templeScaleBoost = computed(
-  () => calibration.value.templeWidthBoost * props.templeWidth
-)
-
 // The frame renders only on a tracked face: never before the camera starts
 // (the host owns that screen — consent, previews), and not while tracking
 // has momentarily lost the face (head turned past the tracker's yaw range,
@@ -343,6 +501,26 @@ const frameVisible = computed(
   () => isActive.value && useFaceTracking.value && hasFace.value
 )
 
+// The frame fades out (CSS, on the canvas layer) when the face is lost for
+// longer than the hold; the scene keeps drawing it until the fade is done.
+const FRAME_FADE_MS = 150
+const frameFading = ref(false)
+let fadeTimer: ReturnType<typeof setTimeout> | null = null
+watch(frameVisible, (visible, wasVisible) => {
+  if (fadeTimer !== null) clearTimeout(fadeTimer)
+  fadeTimer = null
+  frameFading.value = !visible && wasVisible
+  if (frameFading.value) {
+    fadeTimer = setTimeout(() => {
+      fadeTimer = null
+      frameFading.value = false
+    }, FRAME_FADE_MS)
+  }
+})
+onBeforeUnmount(() => {
+  if (fadeTimer !== null) clearTimeout(fadeTimer)
+})
+
 // Where the frame goes (shared with the playground prototype): scale from
 // the tracked face, smoothed pose, world position and the occluders.
 const {
@@ -350,6 +528,8 @@ const {
   earWidth: correctedEarWidth,
   ipd: correctedIpd,
   poseCompensated,
+  measurement: pdMeasurement,
+  rulerPd,
   smoothedEuler,
   smoothedScale,
   framePosition,
@@ -368,12 +548,29 @@ const {
   coverWindow,
   mediaAspect,
   calibration,
-  scaleMultiplier: () => props.frameScale
+  scaleMultiplier: () => props.frameScale,
+  trueToSize: () => props.trueToSize,
+  calibratedPd: () => {
+    const { state } = cardCalibration
+    return state.value.status === 'done' && state.value.nearPdMm && state.value.pdMm
+      ? { nearPdMm: state.value.nearPdMm, pdMm: state.value.pdMm }
+      : null
+  }
 })
 
-const guideHint = computed<TryOnGuideHint | null>(() => {
-  if (!isActive.value || !useFaceTracking.value) return null
-  return !hasFace.value || !correctedFaceAnchor.value ? 'noFace' : 'aligned'
+// Coaching for the host's guide UI (no copy here): no face, turned too far,
+// too dark, or aligned. Keeps its previous value for the hysteresis.
+const guideHint = ref<TryOnGuideHint | null>(null)
+watchEffect(() => {
+  guideHint.value = guideHintFor({
+    tracking: isActive.value && useFaceTracking.value,
+    hasFace: hasFace.value,
+    anchored: !!correctedFaceAnchor.value,
+    yaw: facePose.value?.euler.yaw ?? null,
+    lastYaw: lastYaw.value,
+    luma: roomLuma.value,
+    previous: guideHint.value
+  })
 })
 
 // Fit verdict (frame width vs the tracked face's width). The frame width is
@@ -392,13 +589,106 @@ const fitState = useTryOnFit({
   hasFace,
   earWidth: () => poseCompensated(correctedEarWidth.value),
   ipd: () => poseCompensated(correctedIpd.value),
+  ipdMm: () => rulerPd.value,
   frameWidthMm: () => frameWidthMm.value,
   tolerance: () => props.fitTolerance
 })
 const fit = fitState.fit
 
+// Face shape (frame-advisor styling hint), from frontal detections.
+const { faceShape } = useTryOnFaceShape({
+  landmarks: faceLandmarks,
+  pose: facePose,
+  mediaAspect
+})
+
+// On-device face measurements (frame advisor, issue #98): the measured PD
+// (distance PD, as an optician measures it), the face width the fit verdict
+// uses, and the face shape. Null while nothing is measured yet.
+const measuredFaceWidthMm = computed(() => {
+  const estimate = fitState.faceWidthEstimate.value
+  return estimate && estimate.samples >= FIT_MIN_SAMPLES ? estimate.mean : null
+})
+const measurements = computed<TryOnMeasurements | null>(() => {
+  const pd = pdMeasurement.value
+  const shape = faceShape.value
+  if (!pd && measuredFaceWidthMm.value === null && !shape) return null
+  return {
+    pdMm: pd?.pdMm ?? null,
+    faceWidthMm: measuredFaceWidthMm.value,
+    confidence: pdConfidence(pd),
+    stable: pd?.stable ?? false,
+    faceShape: shape?.shape ?? null,
+    faceShapeConfidence: shape?.confidence ?? 0
+  }
+})
+
+/** Start a card calibration (see README); restarts one in progress. */
+function startCalibration() {
+  cardCalibration.start()
+}
+
+/** Stop a calibration in progress, or drop a finished one. */
+function cancelCalibration() {
+  cardCalibration.cancel()
+}
+
+const calibrationState = cardCalibration.calibration
+
+watch(
+  () => calibrationState.value.status,
+  (status) => {
+    if (status === 'done') {
+      trackTryOn('TRY_ON_CALIBRATED', { pdMm: calibrationState.value.pdMm })
+    } else if (status === 'failed') {
+      trackTryOn('TRY_ON_ERROR', {
+        errorType: 'calibration_failed',
+        source: 'card_calibration',
+        message: 'no stable card reading'
+      })
+    }
+  }
+)
+
+// Width of any catalog frame without loading it: the catalog spec, else the
+// calibration manifest's `frameWidthMm`, else (the active frame only) its
+// loaded GLB. 0 while unknown.
+function frameWidthFor(file: string): number {
+  const spec = getTryOnModel(props.models, file)?.frameWidthMm
+  if (spec && spec > 0) return spec
+  if (file === model.value && frameWidthMm.value > 0) return frameWidthMm.value
+  return getCalibration(file).frameWidthMm
+}
+
+/** Fit of any catalog frame on the measured face; null until measured or when its width is unknown. */
+function fitFor(file: string): TryOnFit | null {
+  const face = measuredFaceWidthMm.value
+  const frame = frameWidthFor(file)
+  if (face === null) return null
+  const verdict = fitVerdictFor(frame, face, props.fitTolerance)
+  return verdict ? { verdict, faceWidthMm: face, frameWidthMm: frame } : null
+}
+
+/** The catalog ranked by fit on the measured face, best first; empty until measured. */
+const fitRanking = computed<TryOnFitRank[]>(() => {
+  const face = measuredFaceWidthMm.value
+  if (face === null) return []
+  return rankByFit(
+    props.models.map((m) => ({ file: m.file, frameWidthMm: frameWidthFor(m.file) })),
+    face,
+    props.fitTolerance
+  )
+})
+
+// Frame-switch latency for the metrics event: switch → new frame shown.
+let switchStartedAt: number | null = null
+
 function onModelLoaded(widthMeters: number) {
   glbWidthMeters.value = widthMeters
+  if (switchStartedAt !== null) {
+    metrics?.onModelSwitchLatency(performance.now() - switchStartedAt)
+    switchStartedAt = null
+  }
 }
 
 const status = computed<TryOnStatus>(() => {
@@ -417,6 +707,10 @@ function trackTryOn(
     | 'TRY_ON_FRAME_CHANGED'
     | 'TRY_ON_TIER'
     | 'TRY_ON_FIT'
+    | 'TRY_ON_CALIBRATED'
+    | 'TRY_ON_FACE_SHAPE'
+    | 'TRY_ON_CAPTURE'
+    | 'TRY_ON_FREEZE'
     | 'TRY_ON_ERROR',
   extra: Record<string, unknown> = {}
 ) {
@@ -430,6 +724,23 @@ function trackTryOn(
   })
 }
 
+// Time to first frame (issue #95). The tracker (MediaPipe Wasm + face
+// model, the largest first-load cost) starts loading with `start()` or
+// `prefetch()`, in parallel with the camera permission prompt and stream
+// start, instead of after the stream is up.
+let trackerRequestedAt: number | null = null
+function initTracker() {
+  if (trackerRequestedAt === null) trackerRequestedAt = performance.now()
+  const requestedAt = trackerRequestedAt
+  initFaceLandmarker()
+    .then(() => {
+      if (faceReady.value) metrics?.onAssetTiming('tracker', performance.now() - requestedAt)
+    })
+    .catch(() => {
+      // Failure is surfaced via faceError.
+    })
+}
+
 /** Start (or retry) the camera. The first call reports TRY_ON_OPENED. */
 async function start() {
   if (!hasConsented.value) {
@@ -439,12 +750,116 @@ async function start() {
       entryPoint: props.autoStart ? 'auto_start' : 'camera_consent'
     })
   }
+  initTracker()
   await startStream()
+}
+
+/**
+ * Warm up before the shopper taps "Try on" (e.g. on hover of the button):
+ * loads the face tracker. Does not touch the camera, so it needs no consent;
+ * it does download the MediaPipe Wasm and model.
+ */
+function prefetch() {
+  initTracker()
+}
+
+// Open connections to the default CDNs early (skipped for self-hosted
+// assets), while the shopper reads the consent screen.
+useHead({
+  link: preconnectOrigins({
+    mediapipeBasePath: props.mediapipeBasePath,
+    mediapipeModelAssetPath: props.mediapipeModelAssetPath,
+    hairOcclusion: props.hairOcclusion,
+    mediapipeHairModelAssetPath: props.mediapipeHairModelAssetPath,
+    draco: props.draco,
+    dracoDecoderPath: props.dracoDecoderPath,
+    presetEnvironment: props.environmentUrl === undefined
+  }).map((href) => ({ rel: 'preconnect', href, crossorigin: 'anonymous' as const }))
+})
+
+// Camera granted → first rendered frame on a face, once per camera session.
+let grantedAt: number | null = null
+watch(isActive, (active) => {
+  grantedAt = active ? performance.now() : null
+})
+watch(
+  () => frameVisible.value && glbWidthMeters.value > 0,
+  (shown) => {
+    if (!shown || grantedAt === null || !metrics) return
+    const since = grantedAt
+    grantedAt = null
+    // The frame is on screen once the next frame has been drawn.
+    requestAnimationFrame(() => metrics.onFirstFrame(performance.now() - since))
+  }
+)
+
+function onSceneTiming(asset: 'model' | 'environment', ms: number) {
+  metrics?.onAssetTiming(asset, ms)
 }
 
 onMounted(() => {
   if (props.autoStart) void start()
 })
+
+// Snapshot of the composited try-on (issue #93), set by the scene.
+let renderSnapshot: (() => HTMLCanvasElement | null) | null = null
+function onSceneSnapshot(render: () => HTMLCanvasElement | null) {
+  renderSnapshot = render
+}
+
+/**
+ * The try-on as the shopper sees it, as an image Blob: the visible
+ * (`object-fit: cover`) window of the camera frame, mirrored like the
+ * preview, with the frame rendered over it. Made on-device; the Blob stays in
+ * the browser unless the host uploads or shares it. Rejects while the camera
+ * is off.
+ */
+async function capture(options: TryOnCaptureOptions = {}): Promise<Blob> {
+  const video = videoRef.value
+  if (!isActive.value || !video) throw new Error('capture: camera is not active')
+  const layout = captureLayout(
+    video.videoWidth,
+    video.videoHeight,
+    stageWidth.value,
+    stageHeight.value,
+    options.maxWidth
+  )
+  if (!layout) throw new Error('capture: camera frame not ready')
+  const canvas = document.createElement('canvas')
+  canvas.width = layout.width
+  canvas.height = layout.height
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('capture: 2D canvas unavailable')
+  const { source } = layout
+  // Mirrored once, like the preview's `scaleX(-1)`; the scene is not.
+  context.save()
+  context.translate(layout.width, 0)
+  context.scale(-1, 1)
+  context.drawImage(
+    video,
+    source.x,
+    source.y,
+    source.width,
+    source.height,
+    0,
+    0,
+    layout.width,
+    layout.height
+  )
+  context.restore()
+  // Render and copy in the same task: the drawing buffer is still intact.
+  const scene = renderSnapshot?.()
+  if (scene && scene.width > 0 && scene.height > 0) {
+    context.drawImage(scene, 0, 0, layout.width, layout.height)
+  }
+  const type = options.type ?? 'image/jpeg'
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, type, captureQuality(options.quality))
+  )
+  if (!blob) throw new Error('capture: encoding failed')
+  trackTryOn('TRY_ON_CAPTURE', { type: blob.type })
+  return blob
+}
 
 // Hair-occlusion state, read-only on the ref: whether it runs, the share of
 // the frame the current mask calls hair, the worker's mean time per
@@ -463,6 +878,12 @@ const hair = computed(() => ({
 defineExpose({
   start,
   stop,
+  capture,
+  preloadModel,
+  freeze,
+  unfreeze,
+  frozen,
+  prefetch,
   status,
   error,
   faceError,
@@ -470,7 +891,13 @@ defineExpose({
   guideHint,
   fit,
   lighting,
-  hair
+  hair,
+  measurements,
+  calibration: calibrationState,
+  startCalibration,
+  cancelCalibration,
+  fitRanking,
+  fitFor
 })
 
 defineSlots<{
@@ -489,8 +916,25 @@ defineSlots<{
      * stable estimate, and while no face is tracked.
      */
     fit: TryOnFit | null
+    /**
+     * On-device face measurements: PD, face width, face shape. Null until
+     * something is measured.
+     */
+    measurements: TryOnMeasurements | null
     start: () => Promise<void>
     stop: () => void
+    /** Card calibration: `{ status, progress, pdMm }` ('idle' until started). */
+    calibration: TryOnCardCalibration
+    startCalibration: () => void
+    cancelCalibration: () => void
+    /** Snapshot of the composited try-on as an image Blob (on-device). */
+    capture: (options?: TryOnCaptureOptions) => Promise<Blob>
+    /** The camera frame and pose are held (see `freeze`). */
+    frozen: boolean
+    /** Hold the current frame and pose, e.g. to compare frames on one look. */
+    freeze: () => Promise<void>
+    /** Back to the live camera. */
+    unfreeze: () => Promise<void>
   }) => unknown
 }>()
 
@@ -498,9 +942,8 @@ watch(isActive, (active) => {
   if (active) {
     trackTryOn('TRY_ON_CAMERA_GRANTED')
     useFaceTracking.value = true
-    initFaceLandmarker().catch(() => {
-      // Failure is surfaced via faceError.
-    })
+    // Already loading since `start()`; this covers a retry after a failure.
+    initTracker()
   }
 })
 
@@ -538,6 +981,26 @@ watch(faceError, (err) => {
   }
 })
 
+// A bad calibration entry is reported once per model (the frame still
+// renders, with the invalid fields at their defaults).
+const reportedCalibration = new Set<string>()
+watch(
+  () => {
+    const file = model.value ?? initialModel
+    return { file, problems: getCalibrationProblems(file) }
+  },
+  ({ file, problems }) => {
+    if (!problems.length || reportedCalibration.has(file)) return
+    reportedCalibration.add(file)
+    trackTryOn('TRY_ON_ERROR', {
+      errorType: 'invalid_calibration',
+      source: 'calibration',
+      message: `${file}: ${problems.join('; ')}`
+    })
+  },
+  { immediate: true }
+)
+
 function onSceneError(source: 'model' | 'environment', message: string) {
   trackTryOn('TRY_ON_ERROR', {
     errorType: 'load_failed',
@@ -551,6 +1014,9 @@ function onSceneError(source: 'model' | 'environment', message: string) {
 // strength follows the room light.
 const contactShadowEnabled = computed(
   () => props.contactShadow && capability.allows('contactShadow')
+)
+const cameraMatchEnabled = computed(
+  () => props.cameraMatch && capability.allows('cameraMatch')
 )
 const physicalLensEnabled = computed(
   () => props.physicalLens && capability.allows('physicalLens')
@@ -584,6 +1050,15 @@ watch(fitState.verdict, (verdict) => {
   })
 })
 
+// Face shape as a coarse class only (never measurements), once it appears
+// and on each change.
+watch(
+  () => faceShape.value?.shape ?? null,
+  (shape) => {
+    if (shape) trackTryOn('TRY_ON_FACE_SHAPE', { faceShape: shape })
+  }
+)
+
 // Camera stopped: send the session's final report and start the next session fresh.
 watch(isActive, (active, wasActive) => {
   if (!active && wasActive && metrics) {
@@ -598,6 +1073,7 @@ onBeforeUnmount(() => {
 
 watch(model, (value) => {
   metrics?.onModelSwitch()
+  switchStartedAt = performance.now()
   // A new GLB compiles its shaders on the next frames: warm up again.
   capability.resetWarmup()
   // The new frame has its own width: no verdict until its GLB has loaded.
@@ -626,7 +1102,14 @@ watch(model, (value) => {
     />
 
     <ClientOnly>
-      <div class="vto-layer">
+      <div
+        class="vto-layer vto-frame"
+        :class="{
+          'vto-frame--hidden': !frameVisible,
+          'vto-layer--camera-match': cameraMatchEnabled
+        }"
+        :style="cameraMatchEnabled ? { '--vto-camera-blur': `${CAMERA_BLUR_PX}px` } : undefined"
+      >
         <!-- Neutral tone mapping (Khronos PBR Neutral), not ACES: the
              camera feed behind the canvas is untone-mapped sRGB, and
              ACES' filmic curve would desaturate frame colors against it.
@@ -647,15 +1130,11 @@ watch(model, (value) => {
         >
           <TryOnScene
             :src="modelSrc"
-            :draco="draco"
-            v-bind="{
-              ...(dracoDecoderPath !== undefined ? { dracoDecoderPath } : {})
-            }"
-            :visible="frameVisible"
+            :model-cache="modelCache"
+            :visible="frameVisible || frameFading"
             :position="framePosition"
             :model-offset="calibration.translation"
             :scale="smoothedScale"
-            :scale-x-boost="templeScaleBoost"
             :rotation="smoothedEuler"
             :occluder-enabled="occluderEnabled"
             :occluder-positions="occluderPositions"
@@ -663,6 +1142,10 @@ watch(model, (value) => {
             :contact-shadow-strength="contactShadowStrength"
             :light-gain="lightGain"
             :light-tint="lightTint"
+            :room-sample="roomSample"
+            :light-direction="lightDirection"
+            :camera-match="cameraMatchEnabled"
+            :room-luma="roomLuma"
             :occluder-position="occluderPosition"
             :occluder-radius="occluderGeometry"
             :occluder-rotation="smoothedEuler"
@@ -671,8 +1154,12 @@ watch(model, (value) => {
             :lens="calibration.lens"
             :hair-mask="hairActive ? hairSegmenter.mask.value : null"
             :media-window="coverWindow"
+            :environment-url="environmentUrl"
+            :procedural-environment="capability.tier.value === 'low'"
             @error="onSceneError"
             @loaded="onModelLoaded"
+            @snapshot="onSceneSnapshot"
+            @timing="onSceneTiming"
           />
         </TresCanvas>
       </div>
@@ -686,8 +1173,16 @@ watch(model, (value) => {
       :has-face="hasFace"
       :guide-hint="guideHint"
       :fit="fit"
+      :measurements="measurements"
       :start="start"
       :stop="stop"
+      :calibration="calibrationState"
+      :start-calibration="startCalibration"
+      :cancel-calibration="cancelCalibration"
+      :capture="capture"
+      :frozen="frozen"
+      :freeze="freeze"
+      :unfreeze="unfreeze"
     />
   </div>
 </template>
@@ -722,5 +1217,19 @@ watch(model, (value) => {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Keep in step with FRAME_FADE_MS. */
+.vto-frame {
+  transition: opacity 150ms ease-out;
+}
+
+.vto-frame--hidden {
+  opacity: 0;
+}
+
+/* A webcam is a touch soft; only the rendered frame layer is blurred. */
+.vto-layer--camera-match {
+  filter: blur(var(--vto-camera-blur));
 }
 </style>
