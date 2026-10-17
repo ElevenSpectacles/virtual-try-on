@@ -76,7 +76,54 @@ import {
   type LightDirection
 } from '../utils/tryon-room'
 import type { RoomSample } from '../composables/tryon/useTryOnLighting'
-import { NO_LENS_OVERRIDE, type TryOnLens } from '../utils/tryon-lens'
+import {
+  LENS_HEIGHT_ATTRIBUTE,
+  NO_LENS_OVERRIDE,
+  patchLensGradientShader,
+  type TryOnLens
+} from '../utils/tryon-lens'
+
+// A lens mesh's own height, 0 at its bottom … 1 at its top in the GLB's
+// frame (up is +y there), as a vertex attribute for the gradient tint. Baked
+// once per geometry: the node transforms are fixed.
+function bakeLensHeight(mesh: Mesh, root: Object3D) {
+  const geometry = mesh.geometry as BufferGeometry
+  if (geometry.getAttribute(LENS_HEIGHT_ATTRIBUTE)) return
+  const position = geometry.getAttribute('position')
+  if (!position) return
+  root.updateMatrixWorld(true)
+  const toFrame = new Matrix4().copy(root.matrixWorld).invert().multiply(mesh.matrixWorld)
+  const point = new Vector3()
+  const heights = new Float32Array(position.count)
+  let min = Infinity
+  let max = -Infinity
+  for (let i = 0; i < position.count; i++) {
+    const y = point.fromBufferAttribute(position, i).applyMatrix4(toFrame).y
+    heights[i] = y
+    min = Math.min(min, y)
+    max = Math.max(max, y)
+  }
+  const span = max - min || 1
+  for (let i = 0; i < heights.length; i++) heights[i] = (heights[i]! - min) / span
+  geometry.setAttribute(LENS_HEIGHT_ATTRIBUTE, new BufferAttribute(heights, 1))
+}
+
+/**
+ * Gradient tint (`lens.gradient`): the lens's base opacity follows its
+ * height, dark to light top to bottom with a smooth middle
+ * (`gradientDensityAt`). Composes with the Fresnel patch, which reads the
+ * opacity after this.
+ */
+function applyLensGradient(material: Material, gradient: { top: number; bottom: number }) {
+  const previous = material.onBeforeCompile.bind(material)
+  const previousKey = material.customProgramCacheKey.bind(material)
+  material.onBeforeCompile = (shader, renderer) => {
+    previous(shader, renderer)
+    shader.uniforms.uLensGradient = { value: [gradient.bottom, gradient.top] }
+    patchLensGradientShader(shader)
+  }
+  material.customProgramCacheKey = () => `${previousKey()}|tryon-lens-gradient`
+}
 import {
   CONTACT_SHADOW_STRENGTH,
   SHADOW_LIGHT_DIRECTION,
@@ -574,6 +621,9 @@ function buildLens(
   if (lens.tint) material.color.setRGB(...lens.tint)
   if (lens.density !== null) material.opacity = lens.density
   if (material instanceof MeshPhysicalMaterial) applyLensFresnel(material)
+  // After the Fresnel patch, so it wraps it: the gradient sets the base
+  // opacity the Fresnel term then raises toward grazing angles.
+  if (lens.gradient) applyLensGradient(material, lens.gradient)
   return material
 }
 
@@ -595,6 +645,7 @@ watch(
       obj.userData.tryOnAuthoredMaterial = authored
       const swap = (material: Material) => {
         if (!LENS_MATERIAL_NAME.test(material.name)) return material
+        if (lens.gradient && gltf) bakeLensHeight(obj, gltf.scene)
         let lensMaterial = built.get(material)
         if (!lensMaterial) {
           lensMaterial = buildLens(material as MeshStandardMaterial, physical, lens)

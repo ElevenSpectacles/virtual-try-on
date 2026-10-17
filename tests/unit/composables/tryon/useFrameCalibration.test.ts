@@ -32,7 +32,7 @@ describe('getCalibrationFromManifest', () => {
       rotation: { x: 0, y: 0, z: 0 },
       scale: 1,
       templeWidthBoost: 1,
-      lens: { tint: null, density: null },
+      lens: { tint: null, density: null, gradient: null },
       padSpacingMm: null,
       frameWidthMm: 0
     })
@@ -63,14 +63,16 @@ describe('getCalibrationFromManifest', () => {
   it('resolves a per-model lens tint and density', () => {
     expect(getCalibrationFromManifest(manifest, 'kairos-amber').lens).toEqual({
       tint: [0x3a / 255, 0x4a / 255, 0x5c / 255],
-      density: 0.7
+      density: 0.7,
+      gradient: null
     })
   })
 
   it('keeps the authored lens when the entry has no lens override', () => {
     expect(getCalibrationFromManifest(manifest, 'iris-bronze').lens).toEqual({
       tint: null,
-      density: null
+      density: null,
+      gradient: null
     })
   })
 
