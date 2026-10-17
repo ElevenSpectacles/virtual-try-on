@@ -88,7 +88,9 @@ Key facts:
   - `useTryOnFrameLoop.ts` / `useTryOnElementSize.ts` — rAF loop and
     ResizeObserver size, the module's own stand-ins for VueUse.
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
-    per-model calibration.
+    per-model calibration; `validateCalibration` falls back field by field
+    and lists problems, which the component reports as `TRY_ON_ERROR`
+    (`source: 'calibration'`).
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
   - `useTryOnModelCache.ts` — parsed-GLB cache (GLTF/Draco loaders, LRU of
     loaded + rigged frames, disposed on eviction, the shown frame pinned) and
@@ -176,6 +178,14 @@ Key facts:
   - `audit-tilt.ts` — pantoscopic tilt audit: fits each GLB's lens plane
     (`scripts/lib/tilt.ts`), adds the calibration `rotation.x`, flags models
     outside 7–12° and suggests the value for 9°.
+  - `prepare-model.ts` (`npm run prepare-model`) — the one command for a
+    new catalog frame: trim temple tips → Draco-compress → lint →
+    regenerate `calibration.json`. Steps record themselves in the GLB's
+    `extras.tryOnPrepared` and never run twice (`scripts/lib/model-prep.ts`);
+    a second run changes nothing. Prefer it over the single-step scripts.
+  - `lint-models.ts` (`npm run lint-models`) — model lint
+    (`scripts/lib/model-lint.ts`): lens material, `pt2`, bounds/units,
+    placeholder lens colour, size and texture budgets, compression.
   - `compress-models.ts` — Draco-compresses GLBs via `@gltf-transform`. Run
     `generate-calibration` against the compressed output (compression shifts
     bounding boxes by float rounding).

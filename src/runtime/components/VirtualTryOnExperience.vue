@@ -236,7 +236,7 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const { getCalibration } = useFrameCalibration(props.calibrationUrl)
+const { getCalibration, getCalibrationProblems } = useFrameCalibration(props.calibrationUrl)
 
 const queryModel = route.query.model as string | undefined
 const initialModel =
@@ -997,6 +997,26 @@ watch(faceError, (err) => {
     })
   }
 })
+
+// A bad calibration entry is reported once per model (the frame still
+// renders, with the invalid fields at their defaults).
+const reportedCalibration = new Set<string>()
+watch(
+  () => {
+    const file = model.value ?? initialModel
+    return { file, problems: getCalibrationProblems(file) }
+  },
+  ({ file, problems }) => {
+    if (!problems.length || reportedCalibration.has(file)) return
+    reportedCalibration.add(file)
+    trackTryOn('TRY_ON_ERROR', {
+      errorType: 'invalid_calibration',
+      source: 'calibration',
+      message: `${file}: ${problems.join('; ')}`
+    })
+  },
+  { immediate: true }
+)
 
 function onSceneError(source: 'model' | 'environment', message: string) {
   trackTryOn('TRY_ON_ERROR', {
