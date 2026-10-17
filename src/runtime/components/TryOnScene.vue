@@ -20,6 +20,7 @@ import {
   MeshDepthMaterial,
   SRGBColorSpace,
   MeshPhysicalMaterial,
+  PMREMGenerator,
   PlaneGeometry,
   RedFormat,
   ShaderMaterial,
@@ -28,7 +29,8 @@ import {
   type Material,
   type Object3D,
   type MeshStandardMaterial,
-  type Texture
+  type Texture,
+  type WebGLRenderer
 } from 'three'
 // three's own loaders instead of @tresjs/cientos: cientos ships as one
 // non-tree-shakeable file, so `useGLTF` + `Environment` pulled the whole
@@ -36,6 +38,7 @@ import {
 // GLTF/Draco loaders live in the model cache.
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { useTres } from '@tresjs/core'
 import {
   EAR_LEVEL_LEFT,
@@ -96,6 +99,17 @@ const props = withDefaults(
     envIntensity?: number
     /** Toggle the environment map (isolates the CDN dependency in demos). */
     useEnvironment?: boolean
+    /**
+     * URL of an equirect `.hdr` to use instead of the `envPreset` file, to
+     * self-host it. Ignored with `proceduralEnvironment`.
+     */
+    environmentUrl?: string | undefined
+    /**
+     * Use three's procedural `RoomEnvironment` (generated on the GPU, no
+     * download) instead of an HDR file. For low-tier devices, where the
+     * 1.6 MB preset costs more first-load time than its reflections are worth.
+     */
+    proceduralEnvironment?: boolean
     /** Depth-only head proxy that hides geometry behind it (temple arms). */
     occluderEnabled?: boolean
     /**
@@ -192,6 +206,8 @@ const props = withDefaults(
     envPreset: 'city',
     envIntensity: 0.35,
     useEnvironment: true,
+    environmentUrl: undefined,
+    proceduralEnvironment: false,
     occluderEnabled: false,
     occluderPositions: null,
     templeFit: true,
@@ -228,6 +244,8 @@ const emit = defineEmits<{
    * composites), so no `preserveDrawingBuffer` is needed.
    */
   snapshot: [render: () => HTMLCanvasElement | null]
+  /** How long an asset took to load and become usable, ms (metrics). */
+  timing: [asset: 'model' | 'environment', ms: number]
 }>()
 
 function errorMessage(err: unknown): string {
@@ -259,9 +277,11 @@ watch(
   () => props.src,
   async (src) => {
     const id = ++modelLoadId
+    const startedAt = performance.now()
     try {
       const { gltf, rig } = await modelCache.load(src)
       if (id === modelLoadId) {
+        emit('timing', 'model', performance.now() - startedAt)
         // A cached frame keeps its last opening: start from the GLB's own.
         for (const temple of rig?.temples ?? []) temple.pivot.rotation.z = 0
         templeRig = rig
@@ -317,16 +337,43 @@ function clearEnvironment() {
   envTexture = null
 }
 
+// Procedural room: three's RoomEnvironment PMREM-filtered once on the GPU.
+// No download, a few ms of GPU time; neutral soft-box reflections.
+function roomEnvironment(): Texture | null {
+  const target = renderer as unknown as WebGLRenderer
+  if (typeof target?.getContext !== 'function') return null
+  const generator = new PMREMGenerator(target)
+  const room = new RoomEnvironment()
+  const texture = generator.fromScene(room, 0.04).texture
+  room.dispose()
+  generator.dispose()
+  return texture
+}
+
 watch(
-  [() => props.useEnvironment, () => props.envPreset],
-  async ([enabled, preset]) => {
+  [
+    () => props.useEnvironment,
+    () => props.envPreset,
+    () => props.environmentUrl,
+    () => props.proceduralEnvironment
+  ],
+  async ([enabled, preset, url, procedural]) => {
     const id = ++envLoadId
     clearEnvironment()
     if (!enabled) return
+    const startedAt = performance.now()
+    if (procedural) {
+      envTexture = roomEnvironment()
+      if (envTexture) {
+        scene.value.environment = envTexture
+        emit('timing', 'environment', performance.now() - startedAt)
+      }
+      return
+    }
     try {
-      const texture = await new HDRLoader()
-        .setPath(ENV_PRESET_ROOT)
-        .loadAsync(ENV_PRESET_FILES[preset])
+      const texture = await new HDRLoader().loadAsync(
+        url ?? `${ENV_PRESET_ROOT}${ENV_PRESET_FILES[preset]}`
+      )
       if (id !== envLoadId) {
         texture.dispose()
         return
@@ -334,6 +381,7 @@ watch(
       texture.mapping = EquirectangularReflectionMapping
       envTexture = texture
       scene.value.environment = texture
+      emit('timing', 'environment', performance.now() - startedAt)
     } catch (err) {
       if (id === envLoadId) emit('error', 'environment', errorMessage(err))
     }

@@ -8,6 +8,9 @@ import { MAX_FRAME_GAP_MS, type TryOnTier } from './tryon-capability'
  * detection latencies and events; it returns a snapshot the host can forward.
  */
 
+/** First-load assets timed for `assetTimings`. */
+export type TryOnAsset = 'tracker' | 'model' | 'environment'
+
 /** How often an active session reports, in active milliseconds. */
 export const METRICS_INTERVAL_MS = 30_000
 /** Latency samples kept for the percentiles: about 30 s at 30 detections/s. */
@@ -18,6 +21,17 @@ export interface TryOnMetrics {
   activeMs: number
   /** Active time until the first tracked face, or null if none was tracked. */
   timeToFirstTrackMs: number | null
+  /**
+   * Camera granted → first rendered frame on a face (wall clock), or null
+   * until then. The headline first-load number (issue #95).
+   */
+  timeToFirstFrameMs: number | null
+  /**
+   * How long each first-load asset took, ms, null until it loaded: the
+   * tracker (MediaPipe Wasm + face model, from `start()`), the first frame
+   * GLB, and the environment map.
+   */
+  assetTimings: Record<TryOnAsset, number | null>
   /** Share of active time with a tracked face, 0…100. */
   trackUptimePct: number
   /** Tracked-to-lost transitions per active minute. */
@@ -68,6 +82,10 @@ export interface MetricsAccumulator {
   onFrame(deltaMs: number, active: boolean, tracking: boolean): boolean
   /** One camera-to-result detection latency sample, in ms. */
   onLatency(ms: number): void
+  /** Camera granted → first frame on a face, ms. Only the first call counts. */
+  onFirstFrame(ms: number): void
+  /** Load time of a first-load asset, ms. Only the first call per asset counts. */
+  onAssetTiming(asset: TryOnAsset, ms: number): void
   onModelSwitch(): void
   /** Time a frame switch took until the new frame was shown, in ms. */
   onModelSwitchLatency(ms: number): void
@@ -91,6 +109,12 @@ export function createMetricsAccumulator(): MetricsAccumulator {
   let nextReportAtMs = METRICS_INTERVAL_MS
   const latencies: number[] = []
   const switchLatencies: number[] = []
+  let timeToFirstFrameMs: number | null = null
+  let assetTimings: Record<TryOnAsset, number | null> = {
+    tracker: null,
+    model: null,
+    environment: null
+  }
 
   return {
     onFrame(deltaMs, active, tracking) {
@@ -124,6 +148,14 @@ export function createMetricsAccumulator(): MetricsAccumulator {
       if (latencies.length > LATENCY_WINDOW) latencies.shift()
     },
 
+    onFirstFrame(ms) {
+      timeToFirstFrameMs ??= Math.round(ms)
+    },
+
+    onAssetTiming(asset, ms) {
+      if (assetTimings[asset] === null) assetTimings = { ...assetTimings, [asset]: Math.round(ms) }
+    },
+
     onModelSwitch() {
       modelSwitches++
     },
@@ -153,6 +185,8 @@ export function createMetricsAccumulator(): MetricsAccumulator {
       return {
         activeMs: Math.round(activeMs),
         timeToFirstTrackMs: firstTrackAtMs === null ? null : Math.round(firstTrackAtMs),
+        timeToFirstFrameMs,
+        assetTimings: { ...assetTimings },
         trackUptimePct: activeMs > 0 ? round1((trackedMs / activeMs) * 100) : 0,
         trackLossPerMin: activeMinutes > 0 ? round1(losses / activeMinutes) : 0,
         detectLatencyMeanMs: latencyMean === null ? null : round1(latencyMean),
@@ -180,6 +214,10 @@ export function createMetricsAccumulator(): MetricsAccumulator {
       nextReportAtMs = METRICS_INTERVAL_MS
       latencies.length = 0
       switchLatencies.length = 0
+      // First-load timings stay: they describe how this page loaded, and a
+      // restart of the camera reuses the loaded assets. The next session's
+      // time to first frame is measured again.
+      timeToFirstFrameMs = null
     }
   }
 }

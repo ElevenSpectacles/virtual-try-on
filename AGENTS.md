@@ -137,7 +137,9 @@ Key facts:
   (`capture()` layout: the cover-cropped camera window and output size), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-model-cache.ts` (the LRU, neighbour prefetch order, cache capacity
-  per tier), `tryon-frame-schedule.ts` (detect scheduling: one
+  per tier), `tryon-preconnect.ts` (default CDN origins to preconnect, minus
+  self-hosted ones; a test keeps them in step with the workers and scene),
+  `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
   (session telemetry: uptime, loss rate, FPS, latency percentiles; the
   `metrics` event payload, opt-in via `reportMetrics`).
@@ -327,8 +329,10 @@ claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
 - MediaPipe WASM and the face model load from CDNs (jsdelivr / Google
   storage) by default — first load needs network unless the host passes
   `mediapipeBasePath` / `mediapipeModelAssetPath` self-hosted overrides (also
-  `mediapipeHairModelAssetPath` for the opt-in hair segmenter and
-  `dracoDecoderPath` for the Draco decoder).
+  `mediapipeHairModelAssetPath` for the opt-in hair segmenter,
+  `dracoDecoderPath` for the Draco decoder and `environmentUrl` for the HDR).
+  The tracker starts loading on `start()` (or `prefetch()`), in parallel with
+  the camera prompt — keep it off the camera's critical path.
 
 ## Security and privacy
 

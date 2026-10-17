@@ -200,6 +200,7 @@ Two optional fitting fields:
 | `mediapipeHairModelAssetPath` | `string` | Google Storage | URL of `hair_segmenter.tflite`, for self-hosting. |
 | `templeEarBend` | `boolean` | `false` | Bends the temple tips down behind the ears (30°, from ~1.5 cm behind the tracked front of the ear), as an optician fits a frame. Visible when the shopper turns to see the temples. |
 | `preload` | `number \| false` | `1` | Frames to prefetch on each side of the active one in `models`, in idle time once a face is tracked, so switching to them is instant (see [Instant frame switching](#instant-frame-switching)). `false` turns it off. |
+| `environmentUrl` | `string` | GitHub raw CDN | URL of the equirect `.hdr` environment map, for self-hosting. The `low` tier uses a procedural environment and downloads nothing. |
 
 ### Default slot
 
@@ -397,6 +398,8 @@ unmounts (`final: true`). Each report covers the session so far.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `activeMs` | `number` | Camera-on time. Frame stalls over 500 ms are excluded. |
+| `timeToFirstFrameMs` | `number \| null` | Camera granted → first frame rendered on a face (wall clock). |
+| `assetTimings` | `{ tracker, model, environment }` | First-load time of each asset in ms (`null` until loaded): the tracker (Wasm + face model, from `start()`), the first GLB, and the environment map. |
 | `timeToFirstTrackMs` | `number \| null` | Camera-on time until the first tracked face. `null` if none. |
 | `trackUptimePct` | `number` | Share of camera-on time with a tracked face, 0–100. |
 | `trackLossPerMin` | `number` | Tracked-to-lost transitions per camera-on minute. |
@@ -506,14 +509,58 @@ error.
 
 ### Self-hosting third-party assets
 
-By default the MediaPipe Wasm, the face model and the Draco decoder load
-from public CDNs on first use. To remove those dependencies (for a strict
-CSP or offline use), serve the files yourself and pass
-`mediapipeBasePath`, `mediapipeModelAssetPath` and
-`dracoDecoderPath` (and `mediapipeHairModelAssetPath` if you turn on
-hair occlusion). Serve the Wasm fileset from the same
-`@mediapipe/tasks-vision` version the module pins (see its `package.json`) —
-mixed versions are unsupported.
+By default the first load fetches from four public CDNs: the MediaPipe Wasm
+(jsDelivr), the face model (Google Storage), the Draco decoder (gstatic) and
+the environment map (GitHub raw). The component adds `<link rel="preconnect">`
+hints for the ones it will use, and starts loading the tracker on `start()`,
+in parallel with the camera prompt. Serving them yourself removes the
+foreign origins (for a strict CSP, offline use, or a faster cold start):
+
+| Asset | Copy from | Prop |
+| --- | --- | --- |
+| MediaPipe Wasm fileset | `node_modules/@mediapipe/tasks-vision/wasm/` | `mediapipeBasePath` |
+| Face model | [`face_landmarker.task`](https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task) | `mediapipeModelAssetPath` |
+| Draco decoder | `node_modules/three/examples/jsm/libs/draco/` (`draco_wasm_wrapper.js`, `draco_decoder.wasm`) | `dracoDecoderPath` |
+| Environment map | [`canary_wharf_1k.hdr`](https://raw.githubusercontent.com/Tresjs/assets/main/textures/hdr/city/canary_wharf_1k.hdr) (CC0, Poly Haven) | `environmentUrl` |
+| Hair model (only with `hairOcclusion`) | [`hair_segmenter.tflite`](https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite) | `mediapipeHairModelAssetPath` |
+
+Serve the Wasm fileset from the same `@mediapipe/tasks-vision` version the
+module pins (see its `package.json`) — mixed versions are unsupported. With
+Nitro, serve the package directories straight from `node_modules` and put
+the downloaded files in `public/`:
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  nitro: {
+    publicAssets: [
+      { baseURL: '/vto/wasm', dir: '../node_modules/@mediapipe/tasks-vision/wasm', maxAge: 31536000 },
+      { baseURL: '/vto/draco', dir: '../node_modules/three/examples/jsm/libs/draco', maxAge: 31536000 }
+    ]
+  }
+})
+```
+
+```vue
+<VirtualTryOnExperience
+  :models="models"
+  calibration-url="/models/virtual-try-on/calibration.json"
+  mediapipe-base-path="/vto/wasm"
+  mediapipe-model-asset-path="/vto/face_landmarker.task"
+  draco-decoder-path="/vto/draco/"
+  environment-url="/vto/canary_wharf_1k.hdr"
+/>
+```
+
+`face_landmarker.task` and `canary_wharf_1k.hdr` go in `public/vto/`. With
+every path set, the try-on makes no third-party requests and adds no
+preconnect hints.
+
+To shave the tracker's load off the critical path entirely, call
+`prefetch()` on the ref before the shopper taps "Try on" (e.g. on hover of
+your button). It loads the tracker without touching the camera. Report
+`timeToFirstFrameMs` and `assetTimings` from the `metrics` event to see the
+effect in the field.
 
 ## Privacy
 
