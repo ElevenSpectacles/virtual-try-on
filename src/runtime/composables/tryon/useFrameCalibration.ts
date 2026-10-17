@@ -11,7 +11,6 @@ const DEFAULT_CALIBRATION: TryOnFrameCalibration = {
   translation: { x: 0, y: 0, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
   scale: 1,
-  templeWidthBoost: 1,
   lens: NO_LENS_OVERRIDE,
   padSpacingMm: null,
   frameWidthMm: 0
@@ -61,12 +60,7 @@ export function validateCalibration(
   let scale = 1
   if (finite(entry.scale) && entry.scale >= 0.2 && entry.scale <= 5) scale = entry.scale
   else problems.push('scale must be a number between 0.2 and 5')
-  let templeWidthBoost = 1
-  if (entry.templeWidthBoost !== undefined) {
-    if (finite(entry.templeWidthBoost) && entry.templeWidthBoost > 0) {
-      templeWidthBoost = entry.templeWidthBoost
-    } else problems.push('templeWidthBoost must be a positive number')
-  }
+  // `templeWidthBoost` (removed in 5.0) is ignored in older manifests.
   const lensEntry = entry.lens as TryOnModelCalibration['lens'] | undefined
   const lens = resolveLens(lensEntry)
   if (lensEntry !== undefined) {
@@ -108,7 +102,6 @@ export function validateCalibration(
       translation: translation ?? DEFAULT_CALIBRATION.translation,
       rotation: rotation ?? DEFAULT_CALIBRATION.rotation,
       scale,
-      templeWidthBoost,
       lens,
       padSpacingMm,
       frameWidthMm
@@ -117,6 +110,11 @@ export function validateCalibration(
   }
 }
 
+/**
+ * The calibration of `model` from a manifest, identity when absent. Fields
+ * removed in 5.0 (`templeWidthBoost`) are ignored if a manifest still has
+ * them.
+ */
 export function getCalibrationFromManifest(
   manifest: TryOnCalibrationFile | null | undefined,
   model: string

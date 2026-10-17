@@ -58,11 +58,9 @@ describe('modelCalibration', () => {
       translation: { x: 9, y: 9, z: 9 },
       rotation: { x: 0.1, y: 0, z: 0 },
       scale: 9,
-      templeWidthBoost: 1.05,
       lens: { tint: '#3a4a5c', density: 0.6 }
     })
     expect(entry.rotation).toEqual({ x: 0.1, y: 0, z: 0 })
-    expect(entry.templeWidthBoost).toBe(1.05)
     expect(entry.lens).toEqual({ tint: '#3a4a5c', density: 0.6 })
     // Measured fields are recomputed, not carried over.
     expect(entry.scale).not.toBe(9)
@@ -133,12 +131,12 @@ describe('parseCalibrationFile', () => {
         }
       }
     })
+    // templeWidthBoost (removed in 5.0) is dropped from an old manifest.
     expect(file.models.a).toEqual({
       model: 'a',
       translation: { x: 0, y: -0.02, z: -0.004 },
       rotation: { x: 0.1, y: 0, z: 0 },
       scale: 1.01,
-      templeWidthBoost: 1.05,
       lens: { tint: '#202020', density: 0.6 }
     })
   })
@@ -150,7 +148,6 @@ describe('parseCalibrationFile', () => {
 
   it('rejects a mistyped hand-tuned field instead of carrying it over', () => {
     expect(() => parseCalibrationFile({ models: { a: { rotation: { x: '0' } } } })).toThrow(/rotation/)
-    expect(() => parseCalibrationFile({ models: { a: { templeWidthBoost: '1' } } })).toThrow(/templeWidthBoost/)
     expect(() => parseCalibrationFile({ models: { a: { lens: { density: 'dark' } } } })).toThrow(/lens/)
   })
 })

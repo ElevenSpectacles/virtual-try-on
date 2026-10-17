@@ -3,6 +3,9 @@
 [![npm](https://img.shields.io/npm/v/@eleven.spectacles/virtual-try-on)](https://www.npmjs.com/package/@eleven.spectacles/virtual-try-on)
 [![CI](https://github.com/ElevenSpectacles/virtual-try-on/actions/workflows/ci.yml/badge.svg)](https://github.com/ElevenSpectacles/virtual-try-on/actions/workflows/ci.yml)
 
+**[Live demo →](https://elevenspectacles.github.io/virtual-try-on/)** Try it
+with your camera. Nothing leaves your device.
+
 Real-time virtual try-on for eyewear, as a Nuxt module. Renders 3D glasses
 (GLB) on the user's face over a live front-camera feed: MediaPipe
 `FaceLandmarker` tracks the face in a Web Worker, TresJS (Three.js) renders
@@ -28,16 +31,106 @@ with virtual try-on for every frame in the catalog.
 
 ## Contents
 
+- [How it works](#how-it-works)
+- [Features by device tier](#features-by-device-tier)
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Serving models and calibration](#serving-models-and-calibration)
 - [API](#api)
 - [Configuration](#configuration)
+- [Migrating to 5.0](#migrating-to-50)
 - [Privacy](#privacy)
 - [Development](#development)
+- [Demo](#demo)
 - [Releasing](#releasing)
 - [License](#license)
+
+## How it works
+
+```text
+ camera ─► <video> (mirrored in CSS, full resolution) ───────────────┐
+   │                                                                  │ shown
+   │ each new camera frame, downscaled to 480 px                      │ under
+   ▼                                                                  │
+ Web Worker: MediaPipe FaceLandmarker (GPU, CPU fallback)             │
+   │ 478 landmarks, head pose matrix, blink score                     │
+   ▼                                                                  ▼
+ placement (main thread)  ──────────────────────────────►  WebGL canvas (TresJS/three)
+   iris-ruler scale, pose, smoothing,                       frame GLB, lenses, shadow,
+   tracking hold, temples, nose seat                        reflections, occluders
+```
+
+1. **Camera.** `getUserMedia` feeds a `<video>` behind a transparent WebGL
+   canvas. The feed is mirrored once, in CSS. The camera starts only on
+   `start()` (or `autoStart`) and stops on `stop()` or unmount.
+2. **Tracking.** On each new camera frame (`requestVideoFrameCallback`), a
+   480 px copy is handed to a Web Worker as a transferable `ImageBitmap`.
+   MediaPipe `FaceLandmarker` returns 478 landmarks, the head's
+   transformation matrix and the blink blendshapes. One frame is in flight
+   at a time, so a slow device drops frames instead of queuing them. When
+   the tracker loses the face for under 300 ms (a hand, motion blur), the
+   last pose is held instead of the frame vanishing.
+3. **Placement.** Pure functions in `utils/` map the landmarks into the
+   visible (object-fit: cover) window and into the 3D camera.
+   - **Scale.** The scale is true to size. The iris (11.7 mm across in
+     adults) is the ruler that measures the shopper's PD and ear-level
+     width, and the frame is sized from them. An optional card calibration
+     tightens the PD to ±1 mm.
+   - **Baseline.** A per-frame calibration lines every GLB up to one
+     baseline.
+   - **Smoothing.** Pose and scale go through One-Euro filters, and the
+     scale holds through blinks.
+   - **Fit.** The temple arms open at the hinge to meet the tracked head,
+     and can bend down behind the ears. Frames with pad spacing in their
+     calibration seat by the shopper's nose profile.
+4. **Rendering.** three draws the frame with neutral tone mapping, so
+   catalog colours match the feed.
+   - **Lenses** read as glass: Fresnel opacity, reflections and an
+     anti-reflective sheen. Tint and darkness come from the product sheet
+     (ISO category, τv, gradients).
+   - **Shadow.** A soft shadow falls on the tracked skin.
+   - **Room light.** The room's light, sampled from 16×16 thumbnails in the
+     worker, tints and dims the frame. With `roomReflections` it is also
+     reflected in the lenses and aims the light.
+   - **Camera match.** `cameraMatch` adds the webcam's grain, softness and
+     light wrap.
+   - **Occlusion.** A depth-only face mesh hides what the head hides, such
+     as the far temple. With `hairOcclusion`, a second worker segments hair
+     over the near arm.
+5. **Adapting.** A device tier (below) decides which of those effects run,
+   and steps down mid-session if frames get slow.
+
+## Features by device tier
+
+| Feature | `low` | `mid` | `high` | Prop |
+| --- | :-: | :-: | :-: | --- |
+| Face tracking, metric placement, fit verdict | ✓ | ✓ | ✓ | — |
+| Face-mesh occluder (far temple hidden by the head) | ✓ | ✓ | ✓ | `occluder` |
+| Reflections from an HDR environment (`low`: procedural, no download) | ✓ | ✓ | ✓ | `environmentUrl` |
+| Physical lens (Fresnel, sheen) | — | ✓ | ✓ | `physicalLens` |
+| Contact shadow on the skin | — | ✓ | ✓ | `contactShadow` |
+| Room lighting from the camera | — | ✓ | ✓ | `adaptiveLighting` |
+| Webcam match: grain, blur, light wrap (opt-in) | — | ✓ | ✓ | `cameraMatch` |
+| Room reflections and light direction (opt-in, needs room lighting) | — | ✓ | ✓ | `roomReflections` |
+| Hair occlusion (opt-in) | — | — | ✓ | `hairOcclusion` |
+| Neighbour prefetch (cache of 2 GLBs on `low`, 4–6 above) | — | ✓ | ✓ | `preload` |
+
+True-to-size sizing (`trueToSize`), card calibration, the ear bend
+(`templeEarBend`), `capture()` and `freeze()` run on every tier. A feature
+runs when its prop is on **and** the tier allows it. `cameraMatch`,
+`roomReflections`, `hairOcclusion` and `templeEarBend` default to off; the
+rest default to on. The tier comes from static signals at mount. Each
+signal votes, and the lowest vote wins:
+
+- `MAX_TEXTURE_SIZE`: ≥ 8192 votes `high`, ≥ 4096 votes `mid`.
+- `navigator.deviceMemory`: ≥ 8 GB votes `high`, ≥ 4 GB votes `mid`.
+- With neither signal (Safari, Firefox), the tier is `mid`.
+
+While a face is tracked, a tier steps down one level when the p95 frame time
+stays over 33 ms (30 fps) for 5 s after a 5 s warm-up. Each step-down is
+reported as `TRY_ON_TIER`. The `tier` prop pins a tier and disables the
+step-down.
 
 ## Requirements
 
@@ -147,7 +240,6 @@ rarely share an origin or scale:
       "translation": { "x": 0, "y": 0, "z": 0 },   // metres
       "rotation": { "x": 0, "y": 0, "z": 0 },      // radians
       "scale": 1,
-      "templeWidthBoost": 1,           // deprecated: stretches the whole frame; leave at 1
       "lens": { "tint": "#3a4a5c", "category": 3 },  // optional lens colour/darkness override (see below)
       "frameWidthMm": 139.7            // rendered width, written by generate-calibration (fit ranking)
     }
@@ -195,8 +287,6 @@ product's own units, from its sheet:
 | `autoStart` | `boolean` | `false` | Starts the camera on mount. Use when your app already collected consent. |
 | `exposure` | `number` | `1` | Renderer tone-mapping exposure. |
 | `frameScale` | `number` | `1` | Multiplier on the computed frame scale. |
-| `frameYaw` | `number` | `0` | **Deprecated**, no effect since 4.4.0 — the frame renders only on a tracked face. Removed in 5.0. |
-| `templeWidth` | `number` | `1` | **Deprecated**: multiplier on the calibrated `templeWidthBoost`, which stretches the whole frame. The temple arms open at the hinge to meet the tracked head. Removed in 5.0. |
 | `mediapipeBasePath` | `string` | jsDelivr CDN | Directory of the MediaPipe Wasm fileset, for self-hosting. |
 | `mediapipeModelAssetPath` | `string` | Google Storage | URL of `face_landmarker.task`, for self-hosting. |
 | `draco` | `boolean` | `true` | Enables Draco decompression in the GLB loader. |
@@ -587,7 +677,7 @@ export default defineNuxtConfig({
 
 `face_landmarker.task` and `canary_wharf_1k.hdr` go in `public/vto/`. With
 every path set, the try-on makes no third-party requests and adds no
-preconnect hints.
+preconnect hints. The [demo](#demo) (`demo/app.vue`) is a working example.
 
 To shave the tracker's load off the critical path entirely, call
 `prefetch()` on the ref before the shopper taps "Try on" (e.g. on hover of
@@ -595,15 +685,49 @@ your button). It loads the tracker without touching the camera. Report
 `timeToFirstFrameMs` and `assetTimings` from the `metrics` event to see the
 effect in the field.
 
+## Migrating to 5.0
+
+5.0 removes the API deprecated in 4.x:
+
+- **`frameYaw` prop**: it had no effect since 4.4.0 (the frame renders only
+  on a tracked face, which supplies its rotation). Delete it.
+- **`templeWidth` prop and the calibration field `templeWidthBoost`**: they
+  stretched the whole frame, lenses included. Since 4.9 the temple arms open
+  at the hinge to meet each head instead. Delete the prop; regenerate
+  `calibration.json` with `generate-calibration` (it no longer writes the
+  field) or leave old manifests as they are: the component ignores the
+  field.
+
+Nothing else changed: hosts that never set these props need no change.
+
 ## Privacy
 
-Camera frames are processed entirely in the browser. No video or image data
-is uploaded, and nothing is recorded or stored. The one exception is an
-explicit `capture()`, whose image is handed to your app and goes no further
-unless your app sends it. The module makes no network
-calls of its own apart from loading the assets above, and all analytics go
-through the `track` and `metrics` events, so your app decides what is sent.
-The `metrics` payload holds aggregated numbers only.
+- **Frames stay on the device.** Camera frames go from the `<video>` to a
+  Web Worker in the same page and are released after detection. During a card
+  calibration the worker also returns a small grey crop of the forehead band,
+  which is measured and dropped. The only image the module ever hands out is
+  the one `capture()` returns to your app. Nothing is uploaded, recorded or
+  written to storage: no cookies, `localStorage` or IndexedDB. The GLB cache,
+  the PD measurement and a card calibration live in memory for the session.
+- **Network.** The module makes no requests of its own beyond the assets in
+  [Serving models and calibration](#serving-models-and-calibration) and
+  [Self-hosting](#self-hosting-third-party-assets). With every
+  self-hosting prop set, none of them leave your origin. The
+  [demo](#demo) runs that way under a CSP restricted to its own origin.
+- **Consent.** The camera starts only when your UI calls `start()` (or with
+  `autoStart`, after consent you collected). It stops on `stop()` and on
+  unmount.
+- **Analytics are yours.** Everything is reported through the `track` and
+  `metrics` events, and the module sends nothing itself. The payloads carry
+  no images or landmarks. The only face-derived values are:
+  - the tracking `confidence` in `TRY_ON_FACE_DETECTED`;
+  - the estimated face width in whole millimetres (`faceWidthMm`) in
+    `TRY_ON_FIT`;
+  - the card-calibrated PD (`pdMm`) in `TRY_ON_CALIBRATED`;
+  - the coarse face-shape class in `TRY_ON_FACE_SHAPE`.
+
+  Drop them in your handler if your privacy policy requires it. The full
+  `measurements` (PD, face width, shape) stay on the ref and slot.
 
 ## Development
 
@@ -676,8 +800,39 @@ npm run generate-calibration -- --input <dir> --output <dir>/calibration.json [-
 ```
 
 It recentres and scales every GLB against the reference frame, and keeps
-the fields you tuned by hand (`rotation`, `templeWidthBoost`, `lens`) when
+the fields you tuned by hand (`rotation`, `lens`) when
 the output file already exists.
+
+## Demo
+
+`demo/` is the [live demo](https://elevenspectacles.github.io/virtual-try-on/):
+the shipped component in a plain host page, without the playground's tuning
+UI. Its consent screen, error messages, fit verdict and frame picker are all
+built from the default slot, so it doubles as a reference integration. It
+serves every asset from its own origin. `scripts/prepare-demo.mjs` stages
+these files in `demo/public/`:
+
+- the MediaPipe Wasm and the Draco decoder, copied from `node_modules`;
+- `face_landmarker.task` and the HDR, downloaded and checked against pinned
+  SHA-256 sums;
+- the frames.
+
+The page then passes every self-hosting prop.
+
+```bash
+DEMO_MODELS_DIR=<dir with calibration.json + GLBs> npm run demo   # http://localhost:4100
+DEMO_MODELS=iris-moss,pteron-azure DEMO_MODELS_DIR=<dir> npm run demo:generate
+```
+
+Catalog frames are licensed, so they are not in this repo. Publish only frames
+cleared for it. `.github/workflows/demo.yml` deploys the demo to GitHub Pages
+on pushes to `main` that touch `src/`, `demo/` or the lockfile, and on manual
+runs. It needs:
+
+- **Settings → Pages → Source:** GitHub Actions.
+- **`DEMO_MODELS_URL` secret:** a `.tar.gz` of `calibration.json` plus the
+  GLBs. Without it the build is skipped.
+- **`DEMO_MODELS` variable (optional):** limits which frames are published.
 
 ## Releasing
 
