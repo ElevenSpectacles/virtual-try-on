@@ -148,7 +148,7 @@ rarely share an origin or scale:
       "rotation": { "x": 0, "y": 0, "z": 0 },      // radians
       "scale": 1,
       "templeWidthBoost": 1,           // deprecated: stretches the whole frame; leave at 1
-      "lens": { "tint": "#3a4a5c", "density": 0.6 },  // optional lens colour/darkness override
+      "lens": { "tint": "#3a4a5c", "category": 3 },  // optional lens colour/darkness override (see below)
       "frameWidthMm": 139.7            // rendered width, written by generate-calibration (fit ranking)
     }
   }
@@ -168,6 +168,19 @@ Two optional fitting fields:
   --calibration <calibration.json>` measures each model's lens plane,
   reports its effective tilt and suggests the `rotation.x` for 9°; it exits
   non-zero when a model is out of range.
+
+The `lens` entry overrides the GLB's lens. Give its darkness in the
+product's own units, from its sheet:
+
+| Field | Meaning |
+| --- | --- |
+| `tint` | Lens colour, `#rrggbb`. Its hue also tints the lens shadow. |
+| `category` | ISO 12312-1 filter category `0`–`4` (cat. 2: 18–43 % light through, cat. 3: 8–18 %). The middle of the band is used. |
+| `transmittance` | Luminous transmittance τv, 0–1, when the sheet gives it. More precise than the category. |
+| `density` | Raw darkness 0 (clear) – 1 (opaque) = 1 − τv. Wins over the two above. |
+| `gradient` | `{ top, bottom }` densities for a gradient lens, dark to light top to bottom. Replaces the single darkness. |
+
+`generate-calibration` keeps all of them when it regenerates the file.
 
 ## API
 

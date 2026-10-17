@@ -155,10 +155,30 @@ describe('parseCalibrationFile', () => {
   })
 })
 
-
 describe('pads', () => {
   it('carries the pad spacing over and rejects a malformed one', () => {
     expect(parseCalibrationFile({ models: { a: { pads: { spacingMm: 18 } } } }).models.a!.pads).toEqual({ spacingMm: 18 })
     expect(() => parseCalibrationFile({ models: { a: { pads: { spacingMm: 'x' } } } })).toThrow(/pads/)
+  })
+})
+
+describe('physical lens fields', () => {
+  it('carries the category, transmittance and gradient over', () => {
+    const file = parseCalibrationFile({
+      models: {
+        a: { lens: { tint: '#5a4632', category: 3, transmittance: 0.12, gradient: { top: 0.9, bottom: 0.3 } } }
+      }
+    })
+    expect(file.models.a!.lens).toEqual({
+      tint: '#5a4632',
+      category: 3,
+      transmittance: 0.12,
+      gradient: { top: 0.9, bottom: 0.3 }
+    })
+  })
+
+  it('rejects a category outside 0-4 and a half gradient', () => {
+    expect(() => parseCalibrationFile({ models: { a: { lens: { category: 5 } } } })).toThrow(/lens/)
+    expect(() => parseCalibrationFile({ models: { a: { lens: { gradient: { top: 1 } } } } })).toThrow(/lens/)
   })
 })

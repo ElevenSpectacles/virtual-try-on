@@ -20,6 +20,7 @@ import type {
   TryOnCalibrationFile,
   TryOnModelCalibration
 } from '../../src/runtime/types/tryon-calibration'
+import type { TryOnLensCategory } from '../../src/runtime/utils/tryon-lens'
 
 export interface Bounds {
   min: { x: number; y: number; z: number }
@@ -136,13 +137,22 @@ export function parseCalibrationFile(value: unknown): TryOnCalibrationFile {
       throw new Error(`${name}: templeWidthBoost must be a number`)
     }
     const lens = entry.lens
+    const gradient = isRecord(lens) ? lens.gradient : undefined
     if (
       lens !== undefined &&
       (!isRecord(lens) ||
         (lens.tint !== undefined && typeof lens.tint !== 'string') ||
-        (lens.density !== undefined && typeof lens.density !== 'number'))
+        (lens.density !== undefined && typeof lens.density !== 'number') ||
+        (lens.transmittance !== undefined && typeof lens.transmittance !== 'number') ||
+        (lens.category !== undefined && ![0, 1, 2, 3, 4].includes(lens.category as number)) ||
+        (gradient !== undefined &&
+          (!isRecord(gradient) ||
+            typeof gradient.top !== 'number' ||
+            typeof gradient.bottom !== 'number')))
     ) {
-      throw new Error(`${name}: lens must be { tint?: string, density?: number }`)
+      throw new Error(
+        `${name}: lens must be { tint?: string, density?: number, transmittance?: number, category?: 0-4, gradient?: { top: number, bottom: number } }`
+      )
     }
     const pads = entry.pads
     if (pads !== undefined && (!isRecord(pads) || typeof pads.spacingMm !== 'number')) {
@@ -161,7 +171,16 @@ export function parseCalibrationFile(value: unknown): TryOnCalibrationFile {
         ? {
             lens: {
               ...(typeof lens.tint === 'string' ? { tint: lens.tint } : {}),
-              ...(typeof lens.density === 'number' ? { density: lens.density } : {})
+              ...(typeof lens.density === 'number' ? { density: lens.density } : {}),
+              ...(typeof lens.transmittance === 'number'
+                ? { transmittance: lens.transmittance }
+                : {}),
+              ...(typeof lens.category === 'number'
+                ? { category: lens.category as TryOnLensCategory }
+                : {}),
+              ...(isRecord(gradient)
+                ? { gradient: { top: gradient.top as number, bottom: gradient.bottom as number } }
+                : {})
             }
           }
         : {})
