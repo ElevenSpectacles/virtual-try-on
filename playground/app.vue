@@ -88,6 +88,17 @@ async function onCapture(capture: (options?: { type?: 'image/png' }) => Promise<
   captureUrl.value = URL.createObjectURL(blob)
 }
 
+// `?freeze=true` shows Freeze / Unfreeze and a model switcher, to compare
+// frames on a held pose (tests/e2e/freeze.spec.ts).
+const showFreeze = computed(() => route.query.freeze === 'true')
+const activeModel = ref<string | undefined>(
+  typeof route.query.model === 'string' ? route.query.model : undefined
+)
+function nextModel() {
+  const index = models.findIndex((m) => m.file === activeModel.value)
+  activeModel.value = models[(index + 1) % models.length]!.file
+}
+
 // `?metrics=true` turns on the metrics event; the e2e spec reads the JSON.
 const reportMetrics = computed(() => route.query.metrics === 'true')
 function onMetrics(payload: TryOnSessionMetrics) {
@@ -110,6 +121,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
       >
         <VirtualTryOnExperience
           ref="experienceRef"
+          v-model:model="activeModel"
           :models="models"
           calibration-url="/models/virtual-try-on/calibration.json"
           :tier="tierParam"
@@ -120,7 +132,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
           @track="onTrack"
           @metrics="onMetrics"
         >
-          <template #default="{ status, error, faceError, guideHint, fit, isStarting, start, stop, calibration, startCalibration, cancelCalibration, capture }">
+          <template #default="{ status, error, faceError, guideHint, fit, isStarting, start, stop, calibration, startCalibration, cancelCalibration, capture, frozen, freeze, unfreeze }">
             <div
               v-if="status !== 'active'"
               class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white"
@@ -171,6 +183,18 @@ function onMetrics(payload: TryOnSessionMetrics) {
               data-capture
               class="absolute top-4 left-4 w-24 border border-white"
             >
+            <div
+              v-if="status === 'active' && showFreeze"
+              class="absolute right-4 bottom-4 flex gap-2"
+              :data-frozen="frozen"
+            >
+              <UButton color="neutral" size="xs" @click="frozen ? unfreeze() : freeze()">
+                {{ frozen ? 'Unfreeze' : 'Freeze' }}
+              </UButton>
+              <UButton color="neutral" size="xs" @click="nextModel">
+                Next frame
+              </UButton>
+            </div>
             <p
               v-if="showFit && fit"
               class="absolute inset-x-0 top-4 text-center text-xs text-white"

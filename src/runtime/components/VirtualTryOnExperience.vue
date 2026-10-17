@@ -23,6 +23,7 @@ import { useTryOnElementSize } from '../composables/tryon/useTryOnElementSize'
 import { useTryOnFrameLoop } from '../composables/tryon/useTryOnFrameLoop'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
 import { useHairSegmenter } from '../composables/tryon/useHairSegmenter'
+import { useTryOnFreeze } from '../composables/tryon/useTryOnFreeze'
 import { maskCoverage } from '../utils/tryon-hair'
 import { useTryOnModelCache } from '../composables/tryon/useTryOnModelCache'
 import { modelCacheCapacity, neighbourFiles } from '../utils/tryon-model-cache'
@@ -291,7 +292,8 @@ const {
   blinkScore: faceBlinkScore,
   anchor: faceAnchor,
   latencyMs: faceLatencyMs,
-  init: initFaceLandmarker
+  init: initFaceLandmarker,
+  detectHeld
 } = useFaceLandmarker(videoRef, {
   ...(props.mediapipeBasePath !== undefined
     ? { mediapipeBasePath: props.mediapipeBasePath }
@@ -315,6 +317,28 @@ const cardCalibration = useTryOnCardCalibration({
   pose: facePose,
   mediaAspect
 })
+
+// Freeze / unfreeze (compare frames on a held pose): the video and the
+// tracked pose are held; tracking idles until unfreeze.
+const {
+  frozen,
+  freeze: freezeTryOn,
+  unfreeze: unfreezeTryOn
+} = useTryOnFreeze(videoRef, { active: isActive, detectHeld })
+
+/** Hold the current camera frame and pose; switching `model` re-renders on it. */
+async function freeze() {
+  const wasFrozen = frozen.value
+  await freezeTryOn()
+  if (frozen.value && !wasFrozen) trackTryOn('TRY_ON_FREEZE', { frozen: true })
+}
+
+/** Back to the live camera; tracking resumes on the next frame. */
+async function unfreeze() {
+  const wasFrozen = frozen.value
+  await unfreezeTryOn()
+  if (wasFrozen) trackTryOn('TRY_ON_FREEZE', { frozen: false })
+}
 
 // Session metrics (opt-in). With reportMetrics off there is no accumulator
 // and no extra frame loop, so there is no cost to hosts that don't use it.
@@ -609,6 +633,7 @@ function trackTryOn(
     | 'TRY_ON_CALIBRATED'
     | 'TRY_ON_FACE_SHAPE'
     | 'TRY_ON_CAPTURE'
+    | 'TRY_ON_FREEZE'
     | 'TRY_ON_ERROR',
   extra: Record<string, unknown> = {}
 ) {
@@ -717,6 +742,9 @@ defineExpose({
   stop,
   capture,
   preloadModel,
+  freeze,
+  unfreeze,
+  frozen,
   status,
   error,
   faceError,
@@ -762,6 +790,12 @@ defineSlots<{
     cancelCalibration: () => void
     /** Snapshot of the composited try-on as an image Blob (on-device). */
     capture: (options?: TryOnCaptureOptions) => Promise<Blob>
+    /** The camera frame and pose are held (see `freeze`). */
+    frozen: boolean
+    /** Hold the current frame and pose, e.g. to compare frames on one look. */
+    freeze: () => Promise<void>
+    /** Back to the live camera. */
+    unfreeze: () => Promise<void>
   }) => unknown
 }>()
 
@@ -972,6 +1006,9 @@ watch(model, (value) => {
       :start-calibration="startCalibration"
       :cancel-calibration="cancelCalibration"
       :capture="capture"
+      :frozen="frozen"
+      :freeze="freeze"
+      :unfreeze="unfreeze"
     />
   </div>
 </template>
