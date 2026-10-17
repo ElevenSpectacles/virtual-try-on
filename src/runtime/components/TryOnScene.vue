@@ -32,9 +32,9 @@ import {
 } from 'three'
 // three's own loaders instead of @tresjs/cientos: cientos ships as one
 // non-tree-shakeable file, so `useGLTF` + `Environment` pulled the whole
-// library (plus three-stdlib and camera-controls) into the host bundle.
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
-import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
+// library (plus three-stdlib and camera-controls) into the host bundle. The
+// GLTF/Draco loaders live in the model cache.
+import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 import { useTres } from '@tresjs/core'
 import {
@@ -50,11 +50,14 @@ import {
   EAR_BEND_RAMP_METERS,
   earBendFor,
   patchEarBendShader,
-  rigTemples,
   templeAngles,
   templeFramePoints,
   type TempleRig
 } from '../utils/tryon-temples'
+import {
+  useTryOnModelCache,
+  type TryOnModelCache
+} from '../composables/tryon/useTryOnModelCache'
 import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 import { lightingColor } from '../utils/tryon-lighting'
 import { NO_LENS_OVERRIDE, type TryOnLens } from '../utils/tryon-lens'
@@ -156,6 +159,12 @@ const props = withDefaults(
     /** Draco decoder path override — omit to use the gstatic CDN default. */
     dracoDecoderPath?: string | undefined
     /**
+     * Parsed-GLB cache shared with the parent (instant switching, prefetch).
+     * Omit for a cache of this scene's own (`draco` and `dracoDecoderPath`
+     * apply to it; a passed cache brings its own).
+     */
+    modelCache?: TryOnModelCache | undefined
+    /**
      * Physically-based lens: Fresnel opacity, additive reflections, a
      * clearcoat and the anti-reflective coating's thin-film sheen. Off keeps
      * the cheaper standard lens.
@@ -199,6 +208,7 @@ const props = withDefaults(
     modelOffset: () => ({ x: 0, y: 0, z: 0 }),
     visible: true,
     draco: true,
+    modelCache: undefined,
     physicalLens: false,
     lens: () => NO_LENS_OVERRIDE,
     hairMask: null,
@@ -224,19 +234,15 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-// Same decoder build cientos defaulted to, so self-hosting paths carry over.
-const DEFAULT_DRACO_DECODER_PATH =
-  'https://www.gstatic.com/draco/versioned/decoders/1.5.6/'
-
-// GLTFLoader only invokes the decoder for meshes carrying
-// KHR_draco_mesh_compression, so wiring it up is harmless otherwise.
-const gltfLoader = new GLTFLoader()
-const dracoLoader = props.draco
-  ? new DRACOLoader().setDecoderPath(
-      props.dracoDecoderPath ?? DEFAULT_DRACO_DECODER_PATH
-    )
-  : null
-if (dracoLoader) gltfLoader.setDRACOLoader(dracoLoader)
+// Parsed GLBs come from the cache: a switch back to a frame (or to a
+// prefetched one) mounts it at once instead of fetching and parsing again.
+const modelCache =
+  props.modelCache ??
+  useTryOnModelCache({
+    draco: props.draco,
+    dracoDecoderPath: props.dracoDecoderPath,
+    capacity: 2
+  })
 
 // Non-blocking loader: `model` is null until the first GLB resolves, so a
 // heavy frame download never stalls the whole scene graph. On a model switch
@@ -244,7 +250,7 @@ if (dracoLoader) gltfLoader.setDRACOLoader(dracoLoader)
 // superseded `src` are dropped.
 const model = shallowRef<GLTF | null>(null)
 let modelLoadId = 0
-// The loaded GLB's temples on hinge pivots (null: kept as authored), and
+// The shown GLB's temples on hinge pivots (null: kept as authored), and
 // the One-Euro state of each arm's opening angle.
 let templeRig: TempleRig | null = null
 let templeFilters: (OneEuroState | null)[] = []
@@ -254,11 +260,14 @@ watch(
   async (src) => {
     const id = ++modelLoadId
     try {
-      const gltf = await gltfLoader.loadAsync(src)
+      const { gltf, rig } = await modelCache.load(src)
       if (id === modelLoadId) {
-        templeRig = rigTemples(gltf.scene)
+        // A cached frame keeps its last opening: start from the GLB's own.
+        for (const temple of rig?.temples ?? []) temple.pivot.rotation.z = 0
+        templeRig = rig
         templeFilters = []
         model.value = gltf
+        modelCache.setActive(src)
         emit('loaded', localBounds(gltf.scene).getSize(new Vector3()).x)
       }
     } catch (err) {
@@ -489,7 +498,6 @@ onUnmounted(() => {
   hairPlaneGeometry.dispose()
   envLoadId++
   clearEnvironment()
-  dracoLoader?.dispose()
   for (const material of builtLenses) material.dispose()
   shadowLight.dispose()
   clearEarBend()

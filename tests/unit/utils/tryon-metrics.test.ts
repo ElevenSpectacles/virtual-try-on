@@ -128,4 +128,16 @@ describe('createMetricsAccumulator', () => {
     expect(snap.detectLatencyMeanMs).toBeNull()
     expect(snap.tier).toBe('mid')
   })
+
+  it('reports how long frame switches took, and clears them on reset', () => {
+    const acc = createMetricsAccumulator()
+    expect(acc.snapshot().modelSwitchMeanMs).toBeNull()
+    expect(acc.snapshot().modelSwitchP95Ms).toBeNull()
+    for (const ms of [12, 8, 400, 10]) acc.onModelSwitchLatency(ms)
+    const snap = acc.snapshot()
+    expect(snap.modelSwitchMeanMs).toBe(107.5)
+    expect(snap.modelSwitchP95Ms).toBe(400)
+    acc.reset()
+    expect(acc.snapshot().modelSwitchMeanMs).toBeNull()
+  })
 })
