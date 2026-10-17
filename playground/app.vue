@@ -78,6 +78,16 @@ const experienceRef = ref<{
 // `?hair=on` turns hair occlusion on and shows its state (tests/e2e/hair.spec.ts).
 const hairParam = computed(() => (route.query.hair === 'on' ? 'on' : 'off'))
 
+// `?capture=true` shows a capture button and the last snapshot
+// (tests/e2e/capture.spec.ts reads it back).
+const showCapture = computed(() => route.query.capture === 'true')
+const captureUrl = ref<string | null>(null)
+async function onCapture(capture: (options?: { type?: 'image/png' }) => Promise<Blob>) {
+  const blob = await capture({ type: 'image/png' })
+  if (captureUrl.value) URL.revokeObjectURL(captureUrl.value)
+  captureUrl.value = URL.createObjectURL(blob)
+}
+
 // `?metrics=true` turns on the metrics event; the e2e spec reads the JSON.
 const reportMetrics = computed(() => route.query.metrics === 'true')
 function onMetrics(payload: TryOnSessionMetrics) {
@@ -110,7 +120,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
           @track="onTrack"
           @metrics="onMetrics"
         >
-          <template #default="{ status, error, faceError, guideHint, fit, isStarting, start, stop, calibration, startCalibration, cancelCalibration }">
+          <template #default="{ status, error, faceError, guideHint, fit, isStarting, start, stop, calibration, startCalibration, cancelCalibration, capture }">
             <div
               v-if="status !== 'active'"
               class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white"
@@ -145,6 +155,22 @@ function onMetrics(payload: TryOnSessionMetrics) {
               <span v-else-if="calibration.status === 'done'">PD {{ calibration.pdMm }} mm</span>
               <span v-else-if="calibration.status === 'failed'">No card found, try again in better light</span>
             </div>
+            <UButton
+              v-if="status === 'active' && showCapture"
+              class="absolute right-4 bottom-4"
+              color="neutral"
+              size="xs"
+              @click="onCapture(capture)"
+            >
+              Capture
+            </UButton>
+            <img
+              v-if="showCapture && captureUrl"
+              :src="captureUrl"
+              alt="Last capture"
+              data-capture
+              class="absolute top-4 left-4 w-24 border border-white"
+            >
             <p
               v-if="showFit && fit"
               class="absolute inset-x-0 top-4 text-center text-xs text-white"

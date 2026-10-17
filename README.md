@@ -220,6 +220,7 @@ on the component ref.
 | `stop` | `() => void` | Stop the camera. |
 | `calibration` | `TryOnCardCalibration` | Card calibration state: `{ status, progress, pdMm }`, `status` `'idle'` \| `'detecting'` \| `'done'` \| `'failed'` (see [Card calibration](#card-calibration)). |
 | `startCalibration` / `cancelCalibration` | `() => void` | Start a card calibration / stop it or drop its result. |
+| `capture` | `(options?) => Promise<Blob>` | Snapshot of the try-on as the shopper sees it (see [Capture](#capture)). |
 
 The ref also exposes a read-only `lighting`: `{ luma, gain, sampleMs }`,
 the smoothed room luma (`null` while lighting is off), the light multiplier
@@ -307,6 +308,24 @@ Measurements stay in the browser. The module reports only the coarse
 is your app's decision whether to send the PD or face width anywhere, and
 your consent copy should say so if it does.
 
+### Capture
+
+`capture({ type?, quality?, maxWidth? })` returns the composited try-on as
+an image `Blob` (`image/jpeg` by default): the visible part of the camera
+frame, mirrored like the preview, with the frame rendered on it. It renders
+the scene on demand, so the canvas never needs `preserveDrawingBuffer`.
+The output defaults to the camera's resolution across the visible window;
+`maxWidth` caps it. It rejects while the camera is off.
+
+```ts
+const blob = await tryOn.value.capture({ type: 'image/jpeg', quality: 0.9 })
+const url = URL.createObjectURL(blob) // show it, save it, or share it
+```
+
+The image is made on-device and stays in the browser. Uploading or sharing
+it is your app's decision, and it is a photo of the shopper's face: say so
+in your consent copy. Each capture is reported as `TRY_ON_CAPTURE`.
+
 ### `v-model:model`
 
 Two-way binding to the active frame's `file`. Use it to drive the frame
@@ -334,6 +353,7 @@ module reports anything. Every payload has this shape:
 | `TRY_ON_FIT` | The fit verdict appeared or changed (also on each frame change) | `verdict`, `faceWidthMm`, `frameWidthMm` (whole mm) |
 | `TRY_ON_CALIBRATED` | A card calibration finished | `pdMm` |
 | `TRY_ON_FACE_SHAPE` | The face-shape class appeared or changed | `faceShape` (coarse class only) |
+| `TRY_ON_CAPTURE` | `capture()` produced an image | `type` (MIME type of the Blob) |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
 | `TRY_ON_TIER` | The device tier stepped down under sustained frame-time load | `tier`, `previousTier`, `p95Ms`, `maxTextureSize`, `deviceMemoryGb` |
 | `TRY_ON_ERROR` | Camera, tracker or asset failure, or a failed card calibration | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment` \| `hair_segmenter` \| `card_calibration`), `message` |
@@ -400,7 +420,9 @@ import type {
   TryOnFitVerdict,
   TryOnFitRank,
   TryOnFaceShape,
-  TryOnMeasurements
+  TryOnMeasurements,
+  TryOnCaptureOptions,
+  TryOnCaptureType
 } from '@eleven.spectacles/virtual-try-on'
 ```
 
@@ -465,7 +487,9 @@ mixed versions are unsupported.
 ## Privacy
 
 Camera frames are processed entirely in the browser. No video or image data
-is uploaded, and nothing is recorded or stored. The module makes no network
+is uploaded, and nothing is recorded or stored. The one exception is an
+explicit `capture()`, whose image is handed to your app and goes no further
+unless your app sends it. The module makes no network
 calls of its own apart from loading the assets above, and all analytics go
 through the `track` and `metrics` events, so your app decides what is sent.
 The `metrics` payload holds aggregated numbers only.
