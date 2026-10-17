@@ -12,10 +12,12 @@ export type TryOnStatus = 'idle' | 'starting' | 'active' | 'error'
 
 /**
  * Positioning hint for the host's guide UI: `noFace` while tracking runs
- * without a usable face, `aligned` once the anchor is found. `null` when the
- * camera is off.
+ * without a usable face, `aligned` once the anchor is found, `turnBack`
+ * when the head is turned too far to fit well (or was, when the face was
+ * lost), `tooDark` when the room is too dark for stable tracking. `null`
+ * when the camera is off.
  */
-export type TryOnGuideHint = 'noFace' | 'aligned'
+export type TryOnGuideHint = 'noFace' | 'aligned' | 'turnBack' | 'tooDark'
 
 /**
  * On-device face measurements for frame-advisor UIs (issue #98). Everything

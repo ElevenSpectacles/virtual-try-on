@@ -257,4 +257,41 @@ describe('useFaceLandmarker', () => {
     expect(isReady.value).toBe(false)
     expect(worker.terminate).toHaveBeenCalled()
   })
+
+  it('detects a paused (held) frame on demand and resolves on its result', async () => {
+    const videoRef = ref<HTMLVideoElement | null>(null)
+    const { detect, detectHeld, anchor } = await initReady(videoRef)
+    videoRef.value = {
+      paused: true,
+      ended: false
+    } as unknown as HTMLVideoElement
+
+    // The loop skips a paused video…
+    expect(detect(performance.now())).toBeNull()
+
+    // …but a held detection sends it, and resolves once it is applied.
+    let resolved = false
+    const held = detectHeld().then(() => {
+      resolved = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(resolved).toBe(false)
+    latestWorker().emit({
+      type: 'result',
+      id: (lastRequest as { id: number }).id,
+      landmarks: sampleLandmarks,
+      transformationMatrix: null,
+      blink: null
+    })
+    await held
+    expect(resolved).toBe(true)
+    expect(anchor.value).not.toBeNull()
+  })
+
+  it('resolves a held detection at once while the tracker is not running', async () => {
+    const videoRef = ref<HTMLVideoElement | null>(null)
+    const { detectHeld } = useFaceLandmarker(videoRef)
+    await expect(detectHeld()).resolves.toBeUndefined()
+  })
 })

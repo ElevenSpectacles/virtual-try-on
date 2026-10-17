@@ -63,6 +63,13 @@ test.describe('metrics event', () => {
     expect(final.trackUptimePct as number, 'track uptime %').toBeCloseTo(expectedUptime, 0)
     expect(final.trackLossPerMin, 'track losses per minute').toBe(0)
     expect(final.detectLatencyMeanMs, 'detection latency mean').not.toBeNull()
+    // Time to first frame (issue #95): present, and under a loose bound
+    // (a cold load on a real GPU is a few seconds).
+    expect(final.timeToFirstFrameMs as number, 'time to first frame').toBeGreaterThan(0)
+    expect(final.timeToFirstFrameMs as number, 'time to first frame').toBeLessThan(30_000)
+    const timings = final.assetTimings as Record<string, number | null>
+    expect(timings.tracker, 'tracker load time').toEqual(expect.any(Number))
+    expect(timings.model, 'model load time').toEqual(expect.any(Number))
     expect(final.renderFpsMean as number, 'render fps').toBeGreaterThan(0)
     expect(final.endedWithoutTrack, 'session tracked a face').toBe(false)
     expect(final.model, 'active model').toEqual(expect.any(String))
@@ -71,7 +78,8 @@ test.describe('metrics event', () => {
       contactShadow: expect.any(Boolean),
       adaptiveLighting: expect.any(Boolean),
       physicalLens: expect.any(Boolean),
-      hairOcclusion: expect.any(Boolean)
+      hairOcclusion: expect.any(Boolean),
+      cameraMatch: expect.any(Boolean)
     })
   })
 })
