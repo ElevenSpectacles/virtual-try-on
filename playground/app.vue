@@ -61,6 +61,13 @@ function onTrack(event: string, payload: Record<string, unknown>) {
 // experience goldens stay unchanged).
 const showFit = computed(() => route.query.fit === 'true')
 const FIT_LABELS = { narrow: 'May be narrow for you', good: 'Good fit', wide: 'May be wide for you' } as const
+// Host copy for the guide hints (the module ships none).
+const GUIDE_LABELS = {
+  noFace: 'Position your face in view',
+  turnBack: 'Turn back toward the camera',
+  tooDark: 'Find more light',
+  aligned: ''
+} as const
 // `?lighting=true` shows the room-lighting estimate read from the component
 // ref (tests/e2e/lighting.spec.ts reads its data attributes).
 const showLighting = computed(() => route.query.lighting === 'true')
@@ -225,10 +232,11 @@ function onMetrics(payload: TryOnSessionMetrics) {
               hair {{ experienceRef.hair.active ? 'on' : 'off' }} · masks {{ experienceRef.hair.masks }}
             </p>
             <p
-              v-if="status === 'active' && (faceError || guideHint === 'noFace')"
+              v-if="status === 'active' && (faceError || (guideHint && guideHint !== 'aligned'))"
               class="absolute inset-x-0 bottom-4 text-center text-xs text-white"
+              :data-guide="guideHint"
             >
-              {{ faceError ? `Face tracking error: ${faceError}` : 'Position your face in view' }}
+              {{ faceError ? `Face tracking error: ${faceError}` : GUIDE_LABELS[guideHint!] }}
             </p>
           </template>
         </VirtualTryOnExperience>

@@ -69,6 +69,9 @@ Key facts:
     detect loop and hair segmenter idle on a paused video), detects the held
     frame once (`useFaceLandmarker().detectHeld`), resumes on play.
   - `useTryOnSmoothing.ts` — One-Euro filtering of landmarks/pose.
+  - `useTryOnTrackingHold.ts` — keeps the last face for `TRACKING_HOLD_MS`
+    after the tracker loses it, so short dropouts never hide or pop the
+    frame; everything downstream of the tracker reads the held face.
   - `useTryOnPlacement.ts` — landmarks → scale, smoothed pose, frame
     position and occluders for `TryOnScene`. Shared by the component and the
     playground prototype (its tuning knobs are the options), so a fit change
@@ -139,7 +142,8 @@ Key facts:
   pure step-down sampler), `tryon-model-cache.ts` (the LRU, neighbour prefetch order, cache capacity
   per tier), `tryon-preconnect.ts` (default CDN origins to preconnect, minus
   self-hosted ones; a test keeps them in step with the workers and scene),
-  `tryon-frame-schedule.ts` (detect scheduling: one
+  `tryon-guide.ts` (guide hints — noFace / aligned / turnBack / tooDark —
+  and the tracking-hold window), `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
   (session telemetry: uptime, loss rate, FPS, latency percentiles; the
   `metrics` event payload, opt-in via `reportMetrics`).
@@ -198,6 +202,9 @@ Key facts:
   segmenter live (`?view=experience&hair=on&tier=high`: mask, cadence,
   budget, tracking latency/fps on vs off) and `hair-scene.spec.ts` proves the
   hiding on frozen frames with a painted band (`?view=scene&hair=band`).
+  `robustness.spec.ts` checks the hold through a 200 ms `dropout` clip and
+  the `tooDark` hint on the `dark` clip; `tracking.spec.ts` also runs the
+  `backlit`, `occluded` and `dropout` kinds with per-kind thresholds.
   `lighting.spec.ts` checks the
   room-lighting estimate on dim/bright/still clips (`fixtures.ts` clip
   kinds) through the shipped component's ref (`?view=experience&lighting=true`).
