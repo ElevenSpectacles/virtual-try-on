@@ -43,7 +43,7 @@ import {
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
-import { useTres } from '@tresjs/core'
+import { useLoop, useTres } from '@tresjs/core'
 import {
   EAR_LEVEL_LEFT,
   EAR_LEVEL_RIGHT,
@@ -75,6 +75,13 @@ import {
   downsampleEquirect,
   type LightDirection
 } from '../utils/tryon-room'
+import {
+  grainAmount,
+  LIGHT_WRAP_STRENGTH,
+  lightWrapColor,
+  patchCameraMatchShader,
+  type CameraMatchUniforms
+} from '../utils/tryon-camera-match'
 import type { RoomSample } from '../composables/tryon/useTryOnLighting'
 import {
   LENS_HEIGHT_ATTRIBUTE,
@@ -144,12 +151,6 @@ const props = withDefaults(
     position?: { x: number; y: number; z?: number }
     /** Uniform scale (GLBs are modelled in metres). */
     scale?: number
-    /**
-     * Horizontal-only multiplier on top of `scale` (the deprecated
-     * `templeWidthBoost`). It stretches the lenses too; `templeFit` opens
-     * the arms at the hinge instead.
-     */
-    scaleXBoost?: number
     /** Yaw (radians) so the lenses can be faced at the camera. */
     rotationY?: number
     /** Full Euler rotation (radians). Overrides rotationY when provided. */
@@ -212,6 +213,15 @@ const props = withDefaults(
     /** Where the room's light comes from; aims the key and shadow lights. */
     lightDirection?: LightDirection | null
     /**
+     * Grain and light wrap on the frame (utils/tryon-camera-match), so it
+     * reads as filmed with the face. The CSS blur is the host canvas's.
+     */
+    cameraMatch?: boolean
+    /** The room's smoothed luma (grain amount, wrap colour); null unsampled. */
+    roomLuma?: number | null
+    /** Fixed grain seed (goldens); omit to re-seed every frame like sensor noise. */
+    grainSeed?: number | undefined
+    /**
      * Soft shadow of the frame on the tracked face mesh (shadow map from the
      * key light, see utils/tryon-contact-shadow). Needs `occluderPositions`;
      * the host canvas must have shadows enabled.
@@ -266,7 +276,6 @@ const props = withDefaults(
   {
     position: () => ({ x: 0, y: 0, z: 0 }),
     scale: 6,
-    scaleXBoost: 1,
     rotationY: 0,
     // 'city' reads as neutral architectural reflections rather than a
     // photo-studio product shot — at low intensity it lifts color/specular
@@ -288,6 +297,9 @@ const props = withDefaults(
     lightTint: () => [1, 1, 1],
     roomSample: null,
     lightDirection: null,
+    cameraMatch: false,
+    roomLuma: null,
+    grainSeed: undefined,
     contactShadow: false,
     contactShadowStrength: CONTACT_SHADOW_STRENGTH,
     showBoundingBox: false,
@@ -661,6 +673,63 @@ watch(
   { immediate: true }
 )
 
+// Camera match (issue #86): one shared uniform set, patched into every frame
+// and lens material (standard/physical only: the patch reads their normal
+// and view vectors) after the lens materials are built. Off sets the
+// amounts to 0; patched materials stay patched until the GLB is evicted.
+const cameraMatchUniforms: CameraMatchUniforms = {
+  uCameraGrain: { value: 0 },
+  uCameraGrainSeed: { value: 0 },
+  uCameraWrap: { value: 0 },
+  uCameraWrapColor: { value: { r: 0.5, g: 0.5, b: 0.5 } }
+}
+
+function patchCameraMatch(material: Material) {
+  if (!(material as MeshStandardMaterial).isMeshStandardMaterial) return
+  if (material.userData.tryOnCameraMatch) return
+  material.userData.tryOnCameraMatch = true
+  const previous = material.onBeforeCompile.bind(material)
+  const previousKey = material.customProgramCacheKey.bind(material)
+  material.onBeforeCompile = (shader, renderer) => {
+    previous(shader, renderer)
+    Object.assign(shader.uniforms, cameraMatchUniforms)
+    shader.fragmentShader = patchCameraMatchShader(shader.fragmentShader)
+  }
+  material.customProgramCacheKey = () => `${previousKey()}|tryon-camera-match`
+  material.needsUpdate = true
+}
+
+watch(
+  [model, () => props.physicalLens, () => props.lens, () => props.cameraMatch],
+  ([gltf, , , enabled]) => {
+    if (!enabled || !gltf) return
+    gltf.scene.traverse((obj) => {
+      if (!(obj instanceof Mesh)) return
+      for (const material of Array.isArray(obj.material) ? obj.material : [obj.material]) {
+        patchCameraMatch(material)
+      }
+    })
+  },
+  { immediate: true }
+)
+
+watch(
+  [() => props.cameraMatch, () => props.roomLuma, () => props.lightTint],
+  ([enabled, luma, tint]) => {
+    cameraMatchUniforms.uCameraGrain.value = enabled ? grainAmount(luma) : 0
+    cameraMatchUniforms.uCameraWrap.value = enabled ? LIGHT_WRAP_STRENGTH : 0
+    cameraMatchUniforms.uCameraWrapColor.value = lightWrapColor(tint, luma)
+  },
+  { immediate: true }
+)
+
+// Re-seed the grain every rendered frame, like sensor noise; a fixed seed
+// keeps goldens stable.
+useLoop().onBeforeRender(() => {
+  cameraMatchUniforms.uCameraGrainSeed.value =
+    props.grainSeed ?? (cameraMatchUniforms.uCameraGrainSeed.value + 1.618) % 1000
+})
+
 // The GLB's local-space bounding box: the debug helper below, and the frame
 // width the fit verdict compares with the face. Calibration y-centers the
 // bbox on the tracked anchor and places the frame's FRONT face on it in z
@@ -825,7 +894,7 @@ const groupPosition = computed(
   () => new Vector3(props.position.x, props.position.y, props.position.z ?? 0)
 )
 const groupScale = computed(
-  () => new Vector3(props.scale * props.scaleXBoost, props.scale, props.scale)
+  () => new Vector3(props.scale, props.scale, props.scale)
 )
 const groupRotation = computed(() => {
   if (props.rotation) {
