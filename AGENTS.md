@@ -56,7 +56,7 @@ Key facts:
     the mirrored video + tracked frame, filling its container, with
     structural scoped CSS. Consent, errors, guide hints and controls are the
     host's, built from the default scoped slot (`status`, `error`,
-    `faceError`, `hasFace`, `guideHint`, `fit`, `start`, `stop`, `capture`; also exposed on
+    `faceError`, `hasFace`, `guideHint`, `fit`, `start`, `stop`, `capture`, `frozen`, `freeze`, `unfreeze`; also exposed on
     the ref). Never add UI copy, icons, a UI library or utility classes.
   - `TryOnScene.vue` — the TresJS scene (GLB mounting through the model cache, occluder, environment).
     Uses three's own `GLTFLoader`/`DRACOLoader`/`HDRLoader`, not
@@ -65,6 +65,9 @@ Key facts:
   - `useFaceLandmarker.ts` — worker-backed MediaPipe integration, rAF detect
     loop, pose/confidence exposure.
   - `useWebcamStream.ts` — webcam lifecycle (`getUserMedia`).
+  - `useTryOnFreeze.ts` — `freeze()`/`unfreeze()`: pauses the `<video>` (the
+    detect loop and hair segmenter idle on a paused video), detects the held
+    frame once (`useFaceLandmarker().detectHeld`), resumes on play.
   - `useTryOnSmoothing.ts` — One-Euro filtering of landmarks/pose.
   - `useTryOnPlacement.ts` — landmarks → scale, smoothed pose, frame
     position and occluders for `TryOnScene`. Shared by the component and the
@@ -318,7 +321,7 @@ claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
   `landmarkToNdc` to match. Never mirror the canvas/scene too.
 - **One in-flight detection**: `useFaceLandmarker` allows a single outstanding
   detect request (`pendingRequestId`); stale responses are discarded by
-  request id.
+  request id. `detectHeld()` (freeze) waits its turn behind it.
 - **VIDEO mode only**: the `FaceLandmarker` runs in VIDEO running mode and
   never switches — the live camera is the only input source.
 - MediaPipe WASM and the face model load from CDNs (jsdelivr / Google

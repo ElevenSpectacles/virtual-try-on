@@ -222,6 +222,8 @@ on the component ref.
 | `calibration` | `TryOnCardCalibration` | Card calibration state: `{ status, progress, pdMm }`, `status` `'idle'` \| `'detecting'` \| `'done'` \| `'failed'` (see [Card calibration](#card-calibration)). |
 | `startCalibration` / `cancelCalibration` | `() => void` | Start a card calibration / stop it or drop its result. |
 | `capture` | `(options?) => Promise<Blob>` | Snapshot of the try-on as the shopper sees it (see [Capture](#capture)). |
+| `frozen` | `boolean` | The camera frame and pose are held (see [Freeze](#freeze-and-compare)). |
+| `freeze` / `unfreeze` | `() => Promise<void>` | Hold the current frame and pose / go back to the live camera. |
 
 The ref also exposes a read-only `lighting`: `{ luma, gain, sampleMs }`,
 the smoothed room luma (`null` while lighting is off), the light multiplier
@@ -338,6 +340,21 @@ For frames you know are next (hover on a swatch), call
 `preloadModel(file)` on the ref. The `metrics` event reports how long
 switches took (`modelSwitchMeanMs`, `modelSwitchP95Ms`).
 
+### Freeze and compare
+
+`freeze()` holds the current camera frame and the tracked pose: the preview
+stops on that frame and tracking pauses (the worker sits idle, which saves
+battery). While frozen, changing `model` renders the new frame exactly
+where the previous one sat, with the same occlusion and shadow, so shoppers
+can compare frames on one look. Build an A/B compare, a "tap to freeze"
+button, or a grid of looks with `capture()` on top of it. `unfreeze()`
+resumes the live camera; tracking picks up on the next camera frame.
+
+The held pose is detected on the held frame itself, so `freeze()` resolves
+once that detection is in (one detection, ~10–30 ms). Each change is
+reported as `TRY_ON_FREEZE` with `frozen: true | false`. Stopping the
+camera clears the freeze.
+
 ### `v-model:model`
 
 Two-way binding to the active frame's `file`. Use it to drive the frame
@@ -366,6 +383,7 @@ module reports anything. Every payload has this shape:
 | `TRY_ON_CALIBRATED` | A card calibration finished | `pdMm` |
 | `TRY_ON_FACE_SHAPE` | The face-shape class appeared or changed | `faceShape` (coarse class only) |
 | `TRY_ON_CAPTURE` | `capture()` produced an image | `type` (MIME type of the Blob) |
+| `TRY_ON_FREEZE` | `freeze()` held the pose, or `unfreeze()` released it | `frozen` |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
 | `TRY_ON_TIER` | The device tier stepped down under sustained frame-time load | `tier`, `previousTier`, `p95Ms`, `maxTextureSize`, `deviceMemoryGb` |
 | `TRY_ON_ERROR` | Camera, tracker or asset failure, or a failed card calibration | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment` \| `hair_segmenter` \| `card_calibration`), `message` |
