@@ -199,6 +199,7 @@ Two optional fitting fields:
 | `hairOcclusion` | `boolean` | `false` | Hides the temple arms behind hair that hangs over them (see [Hair occlusion](#hair-occlusion-opt-in)). Needs the occluder and the `high` tier. |
 | `mediapipeHairModelAssetPath` | `string` | Google Storage | URL of `hair_segmenter.tflite`, for self-hosting. |
 | `templeEarBend` | `boolean` | `false` | Bends the temple tips down behind the ears (30°, from ~1.5 cm behind the tracked front of the ear), as an optician fits a frame. Visible when the shopper turns to see the temples. |
+| `preload` | `number \| false` | `1` | Frames to prefetch on each side of the active one in `models`, in idle time once a face is tracked, so switching to them is instant (see [Instant frame switching](#instant-frame-switching)). `false` turns it off. |
 
 ### Default slot
 
@@ -326,6 +327,17 @@ The image is made on-device and stays in the browser. Uploading or sharing
 it is your app's decision, and it is a photo of the shopper's face: say so
 in your consent copy. Each capture is reported as `TRY_ON_CAPTURE`.
 
+### Instant frame switching
+
+Parsed frames are kept in memory (an LRU of 4–6 GLBs, 2 on the `low`
+tier), so switching back to a frame shows it at once. Once a face is
+tracked, the module also fetches the active frame's neighbours in `models`
+in idle time (`preload` on each side, default 1), one at a time, so it never
+competes with the first frame and loads nothing before the camera starts.
+For frames you know are next (hover on a swatch), call
+`preloadModel(file)` on the ref. The `metrics` event reports how long
+switches took (`modelSwitchMeanMs`, `modelSwitchP95Ms`).
+
 ### `v-model:model`
 
 Two-way binding to the active frame's `file`. Use it to drive the frame
@@ -373,6 +385,7 @@ unmounts (`final: true`). Each report covers the session so far.
 | `detectLatencyMeanMs` / `detectLatencyP95Ms` | `number \| null` | Camera-to-result detection latency over the last ~1000 detections. |
 | `renderFpsMean` | `number \| null` | Mean render frame rate over camera-on time. |
 | `modelSwitches` | `number` | Frame changes in the session. |
+| `modelSwitchMeanMs` / `modelSwitchP95Ms` | `number \| null` | Time from a frame change to the new frame on screen. |
 | `tierChanges` | `number` | Capability tier step-downs in the session. |
 | `tier` | `'low' \| 'mid' \| 'high' \| null` | Current device capability tier. |
 | `endedWithoutTrack` | `boolean` | No face was tracked and the frame was never changed. The "looked broken" proxy. |

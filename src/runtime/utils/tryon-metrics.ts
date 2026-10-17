@@ -30,6 +30,13 @@ export interface TryOnMetrics {
   renderFpsMean: number | null
   /** Frame-model switches in the session. */
   modelSwitches: number
+  /**
+   * Mean time from a frame switch to the new frame on screen (a cached or
+   * prefetched GLB shows at once), or null before any switch.
+   */
+  modelSwitchMeanMs: number | null
+  /** 95th-percentile frame-switch time, or null before any switch. */
+  modelSwitchP95Ms: number | null
   /** Step-downs of the device capability tier. */
   tierChanges: number
   /** Current device capability tier, or null before classification. */
@@ -62,6 +69,8 @@ export interface MetricsAccumulator {
   /** One camera-to-result detection latency sample, in ms. */
   onLatency(ms: number): void
   onModelSwitch(): void
+  /** Time a frame switch took until the new frame was shown, in ms. */
+  onModelSwitchLatency(ms: number): void
   onTierChange(tier: TryOnTier, isStepDown: boolean): void
   /** Snapshot of the session so far. */
   snapshot(): TryOnMetrics
@@ -81,6 +90,7 @@ export function createMetricsAccumulator(): MetricsAccumulator {
   let tier: TryOnTier | null = null
   let nextReportAtMs = METRICS_INTERVAL_MS
   const latencies: number[] = []
+  const switchLatencies: number[] = []
 
   return {
     onFrame(deltaMs, active, tracking) {
@@ -118,6 +128,11 @@ export function createMetricsAccumulator(): MetricsAccumulator {
       modelSwitches++
     },
 
+    onModelSwitchLatency(ms) {
+      switchLatencies.push(ms)
+      if (switchLatencies.length > LATENCY_WINDOW) switchLatencies.shift()
+    },
+
     onTierChange(next, isStepDown) {
       tier = next
       if (isStepDown) tierChanges++
@@ -130,6 +145,11 @@ export function createMetricsAccumulator(): MetricsAccumulator {
           ? latencies.reduce((sum, v) => sum + v, 0) / latencies.length
           : null
       const p95 = percentile(latencies, 0.95)
+      const switchMean =
+        switchLatencies.length > 0
+          ? switchLatencies.reduce((sum, v) => sum + v, 0) / switchLatencies.length
+          : null
+      const switchP95 = percentile(switchLatencies, 0.95)
       return {
         activeMs: Math.round(activeMs),
         timeToFirstTrackMs: firstTrackAtMs === null ? null : Math.round(firstTrackAtMs),
@@ -139,6 +159,8 @@ export function createMetricsAccumulator(): MetricsAccumulator {
         detectLatencyP95Ms: p95 === null ? null : round1(p95),
         renderFpsMean: frames > 0 && activeMs > 0 ? round1(frames / (activeMs / 1000)) : null,
         modelSwitches,
+        modelSwitchMeanMs: switchMean === null ? null : round1(switchMean),
+        modelSwitchP95Ms: switchP95 === null ? null : round1(switchP95),
         tierChanges,
         tier,
         endedWithoutTrack: firstTrackAtMs === null && modelSwitches === 0
@@ -157,6 +179,7 @@ export function createMetricsAccumulator(): MetricsAccumulator {
       // `tier` is kept: it describes the device, not the session.
       nextReportAtMs = METRICS_INTERVAL_MS
       latencies.length = 0
+      switchLatencies.length = 0
     }
   }
 }

@@ -58,7 +58,7 @@ Key facts:
     host's, built from the default scoped slot (`status`, `error`,
     `faceError`, `hasFace`, `guideHint`, `fit`, `start`, `stop`, `capture`; also exposed on
     the ref). Never add UI copy, icons, a UI library or utility classes.
-  - `TryOnScene.vue` — the TresJS scene (GLB loading, occluder, environment).
+  - `TryOnScene.vue` — the TresJS scene (GLB mounting through the model cache, occluder, environment).
     Uses three's own `GLTFLoader`/`DRACOLoader`/`HDRLoader`, not
     `@tresjs/cientos` — cientos does not tree-shake, so keep it out.
 - `composables/tryon/` — stateful logic:
@@ -84,6 +84,10 @@ Key facts:
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
     per-model calibration.
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
+  - `useTryOnModelCache.ts` — parsed-GLB cache (GLTF/Draco loaders, LRU of
+    loaded + rigged frames, disposed on eviction, the shown frame pinned) and
+    the idle-time prefetch queue. `VirtualTryOnExperience` owns one and passes
+    it to `TryOnScene`; a scene without one makes its own.
   - `useCapabilityTier.ts` — device probe (WebGL2, max texture size,
     `deviceMemory`) and the frame-time step-down; exposes the tier and
     `allows(feature)`. Samples only while a face is tracked.
@@ -129,7 +133,8 @@ Key facts:
   class from landmark proportions, with hysteresis; a styling hint), `tryon-capture.ts`
   (`capture()` layout: the cover-cropped camera window and output size), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
-  pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
+  pure step-down sampler), `tryon-model-cache.ts` (the LRU, neighbour prefetch order, cache capacity
+  per tier), `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
   (session telemetry: uptime, loss rate, FPS, latency percentiles; the
   `metrics` event payload, opt-in via `reportMetrics`).

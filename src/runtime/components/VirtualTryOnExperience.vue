@@ -24,6 +24,8 @@ import { useTryOnFrameLoop } from '../composables/tryon/useTryOnFrameLoop'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
 import { useHairSegmenter } from '../composables/tryon/useHairSegmenter'
 import { maskCoverage } from '../utils/tryon-hair'
+import { useTryOnModelCache } from '../composables/tryon/useTryOnModelCache'
+import { modelCacheCapacity, neighbourFiles } from '../utils/tryon-model-cache'
 import type { TryOnTier } from '../utils/tryon-capability'
 import {
   createMetricsAccumulator,
@@ -168,6 +170,13 @@ const props = withDefaults(
      * the straight authored tips.
      */
     templeEarBend?: boolean
+    /**
+     * Frames to prefetch on each side of the active one in `models` (its
+     * neighbouring colourways), in idle time once a face is tracked, so
+     * switching to them is instant. `false` or 0 turns it off. The low tier
+     * never prefetches.
+     */
+    preload?: number | false
   }>(),
   {
     adaptiveLighting: true,
@@ -178,6 +187,7 @@ const props = withDefaults(
     physicalLens: true,
     hairOcclusion: false,
     templeEarBend: false,
+    preload: 1,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -248,7 +258,10 @@ const model = defineModel<string>('model')
 if (!model.value) {
   model.value = initialModel
 }
-const modelSrc = computed(() => `${props.modelBaseUrl}/${model.value}.glb`)
+function srcFor(file: string): string {
+  return `${props.modelBaseUrl}/${file}.glb`
+}
+const modelSrc = computed(() => srcFor(model.value ?? initialModel))
 const calibration = computed(() => getCalibration(model.value ?? initialModel))
 const useFaceTracking = ref(true)
 const runtimeConfig = useRuntimeConfig()
@@ -348,6 +361,41 @@ const capability = useCapabilityTier({
     })
   }
 })
+
+// Parsed-GLB cache (issue #94): switching back to a frame, or to a
+// prefetched neighbour, mounts it at once. Prefetch runs only while a face is
+// tracked, so it never competes with the first frame or loads anything
+// before the camera starts; the low tier keeps two GLBs and never prefetches.
+const preloadPerSide = computed(() =>
+  props.preload === false ? 0 : Math.max(0, Math.floor(props.preload))
+)
+const modelCache = useTryOnModelCache({
+  draco: props.draco,
+  dracoDecoderPath: props.dracoDecoderPath,
+  capacity: modelCacheCapacity(false, preloadPerSide.value)
+})
+watch(
+  [() => capability.tier.value, preloadPerSide],
+  ([tier, perSide]) => modelCache.resize(modelCacheCapacity(tier === 'low', perSide)),
+  { immediate: true }
+)
+watch(
+  [model, () => isActive.value && hasFace.value, () => capability.tier.value, preloadPerSide],
+  ([file, tracking, tier, perSide]) => {
+    if (!tracking || tier === 'low' || perSide <= 0) return
+    const files = props.models.map((m) => m.file)
+    modelCache.prefetch(neighbourFiles(files, file, perSide).map(srcFor))
+  }
+)
+
+/**
+ * Fetch and parse a frame ahead of a likely switch (e.g. hover on a swatch),
+ * in idle time. Unknown files are ignored.
+ */
+function preloadModel(file: string) {
+  if (!getTryOnModel(props.models, file)) return
+  modelCache.prefetch([srcFor(file)])
+}
 
 // Hair occlusion (opt-in, high tier). The segmenter starts on the first
 // tracked face so it never delays the first try-on, and pauses while no face
@@ -531,8 +579,15 @@ const fitRanking = computed<TryOnFitRank[]>(() => {
   )
 })
 
+// Frame-switch latency for the metrics event: switch → new frame shown.
+let switchStartedAt: number | null = null
+
 function onModelLoaded(widthMeters: number) {
   glbWidthMeters.value = widthMeters
+  if (switchStartedAt !== null) {
+    metrics?.onModelSwitchLatency(performance.now() - switchStartedAt)
+    switchStartedAt = null
+  }
 }
 
 const status = computed<TryOnStatus>(() => {
@@ -661,6 +716,7 @@ defineExpose({
   start,
   stop,
   capture,
+  preloadModel,
   status,
   error,
   faceError,
@@ -822,6 +878,7 @@ onBeforeUnmount(() => {
 
 watch(model, (value) => {
   metrics?.onModelSwitch()
+  switchStartedAt = performance.now()
   // A new GLB compiles its shaders on the next frames: warm up again.
   capability.resetWarmup()
   // The new frame has its own width: no verdict until its GLB has loaded.
@@ -871,10 +928,7 @@ watch(model, (value) => {
         >
           <TryOnScene
             :src="modelSrc"
-            :draco="draco"
-            v-bind="{
-              ...(dracoDecoderPath !== undefined ? { dracoDecoderPath } : {})
-            }"
+            :model-cache="modelCache"
             :visible="frameVisible"
             :position="framePosition"
             :model-offset="calibration.translation"
