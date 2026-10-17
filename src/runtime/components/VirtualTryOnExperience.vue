@@ -52,6 +52,7 @@ import {
   captureQuality,
   type TryOnCaptureOptions
 } from '../utils/tryon-capture'
+import { preconnectOrigins } from '../utils/tryon-preconnect'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -61,7 +62,7 @@ import type {
 } from '../types/tryon-experience'
 
 import TryOnScene from './TryOnScene.vue'
-import { useRoute, useRuntimeConfig } from '#imports'
+import { useHead, useRoute, useRuntimeConfig } from '#imports'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = withDefaults(
@@ -178,6 +179,12 @@ const props = withDefaults(
      * never prefetches.
      */
     preload?: number | false
+    /**
+     * URL of the equirect `.hdr` environment map, to self-host it. Omit for
+     * the built-in preset (GitHub raw CDN). The `low` tier uses a procedural
+     * environment instead and downloads nothing.
+     */
+    environmentUrl?: string | undefined
   }>(),
   {
     adaptiveLighting: true,
@@ -292,6 +299,7 @@ const {
   blinkScore: faceBlinkScore,
   anchor: faceAnchor,
   latencyMs: faceLatencyMs,
+  isReady: faceReady,
   init: initFaceLandmarker,
   detectHeld
 } = useFaceLandmarker(videoRef, {
@@ -647,6 +655,23 @@ function trackTryOn(
   })
 }
 
+// Time to first frame (issue #95). The tracker (MediaPipe Wasm + face
+// model, the largest first-load cost) starts loading with `start()` or
+// `prefetch()`, in parallel with the camera permission prompt and stream
+// start, instead of after the stream is up.
+let trackerRequestedAt: number | null = null
+function initTracker() {
+  if (trackerRequestedAt === null) trackerRequestedAt = performance.now()
+  const requestedAt = trackerRequestedAt
+  initFaceLandmarker()
+    .then(() => {
+      if (faceReady.value) metrics?.onAssetTiming('tracker', performance.now() - requestedAt)
+    })
+    .catch(() => {
+      // Failure is surfaced via faceError.
+    })
+}
+
 /** Start (or retry) the camera. The first call reports TRY_ON_OPENED. */
 async function start() {
   if (!hasConsented.value) {
@@ -656,7 +681,51 @@ async function start() {
       entryPoint: props.autoStart ? 'auto_start' : 'camera_consent'
     })
   }
+  initTracker()
   await startStream()
+}
+
+/**
+ * Warm up before the shopper taps "Try on" (e.g. on hover of the button):
+ * loads the face tracker. Does not touch the camera, so it needs no consent;
+ * it does download the MediaPipe Wasm and model.
+ */
+function prefetch() {
+  initTracker()
+}
+
+// Open connections to the default CDNs early (skipped for self-hosted
+// assets), while the shopper reads the consent screen.
+useHead({
+  link: preconnectOrigins({
+    mediapipeBasePath: props.mediapipeBasePath,
+    mediapipeModelAssetPath: props.mediapipeModelAssetPath,
+    hairOcclusion: props.hairOcclusion,
+    mediapipeHairModelAssetPath: props.mediapipeHairModelAssetPath,
+    draco: props.draco,
+    dracoDecoderPath: props.dracoDecoderPath,
+    presetEnvironment: props.environmentUrl === undefined
+  }).map((href) => ({ rel: 'preconnect', href, crossorigin: 'anonymous' as const }))
+})
+
+// Camera granted → first rendered frame on a face, once per camera session.
+let grantedAt: number | null = null
+watch(isActive, (active) => {
+  grantedAt = active ? performance.now() : null
+})
+watch(
+  () => frameVisible.value && glbWidthMeters.value > 0,
+  (shown) => {
+    if (!shown || grantedAt === null || !metrics) return
+    const since = grantedAt
+    grantedAt = null
+    // The frame is on screen once the next frame has been drawn.
+    requestAnimationFrame(() => metrics.onFirstFrame(performance.now() - since))
+  }
+)
+
+function onSceneTiming(asset: 'model' | 'environment', ms: number) {
+  metrics?.onAssetTiming(asset, ms)
 }
 
 onMounted(() => {
@@ -745,6 +814,7 @@ defineExpose({
   freeze,
   unfreeze,
   frozen,
+  prefetch,
   status,
   error,
   faceError,
@@ -803,9 +873,8 @@ watch(isActive, (active) => {
   if (active) {
     trackTryOn('TRY_ON_CAMERA_GRANTED')
     useFaceTracking.value = true
-    initFaceLandmarker().catch(() => {
-      // Failure is surfaced via faceError.
-    })
+    // Already loading since `start()`; this covers a retry after a failure.
+    initTracker()
   }
 })
 
@@ -983,9 +1052,12 @@ watch(model, (value) => {
             :lens="calibration.lens"
             :hair-mask="hairActive ? hairSegmenter.mask.value : null"
             :media-window="coverWindow"
+            :environment-url="environmentUrl"
+            :procedural-environment="capability.tier.value === 'low'"
             @error="onSceneError"
             @loaded="onModelLoaded"
             @snapshot="onSceneSnapshot"
+            @timing="onSceneTiming"
           />
         </TresCanvas>
       </div>
