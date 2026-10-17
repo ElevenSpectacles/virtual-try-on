@@ -24,6 +24,7 @@ type FaceLandmarkerWorkerRequest =
       bitmap: ImageBitmap
       timestamp: number
       sample?: boolean
+      card?: CardRegion
     }
   | { type: 'destroy' }
 
@@ -46,6 +47,21 @@ type FaceLandmarkerWorkerResponse =
       height: number
       ms: number
     }
+  | {
+      type: 'card'
+      id: number
+      gray: Uint8ClampedArray
+      width: number
+      height: number
+      region: CardRegion
+    }
+
+interface CardRegion {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 
 interface BlendshapeClassifications {
   categories: { categoryName: string; score: number }[]
@@ -104,6 +120,49 @@ function postSample(id: number, bitmap: ImageBitmap) {
     )
   } catch {
     // A failed sample only costs the lighting estimate one frame.
+  }
+}
+
+// Card calibration crop (keep in step with CARD_CROP_WIDTH/HEIGHT in
+// utils/tryon-card): the forehead band, scaled down and turned grey here so
+// only ~30 KB crosses back, and only while the host runs a calibration.
+const CARD_CROP_WIDTH = 320
+const CARD_CROP_HEIGHT = 96
+let cardContext: OffscreenCanvasRenderingContext2D | null | undefined
+
+function postCard(id: number, bitmap: ImageBitmap, region: CardRegion) {
+  try {
+    if (cardContext === undefined) {
+      cardContext =
+        typeof OffscreenCanvas === 'function'
+          ? new OffscreenCanvas(CARD_CROP_WIDTH, CARD_CROP_HEIGHT).getContext('2d', {
+              willReadFrequently: true
+            })
+          : null
+    }
+    if (!cardContext) return
+    cardContext.drawImage(
+      bitmap,
+      region.x * bitmap.width,
+      region.y * bitmap.height,
+      region.width * bitmap.width,
+      region.height * bitmap.height,
+      0,
+      0,
+      CARD_CROP_WIDTH,
+      CARD_CROP_HEIGHT
+    )
+    const { data } = cardContext.getImageData(0, 0, CARD_CROP_WIDTH, CARD_CROP_HEIGHT)
+    const gray = new Uint8ClampedArray(CARD_CROP_WIDTH * CARD_CROP_HEIGHT)
+    for (let i = 0; i < gray.length; i++) {
+      gray[i] = 0.299 * data[i * 4]! + 0.587 * data[i * 4 + 1]! + 0.114 * data[i * 4 + 2]!
+    }
+    post(
+      { type: 'card', id, gray, width: CARD_CROP_WIDTH, height: CARD_CROP_HEIGHT, region },
+      [gray.buffer]
+    )
+  } catch {
+    // A failed crop only costs the calibration one frame.
   }
 }
 
@@ -232,13 +291,14 @@ self.addEventListener(
         break
 
       case 'detect': {
-        const { id, bitmap, timestamp, sample } = message
+        const { id, bitmap, timestamp, sample, card } = message
         try {
           if (!faceLandmarker) throw new Error('FaceLandmarker not ready')
           const raw = faceLandmarker.detectForVideo(bitmap, timestamp)
           post(toResult(id, raw))
           // After the result, so the downsample never delays the landmarks.
           if (sample) postSample(id, bitmap)
+          if (card) postCard(id, bitmap, card)
         } catch (err) {
           post({
             type: 'detect_failed',

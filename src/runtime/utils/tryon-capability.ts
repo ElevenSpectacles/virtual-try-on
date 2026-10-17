@@ -19,6 +19,7 @@ export type TryOnFeature =
   | 'lightingEstimate'
   | 'segmentationOccluder'
   | 'physicalLens'
+  | 'cameraMatch'
 
 /** Ascending: a higher index is a more capable device. */
 export const TRY_ON_TIERS: readonly TryOnTier[] = ['low', 'mid', 'high']
@@ -33,7 +34,9 @@ export const FEATURE_MIN_TIER: Record<TryOnFeature, TryOnTier> = {
   lightingEstimate: 'mid',
   segmentationOccluder: 'high',
   // Fresnel opacity, clearcoat and thin-film sheen on the lens pixels only.
-  physicalLens: 'mid'
+  physicalLens: 'mid',
+  // Grain and light wrap in the frame's shaders, a CSS blur of the canvas.
+  cameraMatch: 'mid'
 }
 
 /**

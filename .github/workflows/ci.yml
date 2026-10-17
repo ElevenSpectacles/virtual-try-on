@@ -49,3 +49,4 @@ jobs:
       # analyzed as plain Vite); the playground run applies Nuxt-app rules.
       - run: npx vite-doctor . --format text
       - run: npx vite-doctor playground --format text
+      - run: npx vite-doctor demo --format text
