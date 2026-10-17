@@ -7,7 +7,7 @@
 //   npm run generate-calibration -- --input <dir> --output <dir>/calibration.json
 //
 // When --output already exists, its hand-tuned fields (rotation,
-// templeWidthBoost, lens) are kept.
+// lens) are kept.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { parseArgs } from 'node:util'

@@ -14,6 +14,49 @@ export interface HarnessResult {
 }
 
 export const MIN_DETECTION_RATE = 0.95
+
+/**
+ * Per-kind detection-rate floors (issue #99). Measured with MediaPipe's CPU
+ * delegate on the fixture frames (2026-10-17): 100 % on still, dim, dark,
+ * backlit and occluded, 96.7 % on dropout (its 200 ms of black frames).
+ */
+export const MIN_DETECTION_RATE_BY_KIND: Record<string, number> = {
+  still: MIN_DETECTION_RATE,
+  motion: MIN_DETECTION_RATE,
+  backlit: MIN_DETECTION_RATE,
+  occluded: MIN_DETECTION_RATE,
+  dropout: 0.93
+}
+
+/**
+ * Largest frame-to-frame move of the mean landmark allowed on a still
+ * subject: a "pop" is a discontinuity well above the jitter floor. Measured
+ * in camera pixels (480×640); the harness reports stage pixels, so recheck
+ * the margin if the prototype's stage is much larger than the camera frame.
+ * Measured: still 0.5–2.9, backlit 1.0–1.6, occluded 1.2–6.3 (the box
+ * edge), dropout 1.8–6.8 (re-acquiring after the black frames).
+ */
+export const MAX_POP_PX: Record<string, number> = {
+  still: 4,
+  backlit: 4,
+  dropout: 10
+}
+
+/** Largest frame-to-frame move of the mean landmark position, stage px. */
+export function maxPopPx(results: HarnessResult[]): number {
+  const tracked = results.filter((r) => r.landmarks.length > 0)
+  let worst = 0
+  for (let i = 1; i < tracked.length; i++) {
+    const a = tracked[i - 1]!.landmarks
+    const b = tracked[i]!.landmarks
+    let sum = 0
+    for (let j = 0; j < a.length; j++) {
+      sum += Math.hypot(b[j]![0] - a[j]![0], b[j]![1] - a[j]![1])
+    }
+    worst = Math.max(worst, sum / a.length)
+  }
+  return worst
+}
 // Median frame-to-frame landmark movement on a perfectly still input: the
 // tracker's own noise floor. Above this the frame visibly shimmers.
 export const MAX_STILL_JITTER_PX = 0.75

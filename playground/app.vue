@@ -61,6 +61,13 @@ function onTrack(event: string, payload: Record<string, unknown>) {
 // experience goldens stay unchanged).
 const showFit = computed(() => route.query.fit === 'true')
 const FIT_LABELS = { narrow: 'May be narrow for you', good: 'Good fit', wide: 'May be wide for you' } as const
+// Host copy for the guide hints (the module ships none).
+const GUIDE_LABELS = {
+  noFace: 'Position your face in view',
+  turnBack: 'Turn back toward the camera',
+  tooDark: 'Find more light',
+  aligned: ''
+} as const
 // `?lighting=true` shows the room-lighting estimate read from the component
 // ref (tests/e2e/lighting.spec.ts reads its data attributes).
 const showLighting = computed(() => route.query.lighting === 'true')
@@ -77,6 +84,27 @@ const experienceRef = ref<{
 } | null>(null)
 // `?hair=on` turns hair occlusion on and shows its state (tests/e2e/hair.spec.ts).
 const hairParam = computed(() => (route.query.hair === 'on' ? 'on' : 'off'))
+
+// `?capture=true` shows a capture button and the last snapshot
+// (tests/e2e/capture.spec.ts reads it back).
+const showCapture = computed(() => route.query.capture === 'true')
+const captureUrl = ref<string | null>(null)
+async function onCapture(capture: (options?: { type?: 'image/png' }) => Promise<Blob>) {
+  const blob = await capture({ type: 'image/png' })
+  if (captureUrl.value) URL.revokeObjectURL(captureUrl.value)
+  captureUrl.value = URL.createObjectURL(blob)
+}
+
+// `?freeze=true` shows Freeze / Unfreeze and a model switcher, to compare
+// frames on a held pose (tests/e2e/freeze.spec.ts).
+const showFreeze = computed(() => route.query.freeze === 'true')
+const activeModel = ref<string | undefined>(
+  typeof route.query.model === 'string' ? route.query.model : undefined
+)
+function nextModel() {
+  const index = models.findIndex((m) => m.file === activeModel.value)
+  activeModel.value = models[(index + 1) % models.length]!.file
+}
 
 // `?metrics=true` turns on the metrics event; the e2e spec reads the JSON.
 const reportMetrics = computed(() => route.query.metrics === 'true')
@@ -100,6 +128,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
       >
         <VirtualTryOnExperience
           ref="experienceRef"
+          v-model:model="activeModel"
           :models="models"
           calibration-url="/models/virtual-try-on/calibration.json"
           :tier="tierParam"
@@ -110,7 +139,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
           @track="onTrack"
           @metrics="onMetrics"
         >
-          <template #default="{ status, error, faceError, guideHint, fit, isStarting, start, stop, calibration, startCalibration, cancelCalibration }">
+          <template #default="{ status, error, faceError, guideHint, fit, isStarting, start, stop, calibration, startCalibration, cancelCalibration, capture, frozen, freeze, unfreeze }">
             <div
               v-if="status !== 'active'"
               class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white"
@@ -145,6 +174,34 @@ function onMetrics(payload: TryOnSessionMetrics) {
               <span v-else-if="calibration.status === 'done'">PD {{ calibration.pdMm }} mm</span>
               <span v-else-if="calibration.status === 'failed'">No card found, try again in better light</span>
             </div>
+            <UButton
+              v-if="status === 'active' && showCapture"
+              class="absolute right-4 bottom-4"
+              color="neutral"
+              size="xs"
+              @click="onCapture(capture)"
+            >
+              Capture
+            </UButton>
+            <img
+              v-if="showCapture && captureUrl"
+              :src="captureUrl"
+              alt="Last capture"
+              data-capture
+              class="absolute top-4 left-4 w-24 border border-white"
+            >
+            <div
+              v-if="status === 'active' && showFreeze"
+              class="absolute right-4 bottom-4 flex gap-2"
+              :data-frozen="frozen"
+            >
+              <UButton color="neutral" size="xs" @click="frozen ? unfreeze() : freeze()">
+                {{ frozen ? 'Unfreeze' : 'Freeze' }}
+              </UButton>
+              <UButton color="neutral" size="xs" @click="nextModel">
+                Next frame
+              </UButton>
+            </div>
             <p
               v-if="showFit && fit"
               class="absolute inset-x-0 top-4 text-center text-xs text-white"
@@ -175,10 +232,11 @@ function onMetrics(payload: TryOnSessionMetrics) {
               hair {{ experienceRef.hair.active ? 'on' : 'off' }} · masks {{ experienceRef.hair.masks }}
             </p>
             <p
-              v-if="status === 'active' && (faceError || guideHint === 'noFace')"
+              v-if="status === 'active' && (faceError || (guideHint && guideHint !== 'aligned'))"
               class="absolute inset-x-0 bottom-4 text-center text-xs text-white"
+              :data-guide="guideHint"
             >
-              {{ faceError ? `Face tracking error: ${faceError}` : 'Position your face in view' }}
+              {{ faceError ? `Face tracking error: ${faceError}` : GUIDE_LABELS[guideHint!] }}
             </p>
           </template>
         </VirtualTryOnExperience>
