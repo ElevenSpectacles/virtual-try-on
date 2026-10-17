@@ -420,7 +420,7 @@ module reports anything. Every payload has this shape:
 | `TRY_ON_FREEZE` | `freeze()` held the pose, or `unfreeze()` released it | `frozen` |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
 | `TRY_ON_TIER` | The device tier stepped down under sustained frame-time load | `tier`, `previousTier`, `p95Ms`, `maxTextureSize`, `deviceMemoryGb` |
-| `TRY_ON_ERROR` | Camera, tracker or asset failure, or a failed card calibration | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment` \| `hair_segmenter` \| `card_calibration`), `message` |
+| `TRY_ON_ERROR` | Camera, tracker or asset failure, a failed card calibration, or an invalid calibration entry | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment` \| `hair_segmenter` \| `card_calibration` \| `calibration`), `message` |
 
 ### `metrics` event
 
@@ -635,6 +635,32 @@ clips (Mixkit, free licence, never committed) into the OS temp dir and
 prints the `TRYON_VIDEO_CLIP=…` to run `tests/e2e/video-clip.spec.ts` with.
 That spec checks tracking on the clip and saves a screenshot of the try-on
 for review.
+
+**Adding a frame to the catalog** — one command takes a raw GLB to a
+try-on-ready one and its calibration entry:
+
+```bash
+npm run prepare-model -- --input <raw.glb or dir> --output <catalog dir> --calibration <catalog dir>/calibration.json
+```
+
+It trims the curled temple tips (once: each run would tilt them again, so
+the GLB records it in its extras), Draco-compresses, lints the result and
+regenerates `calibration.json` for the catalog, keeping your hand-tuned
+fields. Running it twice changes nothing. To check a catalog without
+changing it:
+
+```bash
+npm run lint-models -- --input <catalog dir>
+```
+
+The lint fails on a missing lens material or a frame in the wrong units, and
+warns about a missing `pt2` temple node, the placeholder lens colour, files
+over 1.5 MB, textures over 1024 px and uncompressed GLBs. At runtime, an
+invalid calibration entry (a typo, degrees instead of radians) falls back
+field by field to the defaults and is reported once as `TRY_ON_ERROR`
+(`source: 'calibration'`).
+
+The individual steps are still available:
 
 **Compressing models** — Draco-compress a directory of GLBs:
 
