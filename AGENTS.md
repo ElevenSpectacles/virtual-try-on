@@ -88,7 +88,9 @@ Key facts:
   - `useTryOnFrameLoop.ts` / `useTryOnElementSize.ts` — rAF loop and
     ResizeObserver size, the module's own stand-ins for VueUse.
   - `useFrameCalibration.ts` — loads `calibration.json` and resolves
-    per-model calibration.
+    per-model calibration; `validateCalibration` falls back field by field
+    and lists problems, which the component reports as `TRY_ON_ERROR`
+    (`source: 'calibration'`).
   - `useTryOnModels.ts` — model list types/helpers (`TryOnModel`).
   - `useTryOnModelCache.ts` — parsed-GLB cache (GLTF/Draco loaders, LRU of
     loaded + rigged frames, disposed on eviction, the shown frame pinned) and
@@ -165,17 +167,35 @@ Key facts:
   runs with auto-imports off like a strict host, and serves GLBs + `calibration.json` from
   the host checkout via nitro `publicAssets` (override with
   `TRYON_MODELS_DIR`). Not part of the shipped module.
+- `demo/` — the public static demo (`npm run demo`, port 4100;
+  `npm run demo:generate`), deployed to GitHub Pages by
+  `.github/workflows/demo.yml`. A plain host page with no UI library and
+  auto-imports off. Its controls are built from the default slot, so keep
+  it in step with the slot/ref API. `scripts/prepare-demo.mjs` stages
+  everything in `demo/public/` (gitignored): the MediaPipe Wasm and the
+  Draco decoder from `node_modules`, `face_landmarker.task` and the HDR
+  (SHA-256 pinned), and the frames from `DEMO_MODELS_DIR`. The page sets
+  every self-hosting prop and a same-origin CSP, so it makes no
+  third-party requests. Keep it that way. Not part of the shipped module.
 - `scripts/` — CLIs:
   - `generate-calibration.ts` — scans a GLB directory and emits
     `calibration.json` (bounding-box recentring + scale normalization against
     a reference model, and each frame's rendered `frameWidthMm` for fit
     ranking; `--input`, `--output`, `--reference`). Keeps the
-    hand-tuned fields (`rotation`, `templeWidthBoost`, `lens`) of an existing
+    hand-tuned fields (`rotation`, `lens`, `pads`) of an existing
     `--output`. The maths lives in `scripts/lib/calibration.ts`, unit-tested
     in `tests/unit/scripts/`.
   - `audit-tilt.ts` — pantoscopic tilt audit: fits each GLB's lens plane
     (`scripts/lib/tilt.ts`), adds the calibration `rotation.x`, flags models
     outside 7–12° and suggests the value for 9°.
+  - `prepare-model.ts` (`npm run prepare-model`) — the one command for a
+    new catalog frame: trim temple tips → Draco-compress → lint →
+    regenerate `calibration.json`. Steps record themselves in the GLB's
+    `extras.tryOnPrepared` and never run twice (`scripts/lib/model-prep.ts`);
+    a second run changes nothing. Prefer it over the single-step scripts.
+  - `lint-models.ts` (`npm run lint-models`) — model lint
+    (`scripts/lib/model-lint.ts`): lens material, `pt2`, bounds/units,
+    placeholder lens colour, size and texture budgets, compression.
   - `compress-models.ts` — Draco-compresses GLBs via `@gltf-transform`. Run
     `generate-calibration` against the compressed output (compression shifts
     bounding boxes by float rounding).

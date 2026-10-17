@@ -32,15 +32,6 @@ export interface TryOnModelCalibration {
    */
   scale: number
   /**
-   * Horizontal-only multiplier on top of the uniform scale. Optional —
-   * defaults to 1 (no-op) when absent.
-   *
-   * @deprecated It stretches the whole frame, lenses included. The temple
-   * arms now open at the hinge to meet the tracked head (utils/tryon-temples),
-   * so leave it at 1. Removed in 5.0.
-   */
-  templeWidthBoost?: number
-  /**
    * Lens tint and density, replacing the GLB's authored lens colour and
    * opacity — e.g. one GLB shipped in several lens colours. Optional.
    */
@@ -76,7 +67,6 @@ export interface TryOnFrameCalibration {
   translation: TryOnModelCalibration['translation']
   rotation: TryOnModelCalibration['rotation']
   scale: number
-  templeWidthBoost: number
   lens: TryOnLens
   /** Pad contact spacing, mm; null when the manifest has none. */
   padSpacingMm: number | null

@@ -86,17 +86,6 @@ const props = withDefaults(
     /** Multiplier on the computed frame scale. */
     frameScale?: number
     /**
-     * @deprecated No effect since 4.4.0 — the frame renders only on a
-     * tracked face, which supplies its rotation. Removed in 5.0.
-     */
-    frameYaw?: number
-    /**
-     * @deprecated Multiplier on the calibrated `templeWidthBoost`, which
-     * stretches the whole frame; the temple arms now open at the hinge to
-     * meet the tracked head. Removed in 5.0.
-     */
-    templeWidth?: number
-    /**
      * Directory the MediaPipe Wasm fileset is served from. Omit to use the
      * built-in jsDelivr CDN default; pass a same-origin path (e.g.
      * `/mediapipe/wasm`) to self-host and drop the CDN dependency.
@@ -220,8 +209,6 @@ const props = withDefaults(
     autoStart: false,
     exposure: 1,
     frameScale: 1,
-    frameYaw: 0,
-    templeWidth: 1,
     draco: true,
     // Explicit undefined, not Vue's absent-boolean `false`, so an omitted
     // prop falls through to the module option.
@@ -236,7 +223,7 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const { getCalibration } = useFrameCalibration(props.calibrationUrl)
+const { getCalibration, getCalibrationProblems } = useFrameCalibration(props.calibrationUrl)
 
 const queryModel = route.query.model as string | undefined
 const initialModel =
@@ -504,10 +491,6 @@ const hairActive = computed(
     hairOcclusionAllowed.value &&
     !hairSegmenter.overBudget.value &&
     !hairSegmenter.error.value
-)
-
-const templeScaleBoost = computed(
-  () => calibration.value.templeWidthBoost * props.templeWidth
 )
 
 // The frame renders only on a tracked face: never before the camera starts
@@ -998,6 +981,26 @@ watch(faceError, (err) => {
   }
 })
 
+// A bad calibration entry is reported once per model (the frame still
+// renders, with the invalid fields at their defaults).
+const reportedCalibration = new Set<string>()
+watch(
+  () => {
+    const file = model.value ?? initialModel
+    return { file, problems: getCalibrationProblems(file) }
+  },
+  ({ file, problems }) => {
+    if (!problems.length || reportedCalibration.has(file)) return
+    reportedCalibration.add(file)
+    trackTryOn('TRY_ON_ERROR', {
+      errorType: 'invalid_calibration',
+      source: 'calibration',
+      message: `${file}: ${problems.join('; ')}`
+    })
+  },
+  { immediate: true }
+)
+
 function onSceneError(source: 'model' | 'environment', message: string) {
   trackTryOn('TRY_ON_ERROR', {
     errorType: 'load_failed',
@@ -1132,7 +1135,6 @@ watch(model, (value) => {
             :position="framePosition"
             :model-offset="calibration.translation"
             :scale="smoothedScale"
-            :scale-x-boost="templeScaleBoost"
             :rotation="smoothedEuler"
             :occluder-enabled="occluderEnabled"
             :occluder-positions="occluderPositions"

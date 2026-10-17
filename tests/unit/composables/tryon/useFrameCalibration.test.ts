@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { getCalibrationFromManifest } from '../../../../src/runtime/composables/tryon/useFrameCalibration'
+import {
+  getCalibrationFromManifest,
+  validateCalibration
+} from '../../../../src/runtime/composables/tryon/useFrameCalibration'
 import type { TryOnCalibrationFile } from '../../../../src/runtime/types/tryon-calibration'
 
 const manifest: TryOnCalibrationFile = {
@@ -31,7 +34,6 @@ describe('getCalibrationFromManifest', () => {
       translation: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       scale: 1,
-      templeWidthBoost: 1,
       lens: { tint: null, density: null, gradient: null },
       padSpacingMm: null,
       frameWidthMm: 0
@@ -76,8 +78,102 @@ describe('getCalibrationFromManifest', () => {
     })
   })
 
+  it('ignores templeWidthBoost from a pre-5.0 manifest', () => {
+    const old = {
+      ...manifest,
+      models: {
+        a: { ...manifest.models['iris-bronze']!, model: 'a', templeWidthBoost: 1.1 }
+      }
+    } as unknown as TryOnCalibrationFile
+    expect(getCalibrationFromManifest(old, 'a')).not.toHaveProperty('templeWidthBoost')
+  })
+
   it('reads the frame width, 0 when the entry has none', () => {
     expect(getCalibrationFromManifest(manifest, 'kairos-amber').frameWidthMm).toBe(139.2)
     expect(getCalibrationFromManifest(manifest, 'iris-bronze').frameWidthMm).toBe(0)
+  })
+})
+
+describe('validateCalibration', () => {
+  const bad = {
+    schemaVersion: '1.0.0',
+    reference: 'a',
+    models: {
+      a: {
+        model: 'a',
+        translation: { x: 0.001, y: '-0.02', z: 0 },
+        rotation: { x: 0.1, y: 0, z: 0 },
+        scale: 0,
+        lens: { tint: 'brown', density: 1.5 }
+      }
+    }
+  } as unknown as TryOnCalibrationFile
+
+  it('validates the fitting and physical-lens fields too', () => {
+    const entry = (fields: Record<string, unknown>) =>
+      ({
+        schemaVersion: '1.0.0',
+        reference: 'a',
+        models: {
+          a: {
+            model: 'a',
+            translation: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            scale: 1,
+            ...fields
+          }
+        }
+      }) as unknown as TryOnCalibrationFile
+    const good = validateCalibration(
+      entry({ pads: { spacingMm: 18 }, frameWidthMm: 139.5, lens: { category: 3, gradient: { top: 0.9, bottom: 0.3 } } }),
+      'a'
+    )
+    expect(good.problems).toEqual([])
+    expect(good.calibration.padSpacingMm).toBe(18)
+    expect(good.calibration.frameWidthMm).toBe(139.5)
+    expect(good.calibration.lens.gradient).toEqual({ top: 0.9, bottom: 0.3 })
+    const bad = validateCalibration(
+      entry({
+        pads: { spacingMm: '18' },
+        frameWidthMm: -1,
+        lens: { category: 5, transmittance: 1.2, gradient: { top: 0.9 } }
+      }),
+      'a'
+    )
+    expect(bad.calibration.padSpacingMm).toBeNull()
+    expect(bad.calibration.frameWidthMm).toBe(0)
+    expect(bad.problems).toEqual([
+      'lens.transmittance must be between 0 and 1',
+      'lens.category must be an ISO 12312-1 category 0-4',
+      'lens.gradient must be { top, bottom } between 0 and 1',
+      'pads.spacingMm must be a positive number of millimetres',
+      'frameWidthMm must be a positive number of millimetres'
+    ])
+  })
+
+  it('falls back field by field and lists what is wrong', () => {
+    const { calibration, problems } = validateCalibration(bad, 'a')
+    expect(calibration.translation).toEqual({ x: 0, y: 0, z: 0 })
+    expect(calibration.rotation).toEqual({ x: 0.1, y: 0, z: 0 })
+    expect(calibration.scale).toBe(1)
+    expect(problems).toEqual([
+      'translation must be { x, y, z } numbers within ±0.5',
+      'scale must be a number between 0.2 and 5',
+      'lens.tint must be #rrggbb',
+      'lens.density must be between 0 and 1'
+    ])
+  })
+
+  it('finds nothing wrong with a valid entry, or a missing one', () => {
+    expect(validateCalibration(manifest, 'kairos-amber').problems).toEqual([])
+    expect(validateCalibration(manifest, 'nope').problems).toEqual([])
+  })
+
+  it('catches a rotation in degrees', () => {
+    const degrees = {
+      ...manifest,
+      models: { b: { ...manifest.models['iris-bronze']!, model: 'b', rotation: { x: 9, y: 0, z: 0 } } }
+    }
+    expect(validateCalibration(degrees, 'b').problems[0]).toMatch(/rotation/)
   })
 })
