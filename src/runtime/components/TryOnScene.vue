@@ -211,6 +211,12 @@ const emit = defineEmits<{
   error: [source: 'model' | 'environment', message: string]
   /** The loaded GLB's width (bounding-box x extent), in GLB metres. */
   loaded: [widthMeters: number]
+  /**
+   * Once at setup: renders the scene now and returns the canvas, for
+   * `capture()`. Read the canvas in the same task (before the browser
+   * composites), so no `preserveDrawingBuffer` is needed.
+   */
+  snapshot: [render: () => HTMLCanvasElement | null]
 }>()
 
 function errorMessage(err: unknown): string {
@@ -277,8 +283,20 @@ const ENV_PRESET_FILES: Record<EnvPreset, string> = {
   snow: 'outdoor/snowy_forest_path_01_1k.hdr'
 }
 
-const { scene } = useTres()
+const { scene, renderer, camera } = useTres()
 let envTexture: Texture | null = null
+
+// Render on demand for `capture()`: the drawing buffer is cleared after the
+// browser composites a frame, so a capture renders the current pose itself
+// and the caller copies the canvas before returning to the event loop.
+emit('snapshot', () => {
+  const active = camera.value
+  if (!active) return null
+  // `useTres().renderer` is the renderer instance itself (WebGL or WebGPU);
+  // both draw with render(scene, camera) into their domElement.
+  renderer.render(scene.value, active)
+  return renderer.domElement
+})
 let envLoadId = 0
 
 function clearEnvironment() {

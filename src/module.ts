@@ -7,6 +7,7 @@ export type { TryOnFit, TryOnFitRank, TryOnFitVerdict } from './runtime/utils/tr
 export type { TryOnFaceShape } from './runtime/utils/tryon-face-shape'
 export type { TryOnCardCalibration } from './runtime/composables/tryon/useTryOnCardCalibration'
 export type { TryOnCardCalibrationStatus } from './runtime/utils/tryon-card'
+export type { TryOnCaptureOptions, TryOnCaptureType } from './runtime/utils/tryon-capture'
 export type {
   TryOnCalibrationFile,
   TryOnFrameCalibration,

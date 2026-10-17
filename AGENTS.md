@@ -56,7 +56,7 @@ Key facts:
     the mirrored video + tracked frame, filling its container, with
     structural scoped CSS. Consent, errors, guide hints and controls are the
     host's, built from the default scoped slot (`status`, `error`,
-    `faceError`, `hasFace`, `guideHint`, `fit`, `start`, `stop`; also exposed on
+    `faceError`, `hasFace`, `guideHint`, `fit`, `start`, `stop`, `capture`; also exposed on
     the ref). Never add UI copy, icons, a UI library or utility classes.
   - `TryOnScene.vue` — the TresJS scene (GLB loading, occluder, environment).
     Uses three's own `GLTFLoader`/`DRACOLoader`/`HDRLoader`, not
@@ -126,7 +126,8 @@ Key facts:
   (true-to-size: PD and ear width in mm against the iris diameter, gated to
   frontal open-eyed frames, median + freeze, the confidence ramp that eases
   the scale from the assumed sizes), `tryon-face-shape.ts` (coarse face-shape
-  class from landmark proportions, with hysteresis; a styling hint), `tryon-capability.ts`
+  class from landmark proportions, with hysteresis; a styling hint), `tryon-capture.ts`
+  (`capture()` layout: the cover-cropped camera window and output size), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
