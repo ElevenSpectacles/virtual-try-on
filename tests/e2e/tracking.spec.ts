@@ -6,9 +6,11 @@ import {
   type ClipKind
 } from './fixtures'
 import {
+  MAX_POP_PX,
   MAX_STILL_JITTER_PX,
-  MIN_DETECTION_RATE,
+  MIN_DETECTION_RATE_BY_KIND,
   detectionRate,
+  maxPopPx,
   medianJitterPx,
   p95,
   runTracking
@@ -23,7 +25,7 @@ import {
 const skipReason = missingPrerequisite()
 
 for (const face of FACE_FIXTURES) {
-  for (const kind of ['still', 'motion'] as ClipKind[]) {
+  for (const kind of ['still', 'motion', 'backlit', 'occluded', 'dropout'] as ClipKind[]) {
     test.describe(`${face} · ${kind}`, () => {
       test.skip(!!skipReason, skipReason ?? '')
       test.use({ clip: skipReason ? '' : faceClip(face, kind) })
@@ -36,24 +38,31 @@ for (const face of FACE_FIXTURES) {
         const rate = detectionRate(results)
         const jitter = medianJitterPx(results)
         const frameP95 = p95(frameIntervals)
+        const pop = maxPopPx(results)
 
         // Logged, not asserted: headless GPU timing varies by machine.
         testInfo.annotations.push({
           type: 'metrics',
           description:
             `${results.length} results · detection ${(rate * 100).toFixed(1)}% · ` +
-            `jitter ${jitter.toFixed(2)} px · frame p95 ${frameP95.toFixed(1)} ms · ` +
+            `jitter ${jitter.toFixed(2)} px · pop ${pop.toFixed(1)} px · frame p95 ${frameP95.toFixed(1)} ms · ` +
             `latency ${latencyMs.toFixed(0)} ms · blink ${blink?.toFixed(2) ?? 'n/a'}`
         })
         console.log(`  ${face} · ${kind}: ${testInfo.annotations.at(-1)!.description}`)
 
         expect(results.length, 'detector produced results').toBeGreaterThan(10)
-        expect(rate, 'detection rate').toBeGreaterThanOrEqual(MIN_DETECTION_RATE)
+        expect(rate, 'detection rate').toBeGreaterThanOrEqual(MIN_DETECTION_RATE_BY_KIND[kind]!)
         expect(blink, 'blendshape blink score').not.toBeNull()
         if (kind === 'still') {
           expect(jitter, 'still-input jitter (px)').toBeLessThanOrEqual(
             MAX_STILL_JITTER_PX
           )
+        }
+        // The subject never moves in these clips: any jump is the tracker
+        // re-acquiring the face somewhere else.
+        const maxPop = MAX_POP_PX[kind]
+        if (maxPop !== undefined) {
+          expect(pop, 'largest landmark jump (px)').toBeLessThanOrEqual(maxPop)
         }
       })
     })

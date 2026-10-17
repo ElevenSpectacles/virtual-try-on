@@ -24,6 +24,8 @@ import { useTryOnFrameLoop } from '../composables/tryon/useTryOnFrameLoop'
 import { useCapabilityTier } from '../composables/tryon/useCapabilityTier'
 import { useHairSegmenter } from '../composables/tryon/useHairSegmenter'
 import { useTryOnFreeze } from '../composables/tryon/useTryOnFreeze'
+import { useTryOnTrackingHold } from '../composables/tryon/useTryOnTrackingHold'
+import { guideHintFor } from '../utils/tryon-guide'
 import { maskCoverage } from '../utils/tryon-hair'
 import { useTryOnModelCache } from '../composables/tryon/useTryOnModelCache'
 import { modelCacheCapacity, neighbourFiles } from '../utils/tryon-model-cache'
@@ -63,7 +65,7 @@ import type {
 
 import TryOnScene from './TryOnScene.vue'
 import { useHead, useRoute, useRuntimeConfig } from '#imports'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -286,18 +288,24 @@ const occluderEnabled = computed(
 const lightingEnabled = computed(
   () => props.adaptiveLighting && capability.allows('lightingEstimate')
 )
-const { wantFrameSample, onFrameSample, lightGain, lightTint, lighting } =
-  useTryOnLighting({ enabled: () => lightingEnabled.value })
+// The room is sampled on every tier while the camera is on, for the guide's
+// `tooDark` hint (one 16×16 readback in the worker every few detections);
+// the lighting itself still needs the mid tier.
+const { wantFrameSample, onFrameSample, lightGain, lightTint, lighting, roomLuma } =
+  useTryOnLighting({
+    enabled: () => lightingEnabled.value,
+    sample: () => isActive.value
+  })
 
 const {
   error: faceError,
   errorDetail: faceErrorDetail,
-  hasFace,
+  hasFace: trackerHasFace,
   confidence,
-  landmarks: faceLandmarks,
-  pose: facePose,
-  blinkScore: faceBlinkScore,
-  anchor: faceAnchor,
+  landmarks: trackerLandmarks,
+  pose: trackerPose,
+  blinkScore: trackerBlinkScore,
+  anchor: trackerAnchor,
   latencyMs: faceLatencyMs,
   isReady: faceReady,
   init: initFaceLandmarker,
@@ -315,6 +323,23 @@ const {
   wantCardRegion: () => cardCalibration.wantCardRegion(),
   onCardCrop: (gray, width, height, region) =>
     cardCalibration.onCardCrop(gray, width, height, region)
+})
+
+// Tracking hold: a dropout shorter than TRACKING_HOLD_MS keeps the last
+// pose, so the frame doesn't vanish and pop back. Everything downstream
+// reads the held face; only the session metrics see the raw tracker.
+const {
+  landmarks: faceLandmarks,
+  pose: facePose,
+  blinkScore: faceBlinkScore,
+  anchor: faceAnchor,
+  hasFace,
+  lastYaw
+} = useTryOnTrackingHold({
+  landmarks: trackerLandmarks,
+  pose: trackerPose,
+  blinkScore: trackerBlinkScore,
+  anchor: trackerAnchor
 })
 
 // Card calibration (optional, ±1 mm PD): the host shows its own "hold a
@@ -370,7 +395,7 @@ function emitMetrics(final: boolean) {
 
 if (metrics) {
   useTryOnFrameLoop((deltaMs) => {
-    if (metrics.onFrame(deltaMs, isActive.value, hasFace.value)) emitMetrics(false)
+    if (metrics.onFrame(deltaMs, isActive.value, trackerHasFace.value)) emitMetrics(false)
   })
 }
 
@@ -462,6 +487,26 @@ const frameVisible = computed(
   () => isActive.value && useFaceTracking.value && hasFace.value
 )
 
+// The frame fades out (CSS, on the canvas layer) when the face is lost for
+// longer than the hold; the scene keeps drawing it until the fade is done.
+const FRAME_FADE_MS = 150
+const frameFading = ref(false)
+let fadeTimer: ReturnType<typeof setTimeout> | null = null
+watch(frameVisible, (visible, wasVisible) => {
+  if (fadeTimer !== null) clearTimeout(fadeTimer)
+  fadeTimer = null
+  frameFading.value = !visible && wasVisible
+  if (frameFading.value) {
+    fadeTimer = setTimeout(() => {
+      fadeTimer = null
+      frameFading.value = false
+    }, FRAME_FADE_MS)
+  }
+})
+onBeforeUnmount(() => {
+  if (fadeTimer !== null) clearTimeout(fadeTimer)
+})
+
 // Where the frame goes (shared with the playground prototype): scale from
 // the tracked face, smoothed pose, world position and the occluders.
 const {
@@ -499,9 +544,19 @@ const {
   }
 })
 
-const guideHint = computed<TryOnGuideHint | null>(() => {
-  if (!isActive.value || !useFaceTracking.value) return null
-  return !hasFace.value || !correctedFaceAnchor.value ? 'noFace' : 'aligned'
+// Coaching for the host's guide UI (no copy here): no face, turned too far,
+// too dark, or aligned. Keeps its previous value for the hysteresis.
+const guideHint = ref<TryOnGuideHint | null>(null)
+watchEffect(() => {
+  guideHint.value = guideHintFor({
+    tracking: isActive.value && useFaceTracking.value,
+    hasFace: hasFace.value,
+    anchored: !!correctedFaceAnchor.value,
+    yaw: facePose.value?.euler.yaw ?? null,
+    lastYaw: lastYaw.value,
+    luma: roomLuma.value,
+    previous: guideHint.value
+  })
 })
 
 // Fit verdict (frame width vs the tracked face's width). The frame width is
@@ -1010,7 +1065,7 @@ watch(model, (value) => {
     />
 
     <ClientOnly>
-      <div class="vto-layer">
+      <div class="vto-layer vto-frame" :class="{ 'vto-frame--hidden': !frameVisible }">
         <!-- Neutral tone mapping (Khronos PBR Neutral), not ACES: the
              camera feed behind the canvas is untone-mapped sRGB, and
              ACES' filmic curve would desaturate frame colors against it.
@@ -1032,7 +1087,7 @@ watch(model, (value) => {
           <TryOnScene
             :src="modelSrc"
             :model-cache="modelCache"
-            :visible="frameVisible"
+            :visible="frameVisible || frameFading"
             :position="framePosition"
             :model-offset="calibration.translation"
             :scale="smoothedScale"
@@ -1115,5 +1170,14 @@ watch(model, (value) => {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Keep in step with FRAME_FADE_MS. */
+.vto-frame {
+  transition: opacity 150ms ease-out;
+}
+
+.vto-frame--hidden {
+  opacity: 0;
 }
 </style>

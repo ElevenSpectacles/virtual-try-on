@@ -215,7 +215,7 @@ on the component ref.
 | `error` | `WebcamError \| null` | `'denied'` \| `'unsupported'` \| `'unavailable'` |
 | `faceError` | `FaceLandmarkerError \| null` | `'unsupported'` \| `'load_failed'` \| `'runtime_failed'` |
 | `hasFace` | `boolean` | A face is currently tracked. |
-| `guideHint` | `TryOnGuideHint \| null` | `'noFace'` \| `'aligned'`; `null` while the camera is off. |
+| `guideHint` | `TryOnGuideHint \| null` | `'noFace'` \| `'aligned'` \| `'turnBack'` \| `'tooDark'`; `null` while the camera is off (see [Guide hints](#guide-hints)). |
 | `fit` | `TryOnFit \| null` | `{ verdict, faceWidthMm, frameWidthMm }`: whether the frame suits the face's width. `null` until about a second of tracking, and while no face is tracked. |
 | `measurements` | `TryOnMeasurements \| null` | `{ pdMm, faceWidthMm, confidence, stable, faceShape, faceShapeConfidence }`: on-device face measurements for a frame advisor (see [Frame advisor](#frame-advisor)). `null` until something is measured. |
 | `start` | `() => Promise<void>` | Start or retry the camera. |
@@ -268,6 +268,23 @@ arrives within 10 s (no card, poor light, card tilted), the status becomes
 no crop is made, unless calibration was started. The result lives in memory
 only; it is reported once as `TRY_ON_CALIBRATED` with `pdMm` so your app can
 store it if the shopper agrees.
+
+### Guide hints
+
+`guideHint` tells your UI why the try-on may not look right, so you can
+coach the shopper in your own words:
+
+| Hint | When | Example copy |
+| --- | --- | --- |
+| `aligned` | A face is tracked and placed. | — |
+| `noFace` | No face in view. | "Position your face in view" |
+| `turnBack` | The head is turned more than 55° (or was, when tracking lost it). | "Turn back toward the camera" |
+| `tooDark` | The room is too dark for stable tracking (room luma under 0.12). | "Find more light" |
+
+When tracking drops the face for less than 300 ms (a hand passing, motion
+blur in a quick turn), the frame stays on its last pose instead of
+vanishing and popping back; after a longer loss it fades out. `hasFace`
+follows the same hold, so a short dropout doesn't flash your "no face" UI.
 
 ### Fit verdict
 

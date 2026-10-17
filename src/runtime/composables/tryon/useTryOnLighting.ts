@@ -16,13 +16,21 @@ import {
  * OffscreenCanvas unavailable in the worker) the estimate stays null, which
  * keeps the neutral studio lighting.
  */
-export function useTryOnLighting(options: { enabled: () => boolean }) {
+export function useTryOnLighting(options: {
+  enabled: () => boolean
+  /**
+   * Sample the room even while the lighting itself is off, for `roomLuma`
+   * (the guide's `tooDark` hint). Default: only while enabled.
+   */
+  sample?: () => boolean
+}) {
+  const sampling = () => options.enabled() || (options.sample?.() ?? false)
   const frameLighting = ref<FrameLighting | null>(null)
   const lastSampleMs = ref<number | null>(null)
   let detectionsSinceSample = 0
 
   function wantFrameSample(): boolean {
-    if (!options.enabled()) return false
+    if (!sampling()) return false
     detectionsSinceSample = (detectionsSinceSample + 1) % LIGHTING_SAMPLE_EVERY
     return detectionsSinceSample === 0
   }
@@ -33,7 +41,7 @@ export function useTryOnLighting(options: { enabled: () => boolean }) {
     height: number,
     sampleMs: number
   ) {
-    if (!options.enabled()) return
+    if (!sampling()) return
     frameLighting.value = smoothFrameLighting(
       frameLighting.value,
       estimateFrameLighting(rgba, width, height)
@@ -59,5 +67,8 @@ export function useTryOnLighting(options: { enabled: () => boolean }) {
     sampleMs: lastSampleMs.value
   }))
 
-  return { wantFrameSample, onFrameSample, lightGain, lightTint, lighting }
+  // The smoothed room luma whenever the room is sampled, lighting on or off.
+  const roomLuma = computed(() => (sampling() ? (frameLighting.value?.luma ?? null) : null))
+
+  return { wantFrameSample, onFrameSample, lightGain, lightTint, lighting, roomLuma }
 }
