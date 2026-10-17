@@ -13,3 +13,9 @@ playwright-report/
 # UPNA-derived fixtures are non-commercial: keep them local.
 tests/fixtures/tryon-pose/upna-*.json
 tests/e2e/__screenshots__/**/upna-*
+
+# Demo assets staged by demo/scripts/prepare.mjs (licensed frames, copies of
+# the self-hosted MediaPipe/Draco/HDR files).
+demo/public/
+# `nuxt generate` links demo/dist to .output/public.
+demo/dist

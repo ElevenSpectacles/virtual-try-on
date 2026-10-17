@@ -1,0 +1,7 @@
+{
+  "$comment": "Colour QA (issue #85, tests/e2e/colour.spec.ts). Per catalog model: product-photo swatches of the frame and lens, as #rrggbb sampled from the product shot (neutral light), and where to sample the render: a box in stage fractions on ?view=scene&face=<face>&model=<model>&light=neutral. Models listed in `known` are reported but not asserted (with the reason). Fill from the product sheets/photos; an empty `models` skips the spec.",
+  "face": "iris-moss",
+  "threshold": 3,
+  "models": {},
+  "known": {}
+}

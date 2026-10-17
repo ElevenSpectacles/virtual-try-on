@@ -143,6 +143,10 @@ export function useFaceLandmarker(
   let nextRequestId = 0
   let pendingRequestId: number | null = null
   let pendingSentAt = 0
+  // `detectHeld()` callers: resolved by request id when its result (or
+  // failure) arrives, or queued until the in-flight request finishes.
+  const resultWaiters = new Map<number, () => void>()
+  let idleWaiters: (() => void)[] = []
   let readyResolve: (() => void) | null = null
   let readyReject: ((err: Error) => void) | null = null
 
@@ -211,6 +215,7 @@ export function useFaceLandmarker(
           message.transformationMatrix,
           message.blink ?? null
         )
+        settleRequest(message.id)
         break
 
       case 'detect_failed':
@@ -218,6 +223,7 @@ export function useFaceLandmarker(
         pendingRequestId = null
         errorDetail.value = message.message
         error.value = 'runtime_failed'
+        settleRequest(message.id)
         break
 
       case 'card':
@@ -243,6 +249,16 @@ export function useFaceLandmarker(
         }
         break
     }
+  }
+
+  // A request finished: wake its `detectHeld()` caller, then whoever waited
+  // for the pipeline to be free.
+  function settleRequest(id: number) {
+    resultWaiters.get(id)?.()
+    resultWaiters.delete(id)
+    const waiting = idleWaiters
+    idleWaiters = []
+    for (const wake of waiting) wake()
   }
 
   function post(
@@ -309,6 +325,10 @@ export function useFaceLandmarker(
   }
 
   function destroy() {
+    for (const wake of resultWaiters.values()) wake()
+    resultWaiters.clear()
+    for (const wake of idleWaiters) wake()
+    idleWaiters = []
     post({ type: 'destroy' })
     worker.value?.terminate()
     worker.value = null
@@ -347,15 +367,20 @@ export function useFaceLandmarker(
     return createImageBitmap(video)
   }
 
-  function detect(timestamp: number) {
-    if (!import.meta.client) return
+  /**
+   * Send the current video frame for detection. Returns the request id, or
+   * null when nothing was sent. `held` also detects a paused video (the
+   * frame `freeze()` holds); the loop never does.
+   */
+  function detect(timestamp: number, { held = false }: { held?: boolean } = {}): number | null {
+    if (!import.meta.client) return null
     const video = videoRef.value
-    if (!video || !worker.value || !isReady.value) return
-    if (video.paused || video.ended) return
-    if (timestamp === lastTimestamp) return
+    if (!video || !worker.value || !isReady.value) return null
+    if (video.ended || (video.paused && !held)) return null
+    if (timestamp === lastTimestamp) return null
     // One outstanding detect at a time — a slow frame naturally throttles
     // the request rate instead of queueing stale work behind it.
-    if (pendingRequestId !== null) return
+    if (pendingRequestId !== null) return null
     lastTimestamp = timestamp
 
     const id = ++nextRequestId
@@ -389,7 +414,30 @@ export function useFaceLandmarker(
         pendingRequestId = null
         errorDetail.value = errorMessage(err)
         error.value = 'runtime_failed'
+        settleRequest(id)
       })
+    return id
+  }
+
+  /**
+   * Detect the frame the video shows now, even when paused, and resolve
+   * once its landmarks are applied (immediately when the tracker isn't
+   * running). Used by `freeze()`, so the held pose is the held frame's, not
+   * the previous frame's. Waits for an in-flight request first.
+   */
+  function detectHeld(): Promise<void> {
+    return new Promise((resolve) => {
+      const attempt = () => {
+        if (pendingRequestId !== null) {
+          idleWaiters.push(attempt)
+          return
+        }
+        const id = detect(performance.now(), { held: true })
+        if (id === null) resolve()
+        else resultWaiters.set(id, resolve)
+      }
+      attempt()
+    })
   }
 
   // Detect-loop scheduling: prefer requestVideoFrameCallback so detection
@@ -465,6 +513,7 @@ export function useFaceLandmarker(
     latencyMs,
     init,
     detect,
+    detectHeld,
     destroy
   }
 }

@@ -110,3 +110,58 @@ export function updateFaceWidthEstimate(
 
 /** Detections averaged before the first verdict (~1 s at 30 fps). */
 export const FIT_MIN_SAMPLES = 30
+
+/**
+ * Fit verdict of any frame for a measured face, without loading its GLB
+ * (issue #98): `frameWidthMm` from the catalog spec or the calibration's
+ * `frameWidthMm`. No hysteresis: this is for ranking a catalog, not for a
+ * live hint.
+ */
+export function fitVerdictFor(
+  frameWidthMm: number,
+  faceWidthMm: number,
+  tolerance: number = FIT_DEFAULT_TOLERANCE
+): TryOnFitVerdict | null {
+  return faceWidthVerdict(faceWidthMm, frameWidthMm, { tolerance })
+}
+
+/** One frame of a catalog ranked by fit. */
+export interface TryOnFitRank {
+  /** The model's `file`. */
+  file: string
+  verdict: TryOnFitVerdict
+  frameWidthMm: number
+  /**
+   * Frame width over the ideal width for the face, minus 1: 0 is a perfect
+   * width, +0.05 is 5 % too wide.
+   */
+  deviation: number
+}
+
+/**
+ * Rank frames by how well their width suits a face, best first (smallest
+ * |deviation|). Frames with an unknown width (0) are left out. Ties keep
+ * the catalog order.
+ */
+export function rankByFit(
+  frames: ReadonlyArray<{ file: string; frameWidthMm: number }>,
+  faceWidthMm: number,
+  tolerance: number = FIT_DEFAULT_TOLERANCE
+): TryOnFitRank[] {
+  if (faceWidthMm <= 0) return []
+  const ranked: TryOnFitRank[] = []
+  for (const { file, frameWidthMm } of frames) {
+    const verdict = fitVerdictFor(frameWidthMm, faceWidthMm, tolerance)
+    if (!verdict) continue
+    ranked.push({
+      file,
+      verdict,
+      frameWidthMm,
+      deviation: frameWidthMm / (faceWidthMm * FIT_IDEAL_RATIO) - 1
+    })
+  }
+  return ranked
+    .map((rank, index) => ({ rank, index }))
+    .sort((a, b) => Math.abs(a.rank.deviation) - Math.abs(b.rank.deviation) || a.index - b.index)
+    .map(({ rank }) => rank)
+}
