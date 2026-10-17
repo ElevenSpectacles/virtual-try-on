@@ -110,7 +110,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
           @track="onTrack"
           @metrics="onMetrics"
         >
-          <template #default="{ status, error, faceError, guideHint, fit, isStarting, start, stop }">
+          <template #default="{ status, error, faceError, guideHint, fit, isStarting, start, stop, calibration, startCalibration, cancelCalibration }">
             <div
               v-if="status !== 'active'"
               class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white"
@@ -129,6 +129,22 @@ function onMetrics(payload: TryOnSessionMetrics) {
             >
               Stop camera
             </UButton>
+            <div
+              v-if="status === 'active' && route.query.calibrate === 'true'"
+              class="absolute top-4 left-4 flex items-center gap-2 text-xs text-white"
+              :data-calibration="calibration.status"
+            >
+              <UButton
+                color="neutral"
+                size="xs"
+                @click="calibration.status === 'detecting' ? cancelCalibration() : startCalibration()"
+              >
+                {{ calibration.status === 'detecting' ? 'Cancel' : 'Calibrate with a card' }}
+              </UButton>
+              <span v-if="calibration.status === 'detecting'">Hold a card flat to your forehead · {{ Math.round(calibration.progress * 100) }}%</span>
+              <span v-else-if="calibration.status === 'done'">PD {{ calibration.pdMm }} mm</span>
+              <span v-else-if="calibration.status === 'failed'">No card found, try again in better light</span>
+            </div>
             <p
               v-if="showFit && fit"
               class="absolute inset-x-0 top-4 text-center text-xs text-white"

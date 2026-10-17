@@ -4,6 +4,8 @@ export type { TryOnModel, TryOnModelFamily } from './runtime/composables/tryon/u
 export type { TryOnFeature, TryOnTier } from './runtime/utils/tryon-capability'
 export type { TryOnMetrics, TryOnSessionMetrics } from './runtime/utils/tryon-metrics'
 export type { TryOnFit, TryOnFitVerdict } from './runtime/utils/tryon-fit'
+export type { TryOnCardCalibration } from './runtime/composables/tryon/useTryOnCardCalibration'
+export type { TryOnCardCalibrationStatus } from './runtime/utils/tryon-card'
 export type {
   TryOnCalibrationFile,
   TryOnFrameCalibration,

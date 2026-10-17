@@ -32,6 +32,10 @@ import {
 import { CONTACT_SHADOW_STRENGTH } from '../utils/tryon-contact-shadow'
 import { FIT_DEFAULT_TOLERANCE, type TryOnFit } from '../utils/tryon-fit'
 import { pdConfidence } from '../utils/tryon-measure'
+import {
+  useTryOnCardCalibration,
+  type TryOnCardCalibration
+} from '../composables/tryon/useTryOnCardCalibration'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -270,7 +274,19 @@ const {
     : {}),
   onLatency: (ms) => metrics?.onLatency(ms),
   wantFrameSample,
-  onFrameSample
+  onFrameSample,
+  wantCardRegion: () => cardCalibration.wantCardRegion(),
+  onCardCrop: (gray, width, height, region) =>
+    cardCalibration.onCardCrop(gray, width, height, region)
+})
+
+// Card calibration (optional, ±1 mm PD): the host shows its own "hold a
+// card to your forehead" UI and calls `startCalibration()`; the result
+// replaces the iris PD for the session (memory only).
+const cardCalibration = useTryOnCardCalibration({
+  landmarks: faceLandmarks,
+  pose: facePose,
+  mediaAspect
 })
 
 // Session metrics (opt-in). With reportMetrics off there is no accumulator
@@ -380,7 +396,13 @@ const {
   mediaAspect,
   calibration,
   scaleMultiplier: () => props.frameScale,
-  trueToSize: () => props.trueToSize
+  trueToSize: () => props.trueToSize,
+  calibratedPd: () => {
+    const { state } = cardCalibration
+    return state.value.status === 'done' && state.value.nearPdMm && state.value.pdMm
+      ? { nearPdMm: state.value.nearPdMm, pdMm: state.value.pdMm }
+      : null
+  }
 })
 
 const guideHint = computed<TryOnGuideHint | null>(() => {
@@ -423,6 +445,33 @@ const measurements = computed(() => {
   }
 })
 
+/** Start a card calibration (see README); restarts one in progress. */
+function startCalibration() {
+  cardCalibration.start()
+}
+
+/** Stop a calibration in progress, or drop a finished one. */
+function cancelCalibration() {
+  cardCalibration.cancel()
+}
+
+const calibrationState = cardCalibration.calibration
+
+watch(
+  () => calibrationState.value.status,
+  (status) => {
+    if (status === 'done') {
+      trackTryOn('TRY_ON_CALIBRATED', { pdMm: calibrationState.value.pdMm })
+    } else if (status === 'failed') {
+      trackTryOn('TRY_ON_ERROR', {
+        errorType: 'calibration_failed',
+        source: 'card_calibration',
+        message: 'no stable card reading'
+      })
+    }
+  }
+)
+
 function onModelLoaded(widthMeters: number) {
   glbWidthMeters.value = widthMeters
 }
@@ -443,6 +492,7 @@ function trackTryOn(
     | 'TRY_ON_FRAME_CHANGED'
     | 'TRY_ON_TIER'
     | 'TRY_ON_FIT'
+    | 'TRY_ON_CALIBRATED'
     | 'TRY_ON_ERROR',
   extra: Record<string, unknown> = {}
 ) {
@@ -497,7 +547,10 @@ defineExpose({
   fit,
   lighting,
   hair,
-  measurements
+  measurements,
+  calibration: calibrationState,
+  startCalibration,
+  cancelCalibration
 })
 
 defineSlots<{
@@ -518,6 +571,10 @@ defineSlots<{
     fit: TryOnFit | null
     start: () => Promise<void>
     stop: () => void
+    /** Card calibration: `{ status, progress, pdMm }` ('idle' until started). */
+    calibration: TryOnCardCalibration
+    startCalibration: () => void
+    cancelCalibration: () => void
   }) => unknown
 }>()
 
@@ -715,6 +772,9 @@ watch(model, (value) => {
       :fit="fit"
       :start="start"
       :stop="stop"
+      :calibration="calibrationState"
+      :start-calibration="startCalibration"
+      :cancel-calibration="cancelCalibration"
     />
   </div>
 </template>

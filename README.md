@@ -216,6 +216,8 @@ on the component ref.
 | `fit` | `TryOnFit \| null` | `{ verdict, faceWidthMm, frameWidthMm }`: whether the frame suits the face's width. `null` until about a second of tracking, and while no face is tracked. |
 | `start` | `() => Promise<void>` | Start or retry the camera. |
 | `stop` | `() => void` | Stop the camera. |
+| `calibration` | `TryOnCardCalibration` | Card calibration state: `{ status, progress, pdMm }`, `status` `'idle'` \| `'detecting'` \| `'done'` \| `'failed'` (see [Card calibration](#card-calibration)). |
+| `startCalibration` / `cancelCalibration` | `() => void` | Start a card calibration / stop it or drop its result. |
 
 The ref also exposes a read-only `lighting`: `{ luma, gain, sampleMs }`,
 the smoothed room luma (`null` while lighting is off), the light multiplier
@@ -238,6 +240,26 @@ The ref exposes the measurement as a read-only `measurements`:
 distance PD, the number an optician measures: corrected for the eyes
 converging on the screen. Expect about ±2–3 mm; it is a sizing aid, not a
 prescription measurement. It stays in the browser unless your app sends it.
+
+### Card calibration
+
+For a ±1 mm PD (an optician-grade "your size", or PD-based
+recommendations), offer an optional step: the shopper holds any standard
+bank, ID or loyalty card (ISO/IEC 7810 ID-1, 85.60 mm wide) flat and level
+against their forehead, facing the camera. Your app draws the instructions
+and calls `startCalibration()`; the module finds the card's edges in the
+forehead band on each frontal frame (full camera resolution while it runs),
+and when a dozen readings agree sets `calibration.status` to `'done'` with
+`calibration.pdMm` (the distance PD, corrected for the card sitting ~12 mm in
+front of the eyes and for convergence on the screen). From then on the
+frame size and fit verdict use it instead of the iris measurement.
+
+`progress` (0–1) can drive a progress ring. If no stable card reading
+arrives within 10 s (no card, poor light, card tilted), the status becomes
+`'failed'`: ask the shopper to try again in better light. Nothing runs, and
+no crop is made, unless calibration was started. The result lives in memory
+only; it is reported once as `TRY_ON_CALIBRATED` with `pdMm` so your app can
+store it if the shopper agrees.
 
 ### Fit verdict
 
@@ -279,9 +301,10 @@ module reports anything. Every payload has this shape:
 | `TRY_ON_CAMERA_DENIED` | Camera permission refused | — |
 | `TRY_ON_FACE_DETECTED` | First face detected in the session | `confidence`, `tier` (device tier at that moment) |
 | `TRY_ON_FIT` | The fit verdict appeared or changed (also on each frame change) | `verdict`, `faceWidthMm`, `frameWidthMm` (whole mm) |
+| `TRY_ON_CALIBRATED` | A card calibration finished | `pdMm` |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
 | `TRY_ON_TIER` | The device tier stepped down under sustained frame-time load | `tier`, `previousTier`, `p95Ms`, `maxTextureSize`, `deviceMemoryGb` |
-| `TRY_ON_ERROR` | Camera, tracker or asset failure | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment` \| `hair_segmenter`), `message` |
+| `TRY_ON_ERROR` | Camera, tracker or asset failure, or a failed card calibration | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment` \| `hair_segmenter` \| `card_calibration`), `message` |
 
 ### `metrics` event
 

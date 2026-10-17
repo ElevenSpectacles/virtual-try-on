@@ -7,6 +7,7 @@ import {
 } from '../../utils/tryon'
 import { matrixToFacePose, type FacePose } from '../../utils/tryon-pose'
 import { scheduleOnCameraFrame } from '../../utils/tryon-frame-schedule'
+import type { CardRegion } from '../../utils/tryon-card'
 import type {
   FaceLandmarkerWorkerRequest,
   FaceLandmarkerWorkerResponse
@@ -58,6 +59,16 @@ export interface UseFaceLandmarkerOptions {
     | undefined
   /** Called with each raw camera-to-result latency sample, in ms (the EMA is `latencyMs`). */
   onLatency?: ((ms: number) => void) | undefined
+  /**
+   * Region of the frame (normalized) to crop for card calibration with the
+   * next detection, or null. While it returns a region, frames go to the
+   * worker at full camera resolution, so the card's edges are sharp.
+   */
+  wantCardRegion?: (() => CardRegion | null) | undefined
+  /** Receives each requested grey crop (`width * height` bytes). */
+  onCardCrop?:
+    | ((gray: Uint8ClampedArray, width: number, height: number, region: CardRegion) => void)
+    | undefined
 }
 
 /**
@@ -209,6 +220,14 @@ export function useFaceLandmarker(
         error.value = 'runtime_failed'
         break
 
+      case 'card':
+        try {
+          options.onCardCrop?.(message.gray, message.width, message.height, message.region)
+        } catch {
+          // A failing observer must never stop detection.
+        }
+        break
+
       // Downsamples arrive after their result and are not part of the
       // one-in-flight handshake: a late one is still a valid room sample.
       case 'sample':
@@ -316,8 +335,8 @@ export function useFaceLandmarker(
   // tracking delay.
   const DETECT_MAX_WIDTH = 480
 
-  function captureFrame(video: HTMLVideoElement): Promise<ImageBitmap> {
-    if (video.videoWidth > DETECT_MAX_WIDTH) {
+  function captureFrame(video: HTMLVideoElement, fullResolution = false): Promise<ImageBitmap> {
+    if (!fullResolution && video.videoWidth > DETECT_MAX_WIDTH) {
       const scale = DETECT_MAX_WIDTH / video.videoWidth
       return createImageBitmap(video, {
         resizeWidth: DETECT_MAX_WIDTH,
@@ -344,7 +363,8 @@ export function useFaceLandmarker(
     const detectTimestamp = performance.now()
     pendingSentAt = detectTimestamp
 
-    captureFrame(video)
+    const card = options.wantCardRegion?.() ?? null
+    captureFrame(video, card !== null)
       .then((bitmap) => {
         // The face-landmarker may have been torn down while the bitmap was
         // being created (e.g. component unmount mid-frame).
@@ -358,7 +378,8 @@ export function useFaceLandmarker(
             id,
             bitmap,
             timestamp: detectTimestamp,
-            sample: options.wantFrameSample?.() ?? false
+            sample: options.wantFrameSample?.() ?? false,
+            ...(card ? { card } : {})
           },
           [bitmap]
         )

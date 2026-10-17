@@ -70,6 +70,9 @@ Key facts:
     position and occluders for `TryOnScene`. Shared by the component and the
     playground prototype (its tuning knobs are the options), so a fit change
     is made once.
+  - `useTryOnCardCalibration.ts` — card calibration glue: asks the worker
+    for forehead crops (full resolution) only while calibrating, measures
+    them, times out.
   - `useTryOnFit.ts` — fit-verdict glue: per-detection face-width estimate,
     verdict with hysteresis, `reset()` on a frame change.
   - `useTryOnLighting.ts` — room-lighting glue: which detections ask the
@@ -92,7 +95,8 @@ Key facts:
   - `face-landmarker.worker.ts` — MediaPipe `FaceLandmarker`. On request
     (`wantFrameSample`) it also returns a 16×16 RGBA downsample of the frame
     for the room-lighting estimate, after the landmark result, so the GPU
-    readback never runs on the render thread.
+    readback never runs on the render thread; and, during card calibration
+    (`card` region), a 320×96 grey crop of the forehead band.
   - `hair-segmenter.worker.ts` — MediaPipe's hair segmenter
     (`hair_segmenter.tflite`, 0.8 MB, GPU only) for the opt-in hair
     occluder, in its own worker so segmentation never delays tracking.
@@ -113,7 +117,9 @@ Key facts:
   map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint/density from
   calibration, the Fresnel term of the physical lens), `tryon-seat.ts` (pad-contact seat: nose side-wall profile from the face
   mesh, where pads of a given spacing rest, the offset from the reference
-  nose; opt-in by calibration `pads`), `tryon-fit.ts` (face width in mm from ear width over IPD,
+  nose; opt-in by calibration `pads`), `tryon-card.ts` (card calibration: forehead search band, card-edge
+  finder on a grey crop, card ruler → PD with the card-to-eye depth
+  correction, the done/failed state machine), `tryon-fit.ts` (face width in mm from ear width over IPD,
   and the narrow/good/wide fit verdict with hysteresis), `tryon-measure.ts`
   (true-to-size: PD and ear width in mm against the iris diameter, gated to
   frontal open-eyed frames, median + freeze, the confidence ramp that eases
