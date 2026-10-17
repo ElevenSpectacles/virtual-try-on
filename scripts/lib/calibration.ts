@@ -13,8 +13,9 @@
  * - `frameWidthMm`: the frame's rendered width (bounding box × `scale`), for
  *   ranking the catalog by fit without loading GLBs.
  *
- * Fields tuned by hand (`rotation`, `templeWidthBoost`, `lens`, `pads`) are carried
- * over from the previous manifest, so regenerating never wipes them.
+ * Fields tuned by hand (`rotation`, `lens`, `pads`) are carried over from
+ * the previous manifest, so regenerating never wipes them.
+ * `templeWidthBoost` (removed in 5.0) is dropped.
  */
 import type {
   TryOnCalibrationFile,
@@ -67,9 +68,6 @@ export function modelCalibration(
   // The rendered width (GLB metres × scale), as the component measures it,
   // so a host can rank the catalog by fit without loading the GLBs.
   entry.frameWidthMm = round(width * entry.scale * 1000, 1)
-  if (previous?.templeWidthBoost !== undefined) {
-    entry.templeWidthBoost = previous.templeWidthBoost
-  }
   if (previous?.lens !== undefined) entry.lens = previous.lens
   if (previous?.pads !== undefined) entry.pads = previous.pads
   return entry
@@ -133,9 +131,6 @@ export function parseCalibrationFile(value: unknown): TryOnCalibrationFile {
     if (entry.rotation !== undefined && !isVector(entry.rotation)) {
       throw new Error(`${name}: rotation must be { x, y, z } numbers`)
     }
-    if (entry.templeWidthBoost !== undefined && typeof entry.templeWidthBoost !== 'number') {
-      throw new Error(`${name}: templeWidthBoost must be a number`)
-    }
     const lens = entry.lens
     const gradient = isRecord(lens) ? lens.gradient : undefined
     if (
@@ -163,9 +158,6 @@ export function parseCalibrationFile(value: unknown): TryOnCalibrationFile {
       translation: isVector(entry.translation) ? entry.translation : { x: 0, y: 0, z: 0 },
       rotation: isVector(entry.rotation) ? entry.rotation : { x: 0, y: 0, z: 0 },
       scale: typeof entry.scale === 'number' ? entry.scale : 1,
-      ...(typeof entry.templeWidthBoost === 'number'
-        ? { templeWidthBoost: entry.templeWidthBoost }
-        : {}),
       ...(isRecord(pads) ? { pads: { spacingMm: pads.spacingMm as number } } : {}),
       ...(isRecord(lens)
         ? {

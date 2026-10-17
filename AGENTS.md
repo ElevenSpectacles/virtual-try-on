@@ -172,7 +172,7 @@ Key facts:
     `calibration.json` (bounding-box recentring + scale normalization against
     a reference model, and each frame's rendered `frameWidthMm` for fit
     ranking; `--input`, `--output`, `--reference`). Keeps the
-    hand-tuned fields (`rotation`, `templeWidthBoost`, `lens`) of an existing
+    hand-tuned fields (`rotation`, `lens`, `pads`) of an existing
     `--output`. The maths lives in `scripts/lib/calibration.ts`, unit-tested
     in `tests/unit/scripts/`.
   - `audit-tilt.ts` — pantoscopic tilt audit: fits each GLB's lens plane
