@@ -82,8 +82,7 @@ const CALIBRATION: TryOnFrameCalibration = {
   translation: { x: 0, y: -0.023, z: -0.004 },
   rotation: { x: 0, y: 0, z: 0 },
   scale: 1,
-  templeWidthBoost: 1,
-  lens: { tint: null, density: null },
+  lens: { tint: null, density: null, gradient: null },
   padSpacingMm: null
 }
 
@@ -299,5 +298,22 @@ describe('useTryOnPlacement', () => {
       expect(off.measurement).toBeNull()
       expect(off.scale).toBeCloseTo(settled(inputs()).scale, 6)
     })
+  })
+
+  it('takes a card-calibrated PD over the iris measurement', async () => {
+    const raf = stubRaf()
+    const options = {
+      ...inputs(),
+      calibratedPd: () => ({ nearPdMm: 66, pdMm: 67.5 })
+    }
+    const scope = effectScope()
+    const placement = scope.run(() => useTryOnPlacement(options))!
+    options.landmarks.value = faceWithIris(58)
+    await nextTick()
+    raf.frames(240)
+    expect(placement.rulerPd.value).toBe(66)
+    expect(placement.measurement.value?.pdMm).toBe(67.5)
+    expect(placement.measurement.value?.stable).toBe(true)
+    scope.stop()
   })
 })

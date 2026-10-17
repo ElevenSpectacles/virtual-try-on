@@ -1,0 +1,84 @@
+name: Demo
+
+# Builds demo/ as a static site and deploys it to GitHub Pages (issue #104).
+# Needs Settings → Pages → Source: "GitHub Actions", and the DEMO_MODELS_URL
+# secret: a .tar.gz of calibration.json plus the GLBs cleared for publishing
+# (catalog frames are licensed and not in this repo). Optional repository
+# variable DEMO_MODELS limits the published frames (comma-separated files).
+# Without the secret the build is skipped, not failed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'demo/**'
+      - 'package-lock.json'
+      - '.github/workflows/demo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build demo
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.models.outputs.ready }}
+    steps:
+      - name: Fetch demo frames
+        id: models
+        env:
+          DEMO_MODELS_URL: ${{ secrets.DEMO_MODELS_URL }}
+        run: |
+          if [ -z "$DEMO_MODELS_URL" ]; then
+            echo "::notice::DEMO_MODELS_URL is not set; skipping the demo build."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/demo-models"
+          curl -fsSL "$DEMO_MODELS_URL" | tar -xz -C "$RUNNER_TEMP/demo-models"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - if: steps.models.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - if: steps.models.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - if: steps.models.outputs.ready == 'true'
+        run: npm ci
+
+      - if: steps.models.outputs.ready == 'true'
+        run: npm run demo:generate
+        env:
+          DEMO_MODELS_DIR: ${{ runner.temp }}/demo-models
+          DEMO_MODELS: ${{ vars.DEMO_MODELS }}
+          DEMO_BASE_URL: /${{ github.event.repository.name }}/
+
+      - if: steps.models.outputs.ready == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo/.output/public
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: needs.build.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

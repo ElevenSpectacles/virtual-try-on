@@ -34,6 +34,7 @@ import {
 import {
   ASSUMED_CAMERA_HFOV_DEG,
   IRIS_DIAMETER_MM,
+  PD_STABLE_SAMPLES,
   acceptPdSample,
   blendedMeters,
   earLevelWidth,
@@ -101,6 +102,12 @@ export interface UseTryOnPlacementOptions {
    * utils/tryon-measure) instead of population averages. Default on.
    */
   trueToSize?: () => boolean
+  /**
+   * A card-calibrated PD (utils/tryon-card), which replaces the iris
+   * measurement while set: `nearPdMm` as measured at the screen (the ruler),
+   * `pdMm` the distance PD. Needs `trueToSize`.
+   */
+  calibratedPd?: () => { nearPdMm: number; pdMm: number } | null
 }
 
 /**
@@ -205,7 +212,33 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
       earWidthMm: iris > 0 && ear > 0 ? (ear / iris) * IRIS_DIAMETER_MM : 0
     })
   })
-  const measurement = computed(() => (trueToSize() ? pdEstimate.value : null))
+  // A card calibration wins over the iris: it is the more accurate ruler.
+  // The ear width keeps its measured ratio to the PD (iris samples, else
+  // this detection's).
+  const measurement = computed<PdEstimate | null>(() => {
+    if (!trueToSize()) return null
+    const iris = pdEstimate.value
+    const card = options.calibratedPd?.()
+    if (!card) return iris
+    const ipdNow = poseCompensated(ipd.value)
+    const earRatio =
+      iris && iris.nearPdMm > 0 && iris.earWidthMm > 0
+        ? iris.earWidthMm / iris.nearPdMm
+        : ipdNow > 0
+          ? poseCompensated(earWidth.value) / ipdNow
+          : 0
+    return {
+      samples: iris?.samples ?? [],
+      distances: iris?.distances ?? [],
+      earWidths: iris?.earWidths ?? [],
+      accepted: Math.max(iris?.accepted ?? 0, PD_STABLE_SAMPLES),
+      nearPdMm: card.nearPdMm,
+      pdMm: card.pdMm,
+      earWidthMm: earRatio * card.nearPdMm,
+      spread: 0,
+      stable: true
+    }
+  })
   // The near PD the on-screen IPD is measured against, mm: the assumed IPD
   // until measured, then eased toward the measurement.
   const rulerPd = computed(() => rulerPdMm(measurement.value))

@@ -32,6 +32,11 @@ export type FaceLandmarkerWorkerRequest =
        * message after the result), for the room-lighting estimate.
        */
       sample?: boolean
+      /**
+       * Also send back a grey crop of this region of the frame (a `card`
+       * message after the result), for card calibration. Normalized `[0, 1]`.
+       */
+      card?: { x: number; y: number; width: number; height: number } | undefined
     }
   | { type: 'destroy' }
 
@@ -59,4 +64,14 @@ export type FaceLandmarkerWorkerResponse =
       height: number
       /** Time the downsample took in the worker, ms. */
       ms: number
+    }
+  | {
+      type: 'card'
+      id: number
+      /** Grey bytes (luma), `width * height`, row-major from the top. */
+      gray: Uint8ClampedArray
+      width: number
+      height: number
+      /** The region it was cropped from, as requested. */
+      region: { x: number; y: number; width: number; height: number }
     }
