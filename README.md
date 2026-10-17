@@ -191,6 +191,7 @@ Two optional fitting fields:
 | `occluder` | `boolean` | module option (`true`) | Hides frame parts behind the head (the far temple). Overrides `virtualTryOn.occluder` for this instance. |
 | `tier` | `'low' \| 'mid' \| 'high'` | — | Pins the device capability tier. Omit to classify the device and step down under sustained frame-time load. A pinned tier never steps down. |
 | `adaptiveLighting` | `boolean` | `true` | Lights the frame from the room the camera sees. Needs the `mid` tier or higher. |
+| `roomReflections` | `boolean` | `false` | Reflects the shopper's own room in the lenses (the camera's view, blended with the studio environment) and aims the key light and the contact shadow at where the room's light comes from. Needs `adaptiveLighting`. |
 | `contactShadow` | `boolean` | `true` | Soft shadow the frame casts on the tracked skin (rims, temples, and a partial shadow from tinted lenses). Needs the face-mesh occluder and the `mid` tier or higher. |
 | `physicalLens` | `boolean` | `true` | Lenses that read as glass: opacity rises toward grazing angles, reflections add on top of the tint, and an anti-reflective sheen. Needs the `mid` tier or higher; off keeps the cheaper standard lens. |
 | `fitTolerance` | `number` | `0.06` | Half-width of the "good fit" band of the fit verdict, as a fraction of the ideal frame width. The face estimate itself carries about ±5% until the PD is measured. |
@@ -226,9 +227,10 @@ on the component ref.
 | `frozen` | `boolean` | The camera frame and pose are held (see [Freeze](#freeze-and-compare)). |
 | `freeze` / `unfreeze` | `() => Promise<void>` | Hold the current frame and pose / go back to the live camera. |
 
-The ref also exposes a read-only `lighting`: `{ luma, gain, sampleMs }`,
-the smoothed room luma (`null` while lighting is off), the light multiplier
-it drives, and the time of the last room sample.
+The ref also exposes a read-only `lighting`: `{ luma, gain, sampleMs,
+direction }`, the smoothed room luma (`null` while lighting is off), the
+light multiplier it drives, the time of the last room sample, and (with
+`roomReflections`) the estimated light direction `{ x, y, z, strength }`.
 
 ### True to size
 

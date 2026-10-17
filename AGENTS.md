@@ -120,7 +120,9 @@ Key facts:
   them), `face-mesh-triangles.ts` (generated canonical-model triangulation),
   `tryon-pose.ts` (matrix → face-pose decomposition), `tryon-lighting.ts`
   (room luma and colour cast from a 16×16 frame sample, gain and tint),
-  `tryon-hair.ts` (hair occluder: screen→camera-frame mapping, mask
+  `tryon-room.ts` (camera reflections: the room sample as an equirect
+  environment blended with the studio map, and the light direction over the
+  face that aims the key and shadow lights), `tryon-hair.ts` (hair occluder: screen→camera-frame mapping, mask
   downsampling/smoothing, the segmentation-time budget),
   `tryon-temples.ts` (splits the GLB's `pt2` temple mesh into two arms on
   hinge pivots at load, the opening angle that meets the tracked head, and

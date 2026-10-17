@@ -12,6 +12,13 @@ import {
   DataTexture,
   DoubleSide,
   EquirectangularReflectionMapping,
+  DataUtils,
+  HalfFloatType,
+  LinearSRGBColorSpace,
+  PMREMGenerator,
+  RGBAFormat,
+  type WebGLRenderer,
+  type WebGLRenderTarget,
   LinearFilter,
   Matrix4,
   Quaternion,
@@ -20,7 +27,6 @@ import {
   MeshDepthMaterial,
   SRGBColorSpace,
   MeshPhysicalMaterial,
-  PMREMGenerator,
   PlaneGeometry,
   RedFormat,
   ShaderMaterial,
@@ -29,8 +35,7 @@ import {
   type Material,
   type Object3D,
   type MeshStandardMaterial,
-  type Texture,
-  type WebGLRenderer
+  type Texture
 } from 'three'
 // three's own loaders instead of @tresjs/cientos: cientos ships as one
 // non-tree-shakeable file, so `useGLTF` + `Environment` pulled the whole
@@ -63,9 +68,19 @@ import {
 } from '../composables/tryon/useTryOnModelCache'
 import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 import { lightingColor } from '../utils/tryon-lighting'
+import {
+  CAMERA_ENV_HEIGHT,
+  CAMERA_ENV_WIDTH,
+  aimLight,
+  cameraEnvironment,
+  downsampleEquirect,
+  type LightDirection
+} from '../utils/tryon-room'
+import type { RoomSample } from '../composables/tryon/useTryOnLighting'
 import { NO_LENS_OVERRIDE, type TryOnLens } from '../utils/tryon-lens'
 import {
   CONTACT_SHADOW_STRENGTH,
+  SHADOW_LIGHT_DIRECTION,
   contactShadowLight
 } from '../utils/tryon-contact-shadow'
 import {
@@ -144,6 +159,13 @@ const props = withDefaults(
     /** Colour cast of the room, each channel 0…1. White keeps the lights neutral. */
     lightTint?: [number, number, number]
     /**
+     * Smoothed 16×16 room sample (utils/tryon-room): reflections from the
+     * camera, blended with the studio environment. Null keeps the studio map.
+     */
+    roomSample?: RoomSample | null
+    /** Where the room's light comes from; aims the key and shadow lights. */
+    lightDirection?: LightDirection | null
+    /**
      * Soft shadow of the frame on the tracked face mesh (shadow map from the
      * key light, see utils/tryon-contact-shadow). Needs `occluderPositions`;
      * the host canvas must have shadows enabled.
@@ -218,6 +240,8 @@ const props = withDefaults(
     occluderDebugVisible: false,
     lightGain: 1,
     lightTint: () => [1, 1, 1],
+    roomSample: null,
+    lightDirection: null,
     contactShadow: false,
     contactShadowStrength: CONTACT_SHADOW_STRENGTH,
     showBoundingBox: false,
@@ -329,12 +353,15 @@ emit('snapshot', () => {
   target.render(scene.value, active)
   return target.domElement
 })
+// The studio map downsampled to the camera environment's size, for blending.
+let studioGrid: Float32Array | null = null
 let envLoadId = 0
 
 function clearEnvironment() {
   if (scene.value.environment === envTexture) scene.value.environment = null
   envTexture?.dispose()
   envTexture = null
+  studioGrid = null
 }
 
 // Procedural room: three's RoomEnvironment PMREM-filtered once on the GPU.
@@ -349,6 +376,64 @@ function roomEnvironment(): Texture | null {
   generator.dispose()
   return texture
 }
+
+// Camera reflections (issue #84): the room sample becomes a 128×64 equirect
+// (utils/tryon-room `cameraEnvironment`, blended with the studio map),
+// PMREM-filtered at most every CAMERA_ENV_INTERVAL_MS (the sample is
+// smoothed anyway; ~0.3 ms per update on a laptop GPU). Without a sample
+// the studio map stays.
+const CAMERA_ENV_INTERVAL_MS = 500
+let pmrem: PMREMGenerator | null = null
+let cameraEnvTarget: WebGLRenderTarget | null = null
+let cameraEnvUpdatedAt = -Infinity
+
+function clearCameraEnvironment() {
+  if (cameraEnvTarget && scene.value.environment === cameraEnvTarget.texture) {
+    scene.value.environment = envTexture
+  }
+  cameraEnvTarget?.dispose()
+  cameraEnvTarget = null
+}
+
+watch(
+  () => props.roomSample,
+  (sample) => {
+    if (!sample || !props.useEnvironment) {
+      clearCameraEnvironment()
+      return
+    }
+    const now = performance.now()
+    if (now - cameraEnvUpdatedAt < CAMERA_ENV_INTERVAL_MS) return
+    const target = renderer as unknown as WebGLRenderer
+    if (typeof target?.getContext !== 'function') return
+    cameraEnvUpdatedAt = now
+    // Half float: linear filtering of full floats is an extension
+    // (OES_texture_float_linear) some GPUs lack; half floats always filter.
+    const radiance = cameraEnvironment(sample.pixels, sample.width, sample.height, {
+      studio: studioGrid
+    })
+    const half = new Uint16Array(radiance.length)
+    for (let i = 0; i < radiance.length; i++) half[i] = DataUtils.toHalfFloat(radiance[i]!)
+    const equirect = new DataTexture(
+      half,
+      CAMERA_ENV_WIDTH,
+      CAMERA_ENV_HEIGHT,
+      RGBAFormat,
+      HalfFloatType
+    )
+    equirect.mapping = EquirectangularReflectionMapping
+    equirect.colorSpace = LinearSRGBColorSpace
+    equirect.magFilter = LinearFilter
+    equirect.minFilter = LinearFilter
+    equirect.needsUpdate = true
+    pmrem ??= new PMREMGenerator(target)
+    const next = pmrem.fromEquirectangular(equirect)
+    equirect.dispose()
+    cameraEnvTarget?.dispose()
+    cameraEnvTarget = next
+    scene.value.environment = next.texture
+  }
+)
 
 watch(
   [
@@ -380,7 +465,17 @@ watch(
       }
       texture.mapping = EquirectangularReflectionMapping
       envTexture = texture
-      scene.value.environment = texture
+      const image = texture.image as { data: ArrayLike<number>; width: number; height: number }
+      studioGrid = downsampleEquirect(
+        image.data,
+        image.width,
+        image.height,
+        4,
+        CAMERA_ENV_WIDTH,
+        CAMERA_ENV_HEIGHT,
+        texture.type === HalfFloatType ? DataUtils.fromHalfFloat : (v) => v
+      )
+      if (!cameraEnvTarget) scene.value.environment = texture
       emit('timing', 'environment', performance.now() - startedAt)
     } catch (err) {
       if (id === envLoadId) emit('error', 'environment', errorMessage(err))
@@ -545,6 +640,8 @@ onUnmounted(() => {
   hairMaterial.dispose()
   hairPlaneGeometry.dispose()
   envLoadId++
+  clearCameraEnvironment()
+  pmrem?.dispose()
   clearEnvironment()
   for (const material of builtLenses) material.dispose()
   shadowLight.dispose()
@@ -658,7 +755,13 @@ const cameraPosition = new Vector3(0, 0, TRYON_CAMERA.distance)
 const cameraTarget = new Vector3(0, 0, 0)
 // Dimmer fill light opposite the key light — without it, colored
 // acetate/metal reads duller/darker on the unlit side of the frame.
-const lightPosition = new Vector3(2, 3, 4)
+const KEY_LIGHT_POSITION = { x: 2, y: 3, z: 4 }
+const KEY_LIGHT_DISTANCE = Math.hypot(2, 3, 4)
+// The key light leans toward the room's light when its direction is known.
+const lightPosition = computed(() => {
+  const d = aimLight(KEY_LIGHT_POSITION, props.lightDirection)
+  return new Vector3(d.x, d.y, d.z).multiplyScalar(KEY_LIGHT_DISTANCE)
+})
 const fillLightPosition = new Vector3(-2, 3, 4)
 
 const groupPosition = computed(
@@ -887,9 +990,9 @@ watch(
 // Frame the shadow camera on the frame. The light is directional and has
 // no intensity, so moving it changes only what the shadow map covers.
 watch(
-  [() => props.position, () => props.scale],
-  ([position, scale]) => {
-    const light = contactShadowLight(position, scale)
+  [() => props.position, () => props.scale, () => props.lightDirection],
+  ([position, scale, direction]) => {
+    const light = contactShadowLight(position, scale, aimLight(SHADOW_LIGHT_DIRECTION, direction))
     shadowLight.position.set(light.position.x, light.position.y, light.position.z)
     shadowLight.target.position.set(light.target.x, light.target.y, light.target.z)
     shadowLight.target.updateMatrixWorld()
