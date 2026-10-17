@@ -31,6 +31,20 @@ import {
   updateNoseProfile,
   type NoseProfileEstimate
 } from '../../utils/tryon-seat'
+import {
+  ASSUMED_CAMERA_HFOV_DEG,
+  IRIS_DIAMETER_MM,
+  acceptPdSample,
+  blendedMeters,
+  earLevelWidth,
+  irisDiameter,
+  pdFromIris,
+  pupillaryWidth,
+  rulerPdMm,
+  updatePdEstimate,
+  viewingDistanceMm,
+  type PdEstimate
+} from '../../utils/tryon-measure'
 import type { TryOnFrameCalibration } from '../../types/tryon-calibration'
 import { useTryOnSmoothing } from './useTryOnSmoothing'
 
@@ -82,7 +96,19 @@ export interface UseTryOnPlacementOptions {
   occluderRatios?: () => { widthRatio: number; heightRatio: number; depthRatio: number }
   /** Face-mesh occluder tuning. Default: the shipped values. */
   occluderMesh?: () => OccluderMeshTuning
+  /**
+   * Size the frame from the shopper's measured PD (iris ruler, see
+   * utils/tryon-measure) instead of population averages. Default on.
+   */
+  trueToSize?: () => boolean
 }
+
+/**
+ * How long the face must stay lost before the PD measurement starts over:
+ * a short loss (a turn past the tracker's range) is still the same person,
+ * a longer one may not be.
+ */
+export const PD_RESET_AFTER_LOSS_MS = 2000
 
 // Anchor target while no face is tracked (the frame is hidden then, so this
 // only keeps the smoothing filters fed with a sane value).
@@ -121,6 +147,7 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
   const offsetZ = options.offsetZ ?? (() => 0)
   const occluderRatios =
     options.occluderRatios ?? (() => ({ widthRatio: 1.3, heightRatio: 1.3, depthRatio: 1.4 }))
+  const trueToSize = options.trueToSize ?? (() => true)
 
   // MediaPipe runs on the raw media frame, but the video is displayed with
   // object-fit: cover inside the fixed-aspect stage. Remap landmarks into the
@@ -151,10 +178,46 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
     return compensateMeasureForPose(measure, pose.euler.yaw, pose.euler.pitch)
   }
 
+  // True-to-size (issue #92): the PD and ear-level width in millimetres,
+  // measured against the iris on frontal, open-eyed detections (raw
+  // landmarks: the ratios don't depend on the cover crop). Kept through a
+  // short tracking loss; started over after PD_RESET_AFTER_LOSS_MS, since it
+  // may be someone else.
+  const pdEstimate = shallowRef<PdEstimate | null>(null)
+  let lostAt: number | null = null
+  watch(options.landmarks, (list) => {
+    if (!list.length) {
+      lostAt ??= performance.now()
+      if (performance.now() - lostAt >= PD_RESET_AFTER_LOSS_MS) pdEstimate.value = null
+      return
+    }
+    lostAt = null
+    const pose = options.pose.value
+    if (!trueToSize() || !pose || pdEstimate.value?.stable) return
+    const aspect = options.mediaAspect.value || 1
+    const blinking = shouldHoldScaleForBlink(options.blinkScore.value, list, aspect)
+    if (!acceptPdSample({ yaw: pose.euler.yaw, pitch: pose.euler.pitch, blinking })) return
+    const iris = irisDiameter(list, aspect)
+    const ear = earLevelWidth(list, aspect)
+    pdEstimate.value = updatePdEstimate(pdEstimate.value, {
+      nearPdMm: pdFromIris(pupillaryWidth(list, aspect), iris),
+      distanceMm: viewingDistanceMm(iris, ASSUMED_CAMERA_HFOV_DEG),
+      earWidthMm: iris > 0 && ear > 0 ? (ear / iris) * IRIS_DIAMETER_MM : 0
+    })
+  })
+  const measurement = computed(() => (trueToSize() ? pdEstimate.value : null))
+  // The near PD the on-screen IPD is measured against, mm: the assumed IPD
+  // until measured, then eased toward the measurement.
+  const rulerPd = computed(() => rulerPdMm(measurement.value))
+
+  function measuredEarWidthMm(): number {
+    return measurement.value?.earWidthMm ?? 0
+  }
+
   // Pad-contact seat (issue #87): for a model with pad spacing in its
   // calibration, the shopper's nose profile (frontal detections, averaged)
   // decides how much lower or higher than on the reference nose the frame
-  // sits. Millimetres from the ear-level width (its assumed size).
+  // sits. Millimetres from the ear-level width (measured, else assumed).
   const noseEstimate = shallowRef<NoseProfileEstimate | null>(null)
   watch(options.landmarks, (list) => {
     const pose = options.pose.value
@@ -170,7 +233,9 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
     if (ear <= 0) return
     noseEstimate.value = updateNoseProfile(
       noseEstimate.value,
-      noseProfile(list, aspect, (ASSUMED_EAR_WIDTH_METERS * 1000) / ear)
+      // Millimetres per unit of ear width: measured when true-to-size has
+      // an estimate, else the assumed ear width.
+      noseProfile(list, aspect, (measuredEarWidthMm() || ASSUMED_EAR_WIDTH_METERS * 1000) / ear)
     )
   })
   // Eased in over the first SEAT_MIN_SAMPLES detections, so it never jumps.
@@ -195,12 +260,18 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
     if (scaleSource.value === 'manual') {
       return computeMetricBaseScale(options.aspect.value, referenceFaceWidth())
     }
+    // Each measure's real length: the population average, eased toward the
+    // shopper's own once measured (cheek width has no measurement).
+    const measured = measurement.value
     const measure =
       scaleSource.value === 'ear'
-        ? ([earWidth.value, ASSUMED_EAR_WIDTH_METERS] as const)
+        ? ([
+            earWidth.value,
+            blendedMeters(measured, measured?.earWidthMm ?? 0, ASSUMED_EAR_WIDTH_METERS)
+          ] as const)
         : scaleSource.value === 'width'
           ? ([faceWidth.value, ASSUMED_FACE_WIDTH_METERS] as const)
-          : ([ipd.value, ASSUMED_IPD_METERS] as const)
+          : ([ipd.value, blendedMeters(measured, measured?.nearPdMm ?? 0, ASSUMED_IPD_METERS)] as const)
     // Tracked sources get the fit boost on top — a real frame is worn
     // slightly wider than the skull (see FRAME_FIT_SCALE_BOOST).
     return (
@@ -345,6 +416,8 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
     ipd,
     poseCompensated,
     seatOffset,
+    measurement,
+    rulerPd,
     scaleSource,
     autoMetricScale,
     calibratedScale,

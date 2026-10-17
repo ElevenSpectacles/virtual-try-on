@@ -15,8 +15,8 @@ with virtual try-on for every frame in the catalog.
   library, no copy, no utility classes: your app draws every control.
 - **One `modules` entry** — components and composables register themselves.
 - **Private by design** — camera frames never leave the browser.
-- **Accurate fit** — metric scaling from the user's face width, per-frame
-  calibration, a frame seated on the nose bridge, and a face-mesh occluder
+- **True to size** — the shopper's PD is measured on-device against the iris,
+  so the frame shows at its real size on their face; per-frame calibration, a frame seated on the nose bridge, and a face-mesh occluder
   that hides temples behind the head.
 - **Tells the customer if it fits** — a narrow / good / wide verdict from
   the frame's width against the tracked face, for your UI and analytics.
@@ -192,7 +192,8 @@ Two optional fitting fields:
 | `adaptiveLighting` | `boolean` | `true` | Lights the frame from the room the camera sees. Needs the `mid` tier or higher. |
 | `contactShadow` | `boolean` | `true` | Soft shadow the frame casts on the tracked skin (rims, temples, and a partial shadow from tinted lenses). Needs the face-mesh occluder and the `mid` tier or higher. |
 | `physicalLens` | `boolean` | `true` | Lenses that read as glass: opacity rises toward grazing angles, reflections add on top of the tint, and an anti-reflective sheen. Needs the `mid` tier or higher; off keeps the cheaper standard lens. |
-| `fitTolerance` | `number` | `0.06` | Half-width of the "good fit" band of the fit verdict, as a fraction of the ideal frame width. The face estimate itself carries about ±5%. |
+| `fitTolerance` | `number` | `0.06` | Half-width of the "good fit" band of the fit verdict, as a fraction of the ideal frame width. The face estimate itself carries about ±5% until the PD is measured. |
+| `trueToSize` | `boolean` | `true` | Sizes the frame and the fit verdict from the shopper's measured PD (see [True to size](#true-to-size)). Off keeps the average-face sizing. |
 | `reportMetrics` | `boolean` | `false` | Emits the `metrics` event (see below). Off means nothing is measured. |
 | `hairOcclusion` | `boolean` | `false` | Hides the temple arms behind hair that hangs over them (see [Hair occlusion](#hair-occlusion-opt-in)). Needs the occluder and the `high` tier. |
 | `mediapipeHairModelAssetPath` | `string` | Google Storage | URL of `hair_segmenter.tflite`, for self-hosting. |
@@ -220,15 +221,33 @@ The ref also exposes a read-only `lighting`: `{ luma, gain, sampleMs }`,
 the smoothed room luma (`null` while lighting is off), the light multiplier
 it drives, and the time of the last room sample.
 
+### True to size
+
+Landmarks are measured on screen, so turning them into millimetres needs a
+ruler. The module uses the iris: the visible iris of adults is 11.7 mm wide
+with a spread of only ~0.5 mm, and MediaPipe tracks its outline. Over the
+first seconds of frontal, open-eyed tracking it measures the shopper's PD
+and ear-level face width against it (median of the samples, frozen once
+they agree), and sizes the frame from them instead of population averages.
+A wider face gets a relatively smaller-looking frame, as in a mirror. Until
+enough samples are in, the size eases from the average face to the measured
+one, so there is no visible jump.
+
+The ref exposes the measurement as a read-only `measurements`:
+`{ pdMm, confidence, stable }` (`null` until measured). `pdMm` is the
+distance PD, the number an optician measures: corrected for the eyes
+converging on the screen. Expect about ±2–3 mm; it is a sizing aid, not a
+prescription measurement. It stays in the browser unless your app sends it.
+
 ### Fit verdict
 
 `fit.verdict` is `'narrow'`, `'good'` or `'wide'`: the frame's total width
 against the customer's face width at the temples. Show it in your own words,
 for example "Good fit", "May be wide for you", "May be narrow for you". The
-face width is measured from the tracked landmarks, scaled by an average
-inter-pupillary distance (63 mm), so it is an estimate (about ±5%), not a
-measurement. The verdict has hysteresis, so it doesn't flicker at a band
-edge.
+face width is measured from the tracked landmarks against the measured PD
+(see [True to size](#true-to-size)); until that is in, against an average
+inter-pupillary distance (63 mm), about ±5%. The verdict has hysteresis, so
+it doesn't flicker at a band edge.
 
 The frame width is `TryOnModel.frameWidthMm` when you pass it (the catalog
 spec, most accurate), else the GLB's width times its calibration scale. Each

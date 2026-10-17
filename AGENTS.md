@@ -114,7 +114,10 @@ Key facts:
   calibration, the Fresnel term of the physical lens), `tryon-seat.ts` (pad-contact seat: nose side-wall profile from the face
   mesh, where pads of a given spacing rest, the offset from the reference
   nose; opt-in by calibration `pads`), `tryon-fit.ts` (face width in mm from ear width over IPD,
-  and the narrow/good/wide fit verdict with hysteresis), `tryon-capability.ts`
+  and the narrow/good/wide fit verdict with hysteresis), `tryon-measure.ts`
+  (true-to-size: PD and ear width in mm against the iris diameter, gated to
+  frontal open-eyed frames, median + freeze, the confidence ramp that eases
+  the scale from the assumed sizes), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`

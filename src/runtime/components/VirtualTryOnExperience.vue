@@ -31,6 +31,7 @@ import {
 } from '../utils/tryon-metrics'
 import { CONTACT_SHADOW_STRENGTH } from '../utils/tryon-contact-shadow'
 import { FIT_DEFAULT_TOLERANCE, type TryOnFit } from '../utils/tryon-fit'
+import { pdConfidence } from '../utils/tryon-measure'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -113,11 +114,18 @@ const props = withDefaults(
     reportMetrics?: boolean
     /**
      * Half-width of the "good fit" band of the fit verdict, as a fraction of
-     * the ideal frame width for the tracked face (default 0.06). The face
-     * estimate itself carries about ±5% (it assumes an average IPD), so
-     * tighter bands mostly add noise.
+     * the ideal frame width for the tracked face (default 0.06). Until the
+     * PD is measured the face estimate assumes an average IPD (about ±5%),
+     * so tighter bands mostly add noise.
      */
     fitTolerance?: number
+    /**
+     * Show the frame at its real size: measure the shopper's PD against the
+     * iris (on-device, over the first seconds of frontal tracking) and size
+     * the frame and the fit verdict from it instead of population averages.
+     * Off keeps the average-face sizing.
+     */
+    trueToSize?: boolean
     /**
      * Physically-based lenses: Fresnel opacity, reflections that add on top
      * of the tint, an AR-coating sheen. Off keeps the cheaper standard lens.
@@ -148,6 +156,7 @@ const props = withDefaults(
     contactShadow: true,
     reportMetrics: false,
     fitTolerance: FIT_DEFAULT_TOLERANCE,
+    trueToSize: true,
     physicalLens: true,
     hairOcclusion: false,
     templeEarBend: false,
@@ -350,6 +359,8 @@ const {
   earWidth: correctedEarWidth,
   ipd: correctedIpd,
   poseCompensated,
+  measurement: pdMeasurement,
+  rulerPd,
   smoothedEuler,
   smoothedScale,
   framePosition,
@@ -368,7 +379,8 @@ const {
   coverWindow,
   mediaAspect,
   calibration,
-  scaleMultiplier: () => props.frameScale
+  scaleMultiplier: () => props.frameScale,
+  trueToSize: () => props.trueToSize
 })
 
 const guideHint = computed<TryOnGuideHint | null>(() => {
@@ -392,10 +404,24 @@ const fitState = useTryOnFit({
   hasFace,
   earWidth: () => poseCompensated(correctedEarWidth.value),
   ipd: () => poseCompensated(correctedIpd.value),
+  ipdMm: () => rulerPd.value,
   frameWidthMm: () => frameWidthMm.value,
   tolerance: () => props.fitTolerance
 })
 const fit = fitState.fit
+
+// The shopper's measured PD (distance PD, as an optician measures it),
+// read-only on the ref. `confidence` ramps 0 → 1 as frontal samples come in;
+// `stable` once the measurement froze. Null while nothing is measured.
+const measurements = computed(() => {
+  const estimate = pdMeasurement.value
+  if (!estimate) return null
+  return {
+    pdMm: estimate.pdMm,
+    confidence: pdConfidence(estimate),
+    stable: estimate.stable
+  }
+})
 
 function onModelLoaded(widthMeters: number) {
   glbWidthMeters.value = widthMeters
@@ -470,7 +496,8 @@ defineExpose({
   guideHint,
   fit,
   lighting,
-  hair
+  hair,
+  measurements
 })
 
 defineSlots<{
