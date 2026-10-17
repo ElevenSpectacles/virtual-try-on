@@ -1,4 +1,4 @@
-import { computed, type Ref } from 'vue'
+import { computed, shallowRef, watch, type Ref } from 'vue'
 import { Euler, Vector3 } from 'three'
 import {
   ASSUMED_EAR_WIDTH_METERS,
@@ -23,6 +23,14 @@ import {
 } from '../../utils/tryon'
 import { faceEulerToThree, type FacePose } from '../../utils/tryon-pose'
 import { buildFaceMeshOccluderPositions } from '../../utils/tryon-occluder'
+import {
+  SEAT_MIN_SAMPLES,
+  headUpOffset,
+  noseProfile,
+  seatOffsetMm,
+  updateNoseProfile,
+  type NoseProfileEstimate
+} from '../../utils/tryon-seat'
 import type { TryOnFrameCalibration } from '../../types/tryon-calibration'
 import { useTryOnSmoothing } from './useTryOnSmoothing'
 
@@ -88,6 +96,11 @@ const RESTING_ANCHOR: NormalizedLandmark = { x: 0.5, y: 0.45 }
 // frame's front half renders on top of the head.
 const EYE_PLANE_SETBACK_METERS = 0.015
 
+// Head turn and nod beyond which the nose profile is not sampled: its widths
+// foreshorten with yaw (same gate as the PD measurement).
+const SEAT_MAX_YAW_RAD = (12 * Math.PI) / 180
+const SEAT_MAX_PITCH_RAD = (15 * Math.PI) / 180
+
 // The camera preview is mirrored once, on the `<video>` (see landmarkToNdc).
 const MIRROR_LANDMARKS = true
 
@@ -137,6 +150,36 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
     if (!pose) return measure
     return compensateMeasureForPose(measure, pose.euler.yaw, pose.euler.pitch)
   }
+
+  // Pad-contact seat (issue #87): for a model with pad spacing in its
+  // calibration, the shopper's nose profile (frontal detections, averaged)
+  // decides how much lower or higher than on the reference nose the frame
+  // sits. Millimetres from the ear-level width (its assumed size).
+  const noseEstimate = shallowRef<NoseProfileEstimate | null>(null)
+  watch(options.landmarks, (list) => {
+    const pose = options.pose.value
+    if (!list.length || !pose || options.calibration.value.padSpacingMm === null) return
+    if (Math.abs(pose.euler.yaw) > SEAT_MAX_YAW_RAD || Math.abs(pose.euler.pitch) > SEAT_MAX_PITCH_RAD) {
+      return
+    }
+    const aspect = options.mediaAspect.value || 1
+    const right = list[234]
+    const left = list[454]
+    if (!right || !left) return
+    const ear = Math.hypot(right.x - left.x, (right.y - left.y) / aspect)
+    if (ear <= 0) return
+    noseEstimate.value = updateNoseProfile(
+      noseEstimate.value,
+      noseProfile(list, aspect, (ASSUMED_EAR_WIDTH_METERS * 1000) / ear)
+    )
+  })
+  // Eased in over the first SEAT_MIN_SAMPLES detections, so it never jumps.
+  const seatOffset = computed(() => {
+    const spacing = options.calibration.value.padSpacingMm
+    const estimate = noseEstimate.value
+    if (spacing === null || !estimate) return 0
+    return seatOffsetMm(estimate.mean, spacing) * Math.min(estimate.samples / SEAT_MIN_SAMPLES, 1)
+  })
 
   // GLBs are authored in metres — derive scale metrically from the tracked
   // ear-to-ear width (what a frame's temple arms actually span), falling back
@@ -236,10 +279,12 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
       smoothedEuler.value,
       FRAME_BRIDGE_STANDOFF_METERS * smoothedScale.value
     )
+    // Pad seat: down the head's own up axis by the seat offset (GLB metres).
+    const seat = headUpOffset(smoothedEuler.value, (-seatOffset.value / 1000) * smoothedScale.value)
     return {
-      x: position.x + standoff.x,
-      y: position.y + standoff.y + offsetY(),
-      z: standoff.z + offsetZ()
+      x: position.x + standoff.x + seat.x,
+      y: position.y + standoff.y + seat.y + offsetY(),
+      z: standoff.z + seat.z + offsetZ()
     }
   })
 
@@ -299,6 +344,7 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
     earWidth,
     ipd,
     poseCompensated,
+    seatOffset,
     scaleSource,
     autoMetricScale,
     calibratedScale,

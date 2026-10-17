@@ -11,7 +11,7 @@
  *   width and height ratios. Depth is barely visible face-on, so it is left
  *   out.
  *
- * Fields tuned by hand (`rotation`, `templeWidthBoost`, `lens`) are carried
+ * Fields tuned by hand (`rotation`, `templeWidthBoost`, `lens`, `pads`) are carried
  * over from the previous manifest, so regenerating never wipes them.
  */
 import type {
@@ -65,6 +65,7 @@ export function modelCalibration(
     entry.templeWidthBoost = previous.templeWidthBoost
   }
   if (previous?.lens !== undefined) entry.lens = previous.lens
+  if (previous?.pads !== undefined) entry.pads = previous.pads
   return entry
 }
 
@@ -138,6 +139,10 @@ export function parseCalibrationFile(value: unknown): TryOnCalibrationFile {
     ) {
       throw new Error(`${name}: lens must be { tint?: string, density?: number }`)
     }
+    const pads = entry.pads
+    if (pads !== undefined && (!isRecord(pads) || typeof pads.spacingMm !== 'number')) {
+      throw new Error(`${name}: pads must be { spacingMm: number }`)
+    }
     models[name] = {
       model: typeof entry.model === 'string' ? entry.model : name,
       translation: isVector(entry.translation) ? entry.translation : { x: 0, y: 0, z: 0 },
@@ -146,6 +151,7 @@ export function parseCalibrationFile(value: unknown): TryOnCalibrationFile {
       ...(typeof entry.templeWidthBoost === 'number'
         ? { templeWidthBoost: entry.templeWidthBoost }
         : {}),
+      ...(isRecord(pads) ? { pads: { spacingMm: pads.spacingMm as number } } : {}),
       ...(isRecord(lens)
         ? {
             lens: {

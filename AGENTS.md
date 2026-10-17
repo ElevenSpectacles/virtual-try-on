@@ -111,7 +111,9 @@ Key facts:
   the opt-in ear bend: `earBendPoint` and the matching vertex-shader patch),
   `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
   map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint/density from
-  calibration, the Fresnel term of the physical lens), `tryon-fit.ts` (face width in mm from ear width over IPD,
+  calibration, the Fresnel term of the physical lens), `tryon-seat.ts` (pad-contact seat: nose side-wall profile from the face
+  mesh, where pads of a given spacing rest, the offset from the reference
+  nose; opt-in by calibration `pads`), `tryon-fit.ts` (face width in mm from ear width over IPD,
   and the narrow/good/wide fit verdict with hysteresis), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
@@ -139,6 +141,9 @@ Key facts:
     hand-tuned fields (`rotation`, `templeWidthBoost`, `lens`) of an existing
     `--output`. The maths lives in `scripts/lib/calibration.ts`, unit-tested
     in `tests/unit/scripts/`.
+  - `audit-tilt.ts` — pantoscopic tilt audit: fits each GLB's lens plane
+    (`scripts/lib/tilt.ts`), adds the calibration `rotation.x`, flags models
+    outside 7–12° and suggests the value for 9°.
   - `compress-models.ts` — Draco-compresses GLBs via `@gltf-transform`. Run
     `generate-calibration` against the compressed output (compression shifts
     bounding boxes by float rounding).

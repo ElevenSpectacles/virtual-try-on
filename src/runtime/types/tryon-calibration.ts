@@ -45,6 +45,13 @@ export interface TryOnModelCalibration {
    * opacity — e.g. one GLB shipped in several lens colours. Optional.
    */
   lens?: TryOnLensCalibration
+  /**
+   * Nose pads: the distance between their contact points, mm. With it the
+   * frame seats lower on a narrow nose and higher on a wide one
+   * (utils/tryon-seat). Optional; without it every nose seats the frame at
+   * the same point.
+   */
+  pads?: { spacingMm: number }
 }
 
 export interface TryOnCalibrationFile {
@@ -65,4 +72,6 @@ export interface TryOnFrameCalibration {
   scale: number
   templeWidthBoost: number
   lens: TryOnLens
+  /** Pad contact spacing, mm; null when the manifest has none. */
+  padSpacingMm: number | null
 }

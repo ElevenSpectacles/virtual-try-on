@@ -157,6 +157,17 @@ rarely share an origin or scale:
 The full types are exported as `TryOnCalibrationFile` and
 `TryOnModelCalibration`.
 
+Two optional fitting fields:
+
+- `pads: { spacingMm }`: the distance between the nose pads' contact
+  points. With it the frame seats lower on a narrow nose and higher on a
+  wide one (up to ±4 mm), from the shopper's nose profile on frontal frames.
+- `rotation.x` sets the pantoscopic tilt. Worn frames tilt 7–12° (9° is
+  the usual fit). `npx tsx scripts/audit-tilt.ts --input <glb dir>
+  --calibration <calibration.json>` measures each model's lens plane,
+  reports its effective tilt and suggests the `rotation.x` for 9°; it exits
+  non-zero when a model is out of range.
+
 ## API
 
 ### `<VirtualTryOnExperience>` props

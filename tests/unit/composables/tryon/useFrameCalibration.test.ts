@@ -31,7 +31,8 @@ describe('getCalibrationFromManifest', () => {
       rotation: { x: 0, y: 0, z: 0 },
       scale: 1,
       templeWidthBoost: 1,
-      lens: { tint: null, density: null }
+      lens: { tint: null, density: null },
+      padSpacingMm: null
     })
   })
 

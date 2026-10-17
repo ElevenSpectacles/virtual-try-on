@@ -59,7 +59,8 @@ const CALIBRATION: TryOnFrameCalibration = {
   rotation: { x: 0, y: 0, z: 0 },
   scale: 1,
   templeWidthBoost: 1,
-  lens: { tint: null, density: null }
+  lens: { tint: null, density: null },
+  padSpacingMm: null
 }
 
 const FULL_WINDOW: ObjectCoverWindow = { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }
@@ -165,5 +166,43 @@ describe('useTryOnPlacement', () => {
       6
     )
     expect(tuned.framePosition.z - standoff(tuned.scale, tuned.rotation).z).toBeCloseTo(-0.02, 6)
+  })
+
+  it('seats a frame with pad spacing lower on a narrow nose (opt-in)', async () => {
+    const { nextTick } = await import('vue')
+    const { NOSE_SIDE_PAIRS } = await import('../../../../src/runtime/utils/tryon-seat')
+    // A nose whose side wall is `widthMm` wide all the way down (ear 0.28 wide = 148 mm).
+    const noseFace = (widthMm: number) => {
+      const points = face()
+      const half = ((widthMm / 148) * 0.28) / 2
+      NOSE_SIDE_PAIRS.forEach(([right, left], i) => {
+        points[right] = { x: 0.5 - half, y: 0.44 + i * 0.01, z: 0 }
+        points[left] = { x: 0.5 + half, y: 0.44 + i * 0.01, z: 0 }
+      })
+      return points
+    }
+    async function placed(widthMm: number, padSpacingMm: number | null) {
+      const raf = stubRaf()
+      const options = { ...inputs(), calibration: ref({ ...CALIBRATION, padSpacingMm }) }
+      const scope = effectScope()
+      const placement = scope.run(() => useTryOnPlacement(options))!
+      for (let i = 0; i < 40; i++) {
+        options.landmarks.value = noseFace(widthMm)
+        await nextTick()
+        raf.frames(1)
+      }
+      raf.frames(240)
+      const out = { y: placement.framePosition.value.y, seat: placement.seatOffset.value }
+      scope.stop()
+      return out
+    }
+    const without = await placed(16, null)
+    const narrow = await placed(16, 24)
+    const wide = await placed(40, 24)
+    expect(without.seat).toBe(0)
+    expect(narrow.seat).toBeGreaterThan(0)
+    expect(narrow.y).toBeLessThan(without.y)
+    expect(wide.seat).toBeLessThan(0)
+    expect(wide.y).toBeGreaterThan(without.y)
   })
 })

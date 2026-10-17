@@ -149,3 +149,10 @@ describe('parseCalibrationFile', () => {
   })
 })
 
+
+describe('pads', () => {
+  it('carries the pad spacing over and rejects a malformed one', () => {
+    expect(parseCalibrationFile({ models: { a: { pads: { spacingMm: 18 } } } }).models.a!.pads).toEqual({ spacingMm: 18 })
+    expect(() => parseCalibrationFile({ models: { a: { pads: { spacingMm: 'x' } } } })).toThrow(/pads/)
+  })
+})
