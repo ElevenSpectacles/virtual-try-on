@@ -12,7 +12,8 @@ const DEFAULT_CALIBRATION: TryOnFrameCalibration = {
   scale: 1,
   templeWidthBoost: 1,
   lens: NO_LENS_OVERRIDE,
-  padSpacingMm: null
+  padSpacingMm: null,
+  frameWidthMm: 0
 }
 
 export function getCalibrationFromManifest(
@@ -38,7 +39,9 @@ export function getCalibrationFromManifest(
     padSpacingMm:
       typeof entry.pads?.spacingMm === 'number' && entry.pads.spacingMm > 0
         ? entry.pads.spacingMm
-        : null
+        : null,
+    frameWidthMm:
+      typeof entry.frameWidthMm === 'number' && entry.frameWidthMm > 0 ? entry.frameWidthMm : 0
   }
 }
 

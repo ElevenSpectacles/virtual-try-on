@@ -75,6 +75,8 @@ Key facts:
     them, times out.
   - `useTryOnFit.ts` — fit-verdict glue: per-detection face-width estimate,
     verdict with hysteresis, `reset()` on a frame change.
+  - `useTryOnFaceShape.ts` — face-shape glue: proportions averaged over
+    frontal detections, classified with hysteresis.
   - `useTryOnLighting.ts` — room-lighting glue: which detections ask the
     worker for a sample, and the smoothed light gain/tint.
   - `useTryOnFrameLoop.ts` / `useTryOnElementSize.ts` — rAF loop and
@@ -123,7 +125,8 @@ Key facts:
   and the narrow/good/wide fit verdict with hysteresis), `tryon-measure.ts`
   (true-to-size: PD and ear width in mm against the iris diameter, gated to
   frontal open-eyed frames, median + freeze, the confidence ramp that eases
-  the scale from the assumed sizes), `tryon-capability.ts`
+  the scale from the assumed sizes), `tryon-face-shape.ts` (coarse face-shape
+  class from landmark proportions, with hysteresis; a styling hint), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-frame-schedule.ts` (detect scheduling: one
   run per `requestVideoFrameCallback` frame, rAF fallback), `tryon-metrics.ts`
@@ -146,7 +149,8 @@ Key facts:
 - `scripts/` — CLIs:
   - `generate-calibration.ts` — scans a GLB directory and emits
     `calibration.json` (bounding-box recentring + scale normalization against
-    a reference model; `--input`, `--output`, `--reference`). Keeps the
+    a reference model, and each frame's rendered `frameWidthMm` for fit
+    ranking; `--input`, `--output`, `--reference`). Keeps the
     hand-tuned fields (`rotation`, `templeWidthBoost`, `lens`) of an existing
     `--output`. The maths lives in `scripts/lib/calibration.ts`, unit-tested
     in `tests/unit/scripts/`.

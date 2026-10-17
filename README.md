@@ -148,7 +148,8 @@ rarely share an origin or scale:
       "rotation": { "x": 0, "y": 0, "z": 0 },      // radians
       "scale": 1,
       "templeWidthBoost": 1,           // deprecated: stretches the whole frame; leave at 1
-      "lens": { "tint": "#3a4a5c", "density": 0.6 }  // optional lens colour/darkness override
+      "lens": { "tint": "#3a4a5c", "density": 0.6 },  // optional lens colour/darkness override
+      "frameWidthMm": 139.7            // rendered width, written by generate-calibration (fit ranking)
     }
   }
 }
@@ -214,6 +215,7 @@ on the component ref.
 | `hasFace` | `boolean` | A face is currently tracked. |
 | `guideHint` | `TryOnGuideHint \| null` | `'noFace'` \| `'aligned'`; `null` while the camera is off. |
 | `fit` | `TryOnFit \| null` | `{ verdict, faceWidthMm, frameWidthMm }`: whether the frame suits the face's width. `null` until about a second of tracking, and while no face is tracked. |
+| `measurements` | `TryOnMeasurements \| null` | `{ pdMm, faceWidthMm, confidence, stable, faceShape, faceShapeConfidence }`: on-device face measurements for a frame advisor (see [Frame advisor](#frame-advisor)). `null` until something is measured. |
 | `start` | `() => Promise<void>` | Start or retry the camera. |
 | `stop` | `() => void` | Stop the camera. |
 | `calibration` | `TryOnCardCalibration` | Card calibration state: `{ status, progress, pdMm }`, `status` `'idle'` \| `'detecting'` \| `'done'` \| `'failed'` (see [Card calibration](#card-calibration)). |
@@ -235,8 +237,9 @@ A wider face gets a relatively smaller-looking frame, as in a mirror. Until
 enough samples are in, the size eases from the average face to the measured
 one, so there is no visible jump.
 
-The ref exposes the measurement as a read-only `measurements`:
-`{ pdMm, confidence, stable }` (`null` until measured). `pdMm` is the
+The slot and ref expose the measurement in `measurements` (see
+[Frame advisor](#frame-advisor)): `pdMm`, its `confidence` (0 → 1 as samples
+come in) and `stable` (frozen). `pdMm` is the
 distance PD, the number an optician measures: corrected for the eyes
 converging on the screen. Expect about ±2–3 mm; it is a sizing aid, not a
 prescription measurement. It stays in the browser unless your app sends it.
@@ -276,6 +279,34 @@ spec, most accurate), else the GLB's width times its calibration scale. Each
 verdict change is reported as a `TRY_ON_FIT` `track` event, so you can relate
 fit to conversion.
 
+### Frame advisor
+
+For "frames that fit you" lists, the ref ranks the whole catalog on the
+tracked face without loading any GLB:
+
+- `fitRanking`: `TryOnFitRank[]`, best first: `{ file, verdict,
+  frameWidthMm, deviation }`, where `deviation` is the frame width over the
+  ideal width minus 1 (0 is ideal, `0.05` is 5 % too wide). Empty until the
+  face width is measured. Frames whose width is unknown are left out.
+- `fitFor(file)`: the `TryOnFit` of any catalog frame on the measured face.
+
+Each frame's width comes from `TryOnModel.frameWidthMm`, else the
+calibration's `frameWidthMm` (written by `generate-calibration`), else, for
+the active frame, its loaded GLB. The same helpers are exported as pure
+functions (`rankByFit`, `fitVerdictFor`) for ranking on your own data, e.g.
+on a server from a stored face width.
+
+`measurements.faceShape` is a coarse `'oval' | 'round' | 'square' | 'heart'
+| 'oblong'` from the face's proportions (length, forehead and jaw against
+the width at the temples), averaged over frontal frames and held with
+hysteresis. Treat it as a styling hint, with its `faceShapeConfidence`
+(low means "between two shapes"), never as a filter.
+
+Measurements stay in the browser. The module reports only the coarse
+`faceShape` class (`TRY_ON_FACE_SHAPE`) and the fit verdict on `track`; it
+is your app's decision whether to send the PD or face width anywhere, and
+your consent copy should say so if it does.
+
 ### `v-model:model`
 
 Two-way binding to the active frame's `file`. Use it to drive the frame
@@ -302,6 +333,7 @@ module reports anything. Every payload has this shape:
 | `TRY_ON_FACE_DETECTED` | First face detected in the session | `confidence`, `tier` (device tier at that moment) |
 | `TRY_ON_FIT` | The fit verdict appeared or changed (also on each frame change) | `verdict`, `faceWidthMm`, `frameWidthMm` (whole mm) |
 | `TRY_ON_CALIBRATED` | A card calibration finished | `pdMm` |
+| `TRY_ON_FACE_SHAPE` | The face-shape class appeared or changed | `faceShape` (coarse class only) |
 | `TRY_ON_FRAME_CHANGED` | Active frame changed | — |
 | `TRY_ON_TIER` | The device tier stepped down under sustained frame-time load | `tier`, `previousTier`, `p95Ms`, `maxTextureSize`, `deviceMemoryGb` |
 | `TRY_ON_ERROR` | Camera, tracker or asset failure, or a failed card calibration | `errorType`, `source` (`camera` \| `face_landmarker` \| `model` \| `environment` \| `hair_segmenter` \| `card_calibration`), `message` |
@@ -365,7 +397,10 @@ import type {
   TryOnMetrics,
   TryOnSessionMetrics,
   TryOnFit,
-  TryOnFitVerdict
+  TryOnFitVerdict,
+  TryOnFitRank,
+  TryOnFaceShape,
+  TryOnMeasurements
 } from '@eleven.spectacles/virtual-try-on'
 ```
 

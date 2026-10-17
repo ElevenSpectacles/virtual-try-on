@@ -10,6 +10,8 @@
  * - `scale`: normalises its size to the reference frame, from the mean of the
  *   width and height ratios. Depth is barely visible face-on, so it is left
  *   out.
+ * - `frameWidthMm`: the frame's rendered width (bounding box × `scale`), for
+ *   ranking the catalog by fit without loading GLBs.
  *
  * Fields tuned by hand (`rotation`, `templeWidthBoost`, `lens`, `pads`) are carried
  * over from the previous manifest, so regenerating never wipes them.
@@ -61,6 +63,9 @@ export function modelCalibration(
     rotation: previous?.rotation ?? { x: 0, y: 0, z: 0 },
     scale: round((refWidth / width + refHeight / height) / 2, 4)
   }
+  // The rendered width (GLB metres × scale), as the component measures it,
+  // so a host can rank the catalog by fit without loading the GLBs.
+  entry.frameWidthMm = round(width * entry.scale * 1000, 1)
   if (previous?.templeWidthBoost !== undefined) {
     entry.templeWidthBoost = previous.templeWidthBoost
   }

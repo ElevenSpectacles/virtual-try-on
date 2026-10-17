@@ -52,6 +52,12 @@ export interface TryOnModelCalibration {
    * the same point.
    */
   pads?: { spacingMm: number }
+  /**
+   * Total frame width in millimetres (bounding-box width × `scale`), written
+   * by `generate-calibration`. Lets a host rank its catalog by fit without
+   * loading every GLB. Optional; `TryOnModel.frameWidthMm` wins when set.
+   */
+  frameWidthMm?: number
 }
 
 export interface TryOnCalibrationFile {
@@ -74,4 +80,6 @@ export interface TryOnFrameCalibration {
   lens: TryOnLens
   /** Pad contact spacing, mm; null when the manifest has none. */
   padSpacingMm: number | null
+  /** Frame width from the manifest, mm; 0 when it has none. */
+  frameWidthMm: number
 }

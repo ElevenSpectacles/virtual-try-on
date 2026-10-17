@@ -3,7 +3,8 @@ import { addComponentsDir, addImportsDir, createResolver, defineNuxtModule } fro
 export type { TryOnModel, TryOnModelFamily } from './runtime/composables/tryon/useTryOnModels'
 export type { TryOnFeature, TryOnTier } from './runtime/utils/tryon-capability'
 export type { TryOnMetrics, TryOnSessionMetrics } from './runtime/utils/tryon-metrics'
-export type { TryOnFit, TryOnFitVerdict } from './runtime/utils/tryon-fit'
+export type { TryOnFit, TryOnFitRank, TryOnFitVerdict } from './runtime/utils/tryon-fit'
+export type { TryOnFaceShape } from './runtime/utils/tryon-face-shape'
 export type { TryOnCardCalibration } from './runtime/composables/tryon/useTryOnCardCalibration'
 export type { TryOnCardCalibrationStatus } from './runtime/utils/tryon-card'
 export type {
@@ -14,6 +15,7 @@ export type {
 export type {
   FaceLandmarkerError,
   TryOnGuideHint,
+  TryOnMeasurements,
   TryOnStatus,
   WebcamError
 } from './runtime/types/tryon-experience'

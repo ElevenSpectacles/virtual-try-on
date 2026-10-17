@@ -34,6 +34,12 @@ describe('modelCalibration', () => {
     expect(entry.scale).toBeCloseTo((1 + 1 / 0.98) / 2, 4)
   })
 
+  it('writes the rendered frame width in millimetres', () => {
+    const entry = modelCalibration(model('a', 0.1397, 0.0493 * 0.98), reference)
+    expect(entry.frameWidthMm).toBeCloseTo(0.1397 * entry.scale * 1000, 1)
+    expect(modelCalibration(reference, reference).frameWidthMm).toBe(139.7)
+  })
+
   it('ignores depth for the scale', () => {
     const deep = model('a', 0.1397, 0.0493)
     deep.bounds.min.z -= 0.05

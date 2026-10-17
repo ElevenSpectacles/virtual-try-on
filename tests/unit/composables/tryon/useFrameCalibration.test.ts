@@ -17,7 +17,8 @@ const manifest: TryOnCalibrationFile = {
       translation: { x: -0.000246, y: 0, z: 0.001998 },
       rotation: { x: 0, y: 0.1, z: 0 },
       scale: 1.0183,
-      lens: { tint: '#3a4a5c', density: 0.7 }
+      lens: { tint: '#3a4a5c', density: 0.7 },
+      frameWidthMm: 139.2
     }
   }
 }
@@ -32,7 +33,8 @@ describe('getCalibrationFromManifest', () => {
       scale: 1,
       templeWidthBoost: 1,
       lens: { tint: null, density: null },
-      padSpacingMm: null
+      padSpacingMm: null,
+      frameWidthMm: 0
     })
   })
 
@@ -70,5 +72,10 @@ describe('getCalibrationFromManifest', () => {
       tint: null,
       density: null
     })
+  })
+
+  it('reads the frame width, 0 when the entry has none', () => {
+    expect(getCalibrationFromManifest(manifest, 'kairos-amber').frameWidthMm).toBe(139.2)
+    expect(getCalibrationFromManifest(manifest, 'iris-bronze').frameWidthMm).toBe(0)
   })
 })

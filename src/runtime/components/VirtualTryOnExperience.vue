@@ -30,7 +30,15 @@ import {
   type TryOnSessionMetrics
 } from '../utils/tryon-metrics'
 import { CONTACT_SHADOW_STRENGTH } from '../utils/tryon-contact-shadow'
-import { FIT_DEFAULT_TOLERANCE, type TryOnFit } from '../utils/tryon-fit'
+import {
+  FIT_DEFAULT_TOLERANCE,
+  FIT_MIN_SAMPLES,
+  fitVerdictFor,
+  rankByFit,
+  type TryOnFit,
+  type TryOnFitRank
+} from '../utils/tryon-fit'
+import { useTryOnFaceShape } from '../composables/tryon/useTryOnFaceShape'
 import { pdConfidence } from '../utils/tryon-measure'
 import {
   useTryOnCardCalibration,
@@ -39,6 +47,7 @@ import {
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
+  TryOnMeasurements,
   TryOnStatus,
   WebcamError
 } from '../types/tryon-experience'
@@ -432,16 +441,31 @@ const fitState = useTryOnFit({
 })
 const fit = fitState.fit
 
-// The shopper's measured PD (distance PD, as an optician measures it),
-// read-only on the ref. `confidence` ramps 0 → 1 as frontal samples come in;
-// `stable` once the measurement froze. Null while nothing is measured.
-const measurements = computed(() => {
-  const estimate = pdMeasurement.value
-  if (!estimate) return null
+// Face shape (frame-advisor styling hint), from frontal detections.
+const { faceShape } = useTryOnFaceShape({
+  landmarks: faceLandmarks,
+  pose: facePose,
+  mediaAspect
+})
+
+// On-device face measurements (frame advisor, issue #98): the measured PD
+// (distance PD, as an optician measures it), the face width the fit verdict
+// uses, and the face shape. Null while nothing is measured yet.
+const measuredFaceWidthMm = computed(() => {
+  const estimate = fitState.faceWidthEstimate.value
+  return estimate && estimate.samples >= FIT_MIN_SAMPLES ? estimate.mean : null
+})
+const measurements = computed<TryOnMeasurements | null>(() => {
+  const pd = pdMeasurement.value
+  const shape = faceShape.value
+  if (!pd && measuredFaceWidthMm.value === null && !shape) return null
   return {
-    pdMm: estimate.pdMm,
-    confidence: pdConfidence(estimate),
-    stable: estimate.stable
+    pdMm: pd?.pdMm ?? null,
+    faceWidthMm: measuredFaceWidthMm.value,
+    confidence: pdConfidence(pd),
+    stable: pd?.stable ?? false,
+    faceShape: shape?.shape ?? null,
+    faceShapeConfidence: shape?.confidence ?? 0
   }
 })
 
@@ -472,6 +496,36 @@ watch(
   }
 )
 
+// Width of any catalog frame without loading it: the catalog spec, else the
+// calibration manifest's `frameWidthMm`, else (the active frame only) its
+// loaded GLB. 0 while unknown.
+function frameWidthFor(file: string): number {
+  const spec = getTryOnModel(props.models, file)?.frameWidthMm
+  if (spec && spec > 0) return spec
+  if (file === model.value && frameWidthMm.value > 0) return frameWidthMm.value
+  return getCalibration(file).frameWidthMm
+}
+
+/** Fit of any catalog frame on the measured face; null until measured or when its width is unknown. */
+function fitFor(file: string): TryOnFit | null {
+  const face = measuredFaceWidthMm.value
+  const frame = frameWidthFor(file)
+  if (face === null) return null
+  const verdict = fitVerdictFor(frame, face, props.fitTolerance)
+  return verdict ? { verdict, faceWidthMm: face, frameWidthMm: frame } : null
+}
+
+/** The catalog ranked by fit on the measured face, best first; empty until measured. */
+const fitRanking = computed<TryOnFitRank[]>(() => {
+  const face = measuredFaceWidthMm.value
+  if (face === null) return []
+  return rankByFit(
+    props.models.map((m) => ({ file: m.file, frameWidthMm: frameWidthFor(m.file) })),
+    face,
+    props.fitTolerance
+  )
+})
+
 function onModelLoaded(widthMeters: number) {
   glbWidthMeters.value = widthMeters
 }
@@ -493,6 +547,7 @@ function trackTryOn(
     | 'TRY_ON_TIER'
     | 'TRY_ON_FIT'
     | 'TRY_ON_CALIBRATED'
+    | 'TRY_ON_FACE_SHAPE'
     | 'TRY_ON_ERROR',
   extra: Record<string, unknown> = {}
 ) {
@@ -550,7 +605,9 @@ defineExpose({
   measurements,
   calibration: calibrationState,
   startCalibration,
-  cancelCalibration
+  cancelCalibration,
+  fitRanking,
+  fitFor
 })
 
 defineSlots<{
@@ -569,6 +626,11 @@ defineSlots<{
      * stable estimate, and while no face is tracked.
      */
     fit: TryOnFit | null
+    /**
+     * On-device face measurements: PD, face width, face shape. Null until
+     * something is measured.
+     */
+    measurements: TryOnMeasurements | null
     start: () => Promise<void>
     stop: () => void
     /** Card calibration: `{ status, progress, pdMm }` ('idle' until started). */
@@ -667,6 +729,15 @@ watch(fitState.verdict, (verdict) => {
     frameWidthMm: Math.round(frameWidthMm.value)
   })
 })
+
+// Face shape as a coarse class only (never measurements), once it appears
+// and on each change.
+watch(
+  () => faceShape.value?.shape ?? null,
+  (shape) => {
+    if (shape) trackTryOn('TRY_ON_FACE_SHAPE', { faceShape: shape })
+  }
+)
 
 // Camera stopped: send the session's final report and start the next session fresh.
 watch(isActive, (active, wasActive) => {
@@ -770,6 +841,7 @@ watch(model, (value) => {
       :has-face="hasFace"
       :guide-hint="guideHint"
       :fit="fit"
+      :measurements="measurements"
       :start="start"
       :stop="stop"
       :calibration="calibrationState"
