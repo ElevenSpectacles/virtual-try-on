@@ -167,6 +167,16 @@ Key facts:
   runs with auto-imports off like a strict host, and serves GLBs + `calibration.json` from
   the host checkout via nitro `publicAssets` (override with
   `TRYON_MODELS_DIR`). Not part of the shipped module.
+- `demo/` — the public static demo (`npm run demo`, port 4100;
+  `npm run demo:generate`), deployed to GitHub Pages by
+  `.github/workflows/demo.yml`. A plain host page with no UI library and
+  auto-imports off. Its controls are built from the default slot, so keep
+  it in step with the slot/ref API. `demo/scripts/prepare.mjs` stages
+  everything in `demo/public/` (gitignored): the MediaPipe Wasm and the
+  Draco decoder from `node_modules`, `face_landmarker.task` and the HDR
+  (SHA-256 pinned), and the frames from `DEMO_MODELS_DIR`. The page sets
+  every self-hosting prop and a same-origin CSP, so it makes no
+  third-party requests. Keep it that way. Not part of the shipped module.
 - `scripts/` — CLIs:
   - `generate-calibration.ts` — scans a GLB directory and emits
     `calibration.json` (bounding-box recentring + scale normalization against
