@@ -19,6 +19,7 @@ export type TryOnFeature =
   | 'lightingEstimate'
   | 'segmentationOccluder'
   | 'physicalLens'
+  | 'tintedLensShadow'
 
 /** Ascending: a higher index is a more capable device. */
 export const TRY_ON_TIERS: readonly TryOnTier[] = ['low', 'mid', 'high']
@@ -33,7 +34,10 @@ export const FEATURE_MIN_TIER: Record<TryOnFeature, TryOnTier> = {
   lightingEstimate: 'mid',
   segmentationOccluder: 'high',
   // Fresnel opacity, clearcoat and thin-film sheen on the lens pixels only.
-  physicalLens: 'mid'
+  physicalLens: 'mid',
+  // A second shadow map for the lenses and a camera-texture upload per
+  // frame (the cost the iOS Safari segment can't spare).
+  tintedLensShadow: 'high'
 }
 
 /**

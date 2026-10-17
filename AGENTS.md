@@ -109,7 +109,9 @@ Key facts:
   `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
   map puts the frame's soft shadow on the tracked skin),
   `tryon-contact-occlusion.ts` (spheres fitted to the GLB and the analytic
-  contact darkening they put on the skin under pads, bridge and temples), `tryon-lens.ts` (per-model lens tint/density from
+  contact darkening they put on the skin under pads, bridge and temples), `tryon-lens-shadow.ts` (opt-in tinted lens shadow: lens transmission
+  from its colour, the per-channel multiply and its composite against the
+  DOM video, the per-light shadow-caster filter), `tryon-lens.ts` (per-model lens tint/density from
   calibration, the Fresnel term of the physical lens), `tryon-fit.ts` (face width in mm from ear width over IPD,
   and the narrow/good/wide fit verdict with hysteresis), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the

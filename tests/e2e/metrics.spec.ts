@@ -71,7 +71,8 @@ test.describe('metrics event', () => {
       contactShadow: expect.any(Boolean),
       adaptiveLighting: expect.any(Boolean),
       physicalLens: expect.any(Boolean),
-      hairOcclusion: expect.any(Boolean)
+      hairOcclusion: expect.any(Boolean),
+      tintedLensShadow: expect.any(Boolean)
     })
   })
 })

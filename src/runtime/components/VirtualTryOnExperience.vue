@@ -132,6 +132,13 @@ const props = withDefaults(
     hairOcclusion?: boolean
     /** URL/path of `hair_segmenter.tflite`, to self-host it. */
     mediapipeHairModelAssetPath?: string | undefined
+    /**
+     * Tint the lenses' shadow with their colour: a brown lens throws a warm
+     * shadow, a green one a green shadow. Costs a second shadow map and a
+     * camera-texture upload per frame, so it is opt-in and needs the `high`
+     * tier and `contactShadow`.
+     */
+    tintedLensShadow?: boolean
   }>(),
   {
     adaptiveLighting: true,
@@ -140,6 +147,7 @@ const props = withDefaults(
     fitTolerance: FIT_DEFAULT_TOLERANCE,
     physicalLens: true,
     hairOcclusion: false,
+    tintedLensShadow: false,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -268,7 +276,8 @@ function emitMetrics(final: boolean) {
       contactShadow: contactShadowEnabled.value,
       adaptiveLighting: lightingEnabled.value,
       physicalLens: physicalLensEnabled.value,
-      hairOcclusion: hairActive.value
+      hairOcclusion: hairActive.value,
+      tintedLensShadow: tintedLensShadowEnabled.value
     }
   })
 }
@@ -541,6 +550,12 @@ function onSceneError(source: 'model' | 'environment', message: string) {
 const contactShadowEnabled = computed(
   () => props.contactShadow && capability.allows('contactShadow')
 )
+const tintedLensShadowEnabled = computed(
+  () =>
+    props.tintedLensShadow &&
+    contactShadowEnabled.value &&
+    capability.allows('tintedLensShadow')
+)
 const physicalLensEnabled = computed(
   () => props.physicalLens && capability.allows('physicalLens')
 )
@@ -650,6 +665,8 @@ watch(model, (value) => {
             :occluder-positions="occluderPositions"
             :contact-shadow="contactShadowEnabled && occluderEnabled"
             :contact-shadow-strength="contactShadowStrength"
+            :tinted-lens-shadow="tintedLensShadowEnabled"
+            :video-element="videoRef"
             :light-gain="lightGain"
             :light-tint="lightTint"
             :occluder-position="occluderPosition"
