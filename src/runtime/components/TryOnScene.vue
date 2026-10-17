@@ -18,13 +18,15 @@ import {
   Mesh,
   MeshDepthMaterial,
   MeshPhysicalMaterial,
+  NoColorSpace,
   PlaneGeometry,
   RedFormat,
   ShaderMaterial,
   ShadowMaterial,
   UnsignedByteType,
+  VideoTexture,
   type Material,
-  type Object3D,
+  Object3D,
   type MeshStandardMaterial,
   type Texture
 } from 'three'
@@ -60,6 +62,11 @@ import {
   type OccluderPart,
   type OccluderSphere
 } from '../utils/tryon-contact-occlusion'
+import {
+  TINTED_SHADOW_FRAGMENT,
+  lensTransmission,
+  shadowCasterFilter
+} from '../utils/tryon-lens-shadow'
 import {
   HAIR_PLANE_SETBACK_METERS,
   HAIR_PLANE_SIZE_METERS,
@@ -119,6 +126,14 @@ const props = withDefaults(
     contactShadow?: boolean
     /** Shadow opacity on skin, 0…1. */
     contactShadowStrength?: number
+    /**
+     * Tint the lenses' shadow with their colour (utils/tryon-lens-shadow):
+     * lenses cast into their own shadow map, and the receiver samples the
+     * camera (`videoElement`) for the colour. Needs `contactShadow`.
+     */
+    tintedLensShadow?: boolean
+    /** The camera `<video>`, for the tinted lens shadow. */
+    videoElement?: HTMLVideoElement | null
     /** Wireframe box around the model's bbox — the calibration reference. */
     showBoundingBox?: boolean
     /**
@@ -178,6 +193,8 @@ const props = withDefaults(
     lightTint: () => [1, 1, 1],
     contactShadow: false,
     contactShadowStrength: CONTACT_SHADOW_STRENGTH,
+    tintedLensShadow: false,
+    videoElement: null,
     showBoundingBox: false,
     modelOffset: () => ({ x: 0, y: 0, z: 0 }),
     visible: true,
@@ -448,6 +465,8 @@ onUnmounted(() => {
   dracoLoader?.dispose()
   for (const material of builtLenses) material.dispose()
   shadowLight.dispose()
+  lensShadowLight.dispose()
+  receiverUniforms.uVideo.value?.dispose()
   shadowReceiverMaterial.dispose()
   for (const material of lensDepthMaterials) material.dispose()
   occluderMeshGeometry.value?.dispose()
@@ -653,16 +672,44 @@ const SHADOW_RADIUS = 8
 /** Share of light a lens blocks in the shadow, per unit of lens opacity. */
 const LENS_SHADOW_DENSITY = 0.6
 
-const shadowLight = new DirectionalLight(0xffffff, 0)
-shadowLight.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE)
-shadowLight.shadow.radius = SHADOW_RADIUS
-shadowLight.shadow.blurSamples = 12
-shadowLight.shadow.bias = -0.0005
+// Receiver uniforms: contact occlusion and the tinted lens shadow (below).
+const receiverUniforms = {
+  uSpheres: {
+    value: Array.from({ length: MAX_OCCLUDER_SPHERES }, () => new Vector4())
+  },
+  uSphereCount: { value: 0 },
+  uOcclusionRange: { value: 0 },
+  uOcclusionStrength: { value: 0 },
+  uLensShadowDensity: { value: 0 },
+  uLensTransmission: { value: new Vector3(1, 1, 1) },
+  uVideo: { value: null as VideoTexture | null },
+  uWindow: { value: new Vector4(0, 1, 0, 1) }
+}
+
+function makeShadowLight(): DirectionalLight {
+  const light = new DirectionalLight(0xffffff, 0)
+  light.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE)
+  light.shadow.radius = SHADOW_RADIUS
+  light.shadow.blurSamples = 12
+  light.shadow.bias = -0.0005
+  return light
+}
+const shadowLight = makeShadowLight()
+// Tinted lens shadow (opt-in): the lenses cast into a second, identical
+// shadow map of their own (`shadowCasterFilter` keeps each part out of the
+// other light's map), so the receiver can colour their shadow. Directional
+// shadows are indexed in scene order, so this light must come after
+// `shadowLight` (template).
+const lensShadowLight = makeShadowLight()
+const tinted = computed(
+  () => props.contactShadow && props.tintedLensShadow && !!props.videoElement
+)
 
 watch(
-  () => props.contactShadow,
-  (enabled) => {
+  [() => props.contactShadow, tinted],
+  ([enabled, tint]) => {
     shadowLight.castShadow = enabled
+    lensShadowLight.castShadow = tint
   },
   { immediate: true }
 )
@@ -673,17 +720,19 @@ watch(
   [() => props.position, () => props.scale],
   ([position, scale]) => {
     const light = contactShadowLight(position, scale)
-    shadowLight.position.set(light.position.x, light.position.y, light.position.z)
-    shadowLight.target.position.set(light.target.x, light.target.y, light.target.z)
-    shadowLight.target.updateMatrixWorld()
-    const camera = shadowLight.shadow.camera
-    camera.left = -light.halfExtent
-    camera.right = light.halfExtent
-    camera.top = light.halfExtent
-    camera.bottom = -light.halfExtent
-    camera.near = light.near
-    camera.far = light.far
-    camera.updateProjectionMatrix()
+    for (const target of [shadowLight, lensShadowLight]) {
+      target.position.set(light.position.x, light.position.y, light.position.z)
+      target.target.position.set(light.target.x, light.target.y, light.target.z)
+      target.target.updateMatrixWorld()
+      const camera = target.shadow.camera
+      camera.left = -light.halfExtent
+      camera.right = light.halfExtent
+      camera.top = light.halfExtent
+      camera.bottom = -light.halfExtent
+      camera.near = light.near
+      camera.far = light.far
+      camera.updateProjectionMatrix()
+    }
   },
   { immediate: true }
 )
@@ -695,16 +744,31 @@ let lensDepthMaterials: MeshDepthMaterial[] = []
 let occluderSpheres: OccluderSphere[] = []
 
 watch(
-  [model, () => props.contactShadow, () => props.lens],
-  ([gltf, enabled]) => {
+  [model, () => props.contactShadow, () => props.lens, tinted],
+  ([gltf, enabled, , tint]) => {
     for (const material of lensDepthMaterials) material.dispose()
     lensDepthMaterials = []
+    let lensDensity = 0
+    let lensColor: [number, number, number] | null = null
     gltf?.scene.traverse((obj) => {
       if (!(obj instanceof Mesh)) return
       obj.castShadow = enabled
       const current = Array.isArray(obj.material) ? obj.material : [obj.material]
       const lens = current.find((m: Material) => LENS_MATERIAL_NAME.test(m.name))
-      if (!enabled || !lens) {
+      // Tinted: each part casts into its own light's map only.
+      const filter = tint
+        ? shadowCasterFilter(!!lens, () => lensShadowLight.shadow.camera)
+        : null
+      obj.onBeforeShadow = filter?.onBeforeShadow ?? Object3D.prototype.onBeforeShadow
+      obj.onAfterShadow = filter?.onAfterShadow ?? Object3D.prototype.onAfterShadow
+      if (lens) {
+        lensDensity = Math.max(lensDensity, Math.min(lens.opacity * LENS_SHADOW_DENSITY, 1))
+        const color = (lens as MeshStandardMaterial).color
+        if (color) lensColor = [color.r, color.g, color.b]
+      }
+      // The tinted lens map is a plain coverage map; the density is applied
+      // in the receiver instead of by alpha-hashing.
+      if (!enabled || !lens || tint) {
         obj.customDepthMaterial = undefined
         return
       }
@@ -716,6 +780,8 @@ watch(
       obj.customDepthMaterial = depth
     })
     occluderSpheres = enabled && gltf ? frameOccluderSpheres(gltf.scene) : []
+    receiverUniforms.uLensShadowDensity.value = lensDensity
+    receiverUniforms.uLensTransmission.value.set(...lensTransmission(lensColor))
   },
   { immediate: true }
 )
@@ -759,14 +825,6 @@ function frameOccluderSpheres(root: Object3D): OccluderSphere[] {
   return fitFrameOccluders(parts)
 }
 
-const receiverUniforms = {
-  uSpheres: {
-    value: Array.from({ length: MAX_OCCLUDER_SPHERES }, () => new Vector4())
-  },
-  uSphereCount: { value: 0 },
-  uOcclusionRange: { value: 0 },
-  uOcclusionStrength: { value: 0 }
-}
 
 // ShadowMaterial with the occlusion folded into its alpha, mirroring
 // `contactShadowAlpha`: shadow and occlusion darken independently, so their
@@ -790,8 +848,10 @@ shadowReceiverMaterial.onBeforeCompile = (shader) => {
       '#include <worldpos_vertex>',
       `#include <worldpos_vertex>
   vAoPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;
-  vAoNormal = mat3(modelMatrix) * objectNormal;`
+  vAoNormal = mat3(modelMatrix) * objectNormal;
+  vTintClip = gl_Position;`
     )
+    .replace('#include <common>', '#include <common>\nvarying vec4 vTintClip;')
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',
@@ -802,6 +862,11 @@ uniform vec4 uSpheres[${MAX_OCCLUDER_SPHERES}];
 uniform int uSphereCount;
 uniform float uOcclusionRange;
 uniform float uOcclusionStrength;
+uniform float uLensShadowDensity;
+uniform vec3 uLensTransmission;
+uniform sampler2D uVideo;
+uniform vec4 uWindow;
+varying vec4 vTintClip;
 
 // utils/tryon-contact-occlusion: contactOcclusion / sphereOcclusion.
 float contactOcclusion(vec3 p, vec3 n) {
@@ -827,11 +892,54 @@ float contactOcclusion(vec3 p, vec3 n) {
   if (dot(aoNormal, aoView) < 0.0) aoNormal = -aoNormal;
   // silhouetteFade: none where the skin turns away, at the mesh's edge.
   float aoFacing = smoothstep(${SILHOUETTE_FADE_START.toFixed(2)}, ${SILHOUETTE_FADE_END.toFixed(2)}, dot(aoNormal, aoView));
-  float shadowed = 1.0 - opacity * (1.0 - getShadowMask());
   float occluded = 1.0 - uOcclusionStrength * aoFacing * contactOcclusion(vAoPosition, aoNormal);
-  gl_FragColor = vec4(color, 1.0 - shadowed * occluded);`
+#if defined( TINTED_LENS_SHADOW ) && NUM_DIR_LIGHT_SHADOWS > 1
+${TINTED_SHADOW_FRAGMENT}
+#else
+  float shadowed = 1.0 - opacity * (1.0 - getShadowMask());
+  gl_FragColor = vec4(color, 1.0 - shadowed * occluded);
+#endif`
     )
+    // The receiver composes in the display's (sRGB) space, against the DOM
+    // video: no tone mapping or colour-space encode on its output. (The
+    // untinted output is black, which neither changes.)
+    .replace('#include <tonemapping_fragment>', '')
+    .replace('#include <colorspace_fragment>', '')
 }
+
+watch(
+  tinted,
+  (tint) => {
+    if (tint) shadowReceiverMaterial.defines = { TINTED_LENS_SHADOW: '' }
+    else delete shadowReceiverMaterial.defines?.TINTED_LENS_SHADOW
+    shadowReceiverMaterial.needsUpdate = true
+  },
+  { immediate: true }
+)
+
+// The camera as a texture, only while the tinted lens shadow runs (one
+// upload per video frame). Raw sRGB values: the receiver works in display
+// space.
+watch(
+  [tinted, () => props.videoElement],
+  ([tint, video]) => {
+    receiverUniforms.uVideo.value?.dispose()
+    receiverUniforms.uVideo.value = null
+    if (!tint || !video) return
+    const texture = new VideoTexture(video)
+    texture.colorSpace = NoColorSpace
+    texture.minFilter = LinearFilter
+    texture.magFilter = LinearFilter
+    texture.generateMipmaps = false
+    receiverUniforms.uVideo.value = texture
+  },
+  { immediate: true }
+)
+watch(
+  () => props.mediaWindow,
+  (window) => receiverUniforms.uWindow.value.set(window.xMin, window.xMax, window.yMin, window.yMax),
+  { immediate: true }
+)
 
 // Spheres follow the frame: its world matrix is current by the time the
 // receiver draws.
@@ -911,6 +1019,9 @@ const occluderRotationVec = computed(
        be in the scene graph. -->
   <primitive :object="shadowLight" />
   <primitive :object="shadowLight.target" />
+  <!-- Lens shadow light (tinted lens shadow); after shadowLight, see above. -->
+  <primitive :object="lensShadowLight" />
+  <primitive :object="lensShadowLight.target" />
   <TresDirectionalLight
     :position="fillLightPosition"
     :intensity="fillIntensity"

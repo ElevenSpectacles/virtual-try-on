@@ -180,6 +180,7 @@ The full types are exported as `TryOnCalibrationFile` and
 | `tier` | `'low' \| 'mid' \| 'high'` | — | Pins the device capability tier. Omit to classify the device and step down under sustained frame-time load. A pinned tier never steps down. |
 | `adaptiveLighting` | `boolean` | `true` | Lights the frame from the room the camera sees. Needs the `mid` tier or higher. |
 | `contactShadow` | `boolean` | `true` | Soft shadow the frame casts on the tracked skin (rims, temples, and a partial shadow from tinted lenses). Needs the face-mesh occluder and the `mid` tier or higher. |
+| `tintedLensShadow` | `boolean` | `false` | Tints the lenses' shadow with their colour (a brown lens throws a warm shadow). Costs a second shadow map and a camera-texture upload per frame, so it needs the `high` tier and `contactShadow`. |
 | `physicalLens` | `boolean` | `true` | Lenses that read as glass: opacity rises toward grazing angles, reflections add on top of the tint, and an anti-reflective sheen. Needs the `mid` tier or higher; off keeps the cheaper standard lens. |
 | `fitTolerance` | `number` | `0.06` | Half-width of the "good fit" band of the fit verdict, as a fraction of the ideal frame width. The face estimate itself carries about ±5%. |
 | `reportMetrics` | `boolean` | `false` | Emits the `metrics` event (see below). Off means nothing is measured. |
