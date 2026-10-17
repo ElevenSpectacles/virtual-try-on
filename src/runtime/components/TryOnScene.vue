@@ -45,7 +45,15 @@ import {
   type HeadOccluderGeometry,
   type OneEuroState
 } from '../utils/tryon'
-import { rigTemples, templeAngles, type TempleRig } from '../utils/tryon-temples'
+import {
+  EAR_BEND_RAMP_METERS,
+  earBendFor,
+  patchEarBendShader,
+  rigTemples,
+  templeAngles,
+  templeFramePoints,
+  type TempleRig
+} from '../utils/tryon-temples'
 import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 import { lightingColor } from '../utils/tryon-lighting'
 import { NO_LENS_OVERRIDE, type TryOnLens } from '../utils/tryon-lens'
@@ -99,6 +107,12 @@ const props = withDefaults(
      * authored.
      */
     templeFit?: boolean
+    /**
+     * Bend the temple tips down behind the ear, as an optician fits them
+     * (utils/tryon-temples, `earBendPoint`). Shows on profile views. Needs
+     * `templeFit`; off keeps the straight authored tips.
+     */
+    templeEarBend?: boolean
     occluderPosition?: { x: number; y: number; z?: number }
     occluderRadius?: HeadOccluderGeometry
     occluderRotation?: { x: number; y: number; z: number }
@@ -171,6 +185,7 @@ const props = withDefaults(
     occluderEnabled: false,
     occluderPositions: null,
     templeFit: true,
+    templeEarBend: false,
     occluderPosition: () => ({ x: 0, y: 0, z: 0 }),
     occluderRadius: () => ({ radiusX: 0.1, radiusY: 0.13, radiusZ: 0.12 }),
     occluderRotation: () => ({ x: 0, y: 0, z: 0 }),
@@ -456,6 +471,7 @@ onUnmounted(() => {
   dracoLoader?.dispose()
   for (const material of builtLenses) material.dispose()
   shadowLight.dispose()
+  clearEarBend()
   for (const material of lensDepthMaterials) material.dispose()
   occluderMeshGeometry.value?.dispose()
   boundingBoxHelper.value?.dispose()
@@ -636,8 +652,79 @@ watch(
       templeFilters[i] = state
       rig.temples[i]!.pivot.rotation.z = state.value
     })
+    updateEarBend(rig, points, dt)
   },
   { immediate: true }
+)
+
+// Ear bend (opt-in): each arm gets its own clone of the frame material with
+// a vertex-shader bend past the ear (`EAR_BEND_UNIFORMS`), since the arms
+// share their material with the frame front. The bend line follows the
+// head's oval point at temple height, smoothed like the opening angle.
+const earBendMaterials = new Map<Mesh, { material: Material; uniform: { value: Vector4 } }>()
+let earBendFilter: OneEuroState | null = null
+
+function clearEarBend() {
+  for (const [mesh, { material }] of earBendMaterials) {
+    mesh.material = mesh.userData.tryOnTempleMaterial ?? mesh.material
+    material.dispose()
+  }
+  earBendMaterials.clear()
+  earBendFilter = null
+}
+
+function bendMaterial(mesh: Mesh) {
+  const existing = earBendMaterials.get(mesh)
+  if (existing) {
+    // A lens-material rebuild re-assigns the authored materials: put ours back.
+    if (mesh.material !== existing.material) mesh.material = existing.material
+    return existing
+  }
+  const authored = mesh.material as Material
+  mesh.userData.tryOnTempleMaterial = authored
+  const material = authored.clone()
+  const uniform = { value: new Vector4(0, 0, 0, EAR_BEND_RAMP_METERS) }
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uEarBend = uniform
+    shader.vertexShader = patchEarBendShader(shader.vertexShader)
+  }
+  material.customProgramCacheKey = () => `tryon-ear-bend-${authored.customProgramCacheKey()}`
+  mesh.material = material
+  const entry = { material, uniform }
+  earBendMaterials.set(mesh, entry)
+  return entry
+}
+
+function updateEarBend(
+  rig: TempleRig,
+  scenePoints: { x: number; y: number; z: number }[],
+  dt: number
+) {
+  if (!props.templeEarBend) {
+    if (earBendMaterials.size) clearEarBend()
+    return
+  }
+  const local = templeFramePoints(rig, scenePoints)
+  // One bend line for both arms (the ears are level on a head in a frame);
+  // the further-back oval point, so neither tip drops in front of its ear.
+  const ear = Math.max(...local.map((p) => p.x))
+  const state = oneEuroFilter(earBendFilter, ear, dt, TEMPLE_FILTER)
+  earBendFilter = state
+  for (const temple of rig.temples) {
+    const mesh = temple.pivot.children[0]
+    if (!(mesh instanceof Mesh)) continue
+    const bend = earBendFor(temple.profile, { x: state.value })
+    bendMaterial(mesh).uniform.value.set(bend.start, bend.z, bend.angle, EAR_BEND_RAMP_METERS)
+  }
+}
+
+// A new GLB has its own arms; turning the bend off restores the authored material.
+watch(model, clearEarBend)
+watch(
+  () => props.templeEarBend,
+  (enabled) => {
+    if (!enabled) clearEarBend()
+  }
 )
 
 const occluderPositionVec = computed(

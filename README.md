@@ -185,6 +185,7 @@ The full types are exported as `TryOnCalibrationFile` and
 | `reportMetrics` | `boolean` | `false` | Emits the `metrics` event (see below). Off means nothing is measured. |
 | `hairOcclusion` | `boolean` | `false` | Hides the temple arms behind hair that hangs over them (see [Hair occlusion](#hair-occlusion-opt-in)). Needs the occluder and the `high` tier. |
 | `mediapipeHairModelAssetPath` | `string` | Google Storage | URL of `hair_segmenter.tflite`, for self-hosting. |
+| `templeEarBend` | `boolean` | `false` | Bends the temple tips down behind the ears (30°, from ~1.5 cm behind the tracked front of the ear), as an optician fits a frame. Visible when the shopper turns to see the temples. |
 
 ### Default slot
 

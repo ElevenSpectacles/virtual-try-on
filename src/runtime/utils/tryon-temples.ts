@@ -220,6 +220,17 @@ export function rigTemples(root: Object3D): TempleRig | null {
 
 const headPoint = new Vector3()
 
+/** Points in the GLB scene root's frame, in the temple node's frame. */
+export function templeFramePoints(
+  rig: TempleRig,
+  points: readonly { x: number; y: number; z: number }[]
+): { x: number; y: number; z: number }[] {
+  return points.map((point) => {
+    headPoint.set(point.x, point.y, point.z).applyMatrix4(rig.sceneToTemple)
+    return { x: headPoint.x, y: headPoint.y, z: headPoint.z }
+  })
+}
+
 /**
  * Opening angle of each rigged temple (in `rig.temples` order) for points on
  * the side of the head, given in the GLB scene root's frame.
@@ -235,10 +246,7 @@ export function templeAngles(
   rig: TempleRig,
   headPoints: readonly { x: number; y: number; z: number }[]
 ): number[] {
-  const local = headPoints.map((point) => {
-    headPoint.set(point.x, point.y, point.z).applyMatrix4(rig.sceneToTemple)
-    return { x: headPoint.x, y: headPoint.y }
-  })
+  const local = templeFramePoints(rig, headPoints)
   let opening = -Infinity
   for (const { profile } of rig.temples) {
     const point = local.find((p) => Math.sign(p.y) === profile.side)
@@ -246,4 +254,113 @@ export function templeAngles(
   }
   if (!Number.isFinite(opening) || opening === 0) return rig.temples.map(() => 0)
   return rig.temples.map(({ profile }) => profile.side * opening)
+}
+
+/**
+ * Ear bend (issue #83, optional): an optician bends the temple tips down
+ * behind the ear. The catalog GLBs have straight (trimmed) tips, so past the
+ * ear the arm runs on level behind the head, which shows on a profile view.
+ * The bend rotates everything past the ear's resting point down about a
+ * line across the arm, with the angle easing in over `EAR_BEND_RAMP_METERS`
+ * so the arm curves instead of kinking. It is a vertex-shader deformation
+ * (`earBendShaderChunk`); `earBendPoint` is the same maths for tests.
+ */
+
+/**
+ * How far behind the tracked oval point at temple height (234/454) the
+ * temple rests on the ear, in GLB metres. The oval point is the furthest
+ * back tracked point of the face, at the front of the ear; the helix root
+ * the temple rests on is about 1.5 cm behind it.
+ */
+export const EAR_REST_OFFSET_METERS = 0.015
+
+/** Down-bend of the tip past the ear: a typical fitted temple drops 25–40°. */
+export const EAR_BEND_RADIANS = (30 * Math.PI) / 180
+
+/** Length over which the bend eases in. */
+export const EAR_BEND_RAMP_METERS = 0.012
+
+export interface EarBend {
+  /** Depth (temple-node x) where the bend starts: the ear's resting point. */
+  start: number
+  /** Height (temple-node z) of the bend line: the arm's own height there. */
+  z: number
+  /** Full bend angle, radians (0: no bend). */
+  angle: number
+}
+
+/** Bend for an arm whose head point (temple-node frame) is `head`. */
+export function earBendFor(
+  profile: TempleProfile,
+  head: { x: number },
+  angle: number = EAR_BEND_RADIANS
+): EarBend {
+  return { start: head.x + EAR_REST_OFFSET_METERS, z: profile.pivot.z, angle }
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1)
+  return t * t * (3 - 2 * t)
+}
+
+/**
+ * A temple-node point bent down by `bend` (identity in front of the ear).
+ * Mirrors `earBendShaderChunk`.
+ */
+export function earBendPoint(
+  point: { x: number; y: number; z: number },
+  bend: EarBend,
+  ramp: number = EAR_BEND_RAMP_METERS
+): { x: number; y: number; z: number } {
+  const dx = point.x - bend.start
+  if (dx <= 0 || bend.angle === 0) return { ...point }
+  const theta = bend.angle * smoothstep(0, ramp, dx)
+  const dz = point.z - bend.z
+  const c = Math.cos(theta)
+  const s = Math.sin(theta)
+  return { x: bend.start + dx * c + dz * s, y: point.y, z: bend.z - dx * s + dz * c }
+}
+
+/**
+ * GLSL for the bend, applied to `transformed` (and `objectNormal`) in the
+ * mesh's own frame. A rigged arm's geometry is in the temple node's frame
+ * (the mesh is only offset by `-pivot`), so `uEarBend` = (start, z, angle,
+ * ramp) is in temple-node units.
+ */
+export const EAR_BEND_UNIFORMS = /* glsl */ `
+uniform vec4 uEarBend;
+vec3 tryOnEarBend(vec3 p, out float theta) {
+  float dx = p.x - uEarBend.x;
+  theta = dx > 0.0 ? uEarBend.z * smoothstep(0.0, uEarBend.w, dx) : 0.0;
+  if (theta == 0.0) return p;
+  float dz = p.z - uEarBend.y;
+  float c = cos(theta);
+  float s = sin(theta);
+  return vec3(uEarBend.x + dx * c + dz * s, p.y, uEarBend.y - dx * s + dz * c);
+}
+`
+
+/**
+ * Patch a standard-material vertex shader (`onBeforeCompile`) with the ear
+ * bend: positions and normals past the ear rotate down by `uEarBend`.
+ */
+export function patchEarBendShader(vertexShader: string): string {
+  return `${EAR_BEND_UNIFORMS}\n${vertexShader}`
+    .replace(
+      '#include <beginnormal_vertex>',
+      `#include <beginnormal_vertex>
+      float earBendTheta;
+      tryOnEarBend(position, earBendTheta);
+      objectNormal = vec3(
+        objectNormal.x * cos(earBendTheta) + objectNormal.z * sin(earBendTheta),
+        objectNormal.y,
+        -objectNormal.x * sin(earBendTheta) + objectNormal.z * cos(earBendTheta)
+      );`
+    )
+    .replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      float earBendThetaPosition;
+      transformed = tryOnEarBend(transformed, earBendThetaPosition);`
+    )
 }

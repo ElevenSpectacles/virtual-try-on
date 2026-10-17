@@ -136,6 +136,12 @@ const props = withDefaults(
     hairOcclusion?: boolean
     /** URL/path of `hair_segmenter.tflite`, to self-host it. */
     mediapipeHairModelAssetPath?: string | undefined
+    /**
+     * Bend the temple tips down behind the ears, as an optician fits a
+     * frame. Visible when the shopper turns to see the temples. Off keeps
+     * the straight authored tips.
+     */
+    templeEarBend?: boolean
   }>(),
   {
     adaptiveLighting: true,
@@ -144,6 +150,7 @@ const props = withDefaults(
     fitTolerance: FIT_DEFAULT_TOLERANCE,
     physicalLens: true,
     hairOcclusion: false,
+    templeEarBend: false,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -660,6 +667,7 @@ watch(model, (value) => {
             :occluder-radius="occluderGeometry"
             :occluder-rotation="smoothedEuler"
             :physical-lens="physicalLensEnabled"
+            :temple-ear-bend="templeEarBend"
             :lens="calibration.lens"
             :hair-mask="hairActive ? hairSegmenter.mask.value : null"
             :media-window="coverWindow"
