@@ -9,7 +9,12 @@ import {
   templeAngles,
   templeInnerHalfWidth,
   templeOpeningAngle,
-  templeProfile
+  templeProfile,
+  EAR_BEND_RADIANS,
+  EAR_REST_OFFSET_METERS,
+  earBendFor,
+  earBendPoint,
+  patchEarBendShader
 } from '../../../src/runtime/utils/tryon-temples'
 
 /**
@@ -232,5 +237,44 @@ describe('templeAngles', () => {
     const root = new Group()
     root.add(templeMesh())
     expect(templeAngles(rigTemples(root)!, [])).toEqual([0, 0])
+  })
+})
+
+describe('ear bend', () => {
+  const bend = { start: 0.08, z: 0, angle: Math.PI / 6 }
+
+  it('leaves the arm in front of the ear untouched', () => {
+    expect(earBendPoint({ x: 0.05, y: 0.07, z: 0.001 }, bend)).toEqual({ x: 0.05, y: 0.07, z: 0.001 })
+  })
+
+  it('drops the tip by the full angle past the ramp, keeping its length', () => {
+    const tip = earBendPoint({ x: 0.12, y: 0.07, z: 0 }, bend)
+    const reach = 0.04
+    expect(tip.x).toBeCloseTo(0.08 + reach * Math.cos(Math.PI / 6), 9)
+    expect(tip.z).toBeCloseTo(-reach * Math.sin(Math.PI / 6), 9)
+    expect(tip.y).toBe(0.07)
+  })
+
+  it('eases in, so the arm curves instead of kinking', () => {
+    const just = earBendPoint({ x: 0.0805, y: 0, z: 0 }, bend)
+    expect(just.z).toBeLessThan(0)
+    expect(-just.z).toBeLessThan(0.0005 * Math.sin(Math.PI / 6) * 0.1)
+  })
+
+  it('starts the bend behind the ear point, on the arm', () => {
+    const profile = templeProfile(new Float32Array([0.02, 0.07, 0.003, 0.12, 0.068, 0.003]), 1)!
+    const result = earBendFor(profile, { x: 0.09 })
+    expect(result.start).toBeCloseTo(0.09 + EAR_REST_OFFSET_METERS, 9)
+    expect(result.z).toBeCloseTo(profile.pivot.z, 9)
+    expect(result.angle).toBe(EAR_BEND_RADIANS)
+  })
+
+  it('patches the vertex shader around the position and normal chunks', () => {
+    const patched = patchEarBendShader(
+      'void main() {\n#include <beginnormal_vertex>\n#include <begin_vertex>\n}'
+    )
+    expect(patched).toContain('uniform vec4 uEarBend;')
+    expect(patched).toMatch(/beginnormal_vertex>[\s\S]*objectNormal = vec3/)
+    expect(patched).toMatch(/begin_vertex>[\s\S]*transformed = tryOnEarBend\(transformed/)
   })
 })

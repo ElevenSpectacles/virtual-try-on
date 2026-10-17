@@ -22,19 +22,18 @@
 // vertices around the hinge in the local X/Z plane (a pitch around the
 // left/right axis), not touching Y.
 //
-// Run it once per new model, never again on already-trimmed GLBs: the trim
-// finds nothing left to cut, but every run tilts the shaft another
-// --tilt-degrees.
+// Run it once per new model. GLBs it trimmed are marked in their extras
+// (`tryOnPrepared`) and skipped on a second run, since every run would tilt
+// the shaft another --tilt-degrees; GLBs trimmed before the marker existed
+// are not recognised, so don't feed them back in. `scripts/prepare-model.ts`
+// runs this and the other steps in order.
 import { readdirSync, mkdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { parseArgs } from 'node:util'
-import { NodeIO, type Primitive } from '@gltf-transform/core'
+import { NodeIO } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
-import { compactPrimitive, prune, transformPrimitive } from '@gltf-transform/functions'
 import draco3d from 'draco3dgltf'
-import { Matrix4 } from 'three'
-
-const TEMPLE_NODE_NAME = 'pt2'
+import { TEMPLE_NODE_NAME, trimTempleTips } from './lib/model-prep'
 
 function readArgs() {
   const { values } = parseArgs({
@@ -62,87 +61,6 @@ function readArgs() {
   }
 }
 
-/**
- * Rotates the kept temple-shaft vertices upward around the hinge, pitching
- * in the local X/Z plane (world reach/up — see file header). The pivot is
- * derived from the data itself (the lowest local-X vertices near the hinge)
- * rather than hardcoded, so it holds even if a model's hinge position
- * varies slightly from the ~0.018 seen in `iris-bronze`.
- */
-function tiltPrimitive(prim: Primitive, tiltDegrees: number): void {
-  if (tiltDegrees === 0) return
-  const position = prim.getAttribute('POSITION')
-  if (!position) return
-
-  const count = position.getCount()
-  const v = [0, 0, 0]
-
-  let pivotX = Infinity
-  for (let i = 0; i < count; i++) {
-    position.getElement(i, v)
-    if (v[0]! < pivotX) pivotX = v[0]!
-  }
-
-  let zSum = 0
-  let zCount = 0
-  const hingeBand = pivotX + 0.003
-  for (let i = 0; i < count; i++) {
-    position.getElement(i, v)
-    if (v[0]! <= hingeBand) {
-      zSum += v[2]!
-      zCount++
-    }
-  }
-  const pivotZ = zCount > 0 ? zSum / zCount : 0
-
-  // Positive angle raises local +X (the shaft, reaching toward the tip)
-  // toward local +Z, which is world +Y (up) — see file header axis mapping:
-  // a rotation by -angle about local Y, around the hinge. transformPrimitive
-  // turns the normals with it.
-  const theta = (tiltDegrees * Math.PI) / 180
-  const tilt = new Matrix4()
-    .makeTranslation(pivotX, 0, pivotZ)
-    .multiply(new Matrix4().makeRotationY(-theta))
-    .multiply(new Matrix4().makeTranslation(-pivotX, 0, -pivotZ))
-  transformPrimitive(prim, tilt.elements)
-}
-
-function trimPrimitive(prim: Primitive, threshold: number): { before: number; after: number } {
-  const position = prim.getAttribute('POSITION')
-  const index = prim.getIndices()
-  if (!position || !index) return { before: 0, after: 0 }
-
-  const src = index.getArray()!
-  const before = src.length / 3
-  const kept: number[] = []
-  const v = [0, 0, 0]
-
-  for (let t = 0; t < src.length; t += 3) {
-    const a = src[t]!
-    const b = src[t + 1]!
-    const c = src[t + 2]!
-    let clipped = false
-    for (const idx of [a, b, c]) {
-      position.getElement(idx, v)
-      if (v[0]! > threshold) {
-        clipped = true
-        break
-      }
-    }
-    if (!clipped) kept.push(a, b, c)
-  }
-
-  // Dropping triangles alone leaves the tip's vertices orphaned in the
-  // attribute buffers (unreferenced, but still shipped over the wire).
-  // compactPrimitive moves the primitive onto fresh accessors holding only
-  // the vertices the kept triangles reference, so the trim stays scoped to
-  // pt2 even if an accessor is shared with another primitive.
-  prim.setIndices(index.clone().setArray(Uint32Array.from(kept)))
-  compactPrimitive(prim)
-
-  return { before, after: kept.length / 3 }
-}
-
 async function main() {
   const { input, output, threshold, tiltDegrees } = readArgs()
 
@@ -167,34 +85,18 @@ async function main() {
 
   for (const file of files) {
     const document = await io.read(join(input, file))
-    const root = document.getRoot()
-    const node = root.listNodes().find((n) => n.getName() === TEMPLE_NODE_NAME)
-    if (!node) {
-      console.warn(`${file}: no "${TEMPLE_NODE_NAME}" node found, skipping trim`)
-      await io.write(join(output, file), document)
-      continue
-    }
-    const mesh = node.getMesh()
-    if (!mesh) {
-      console.warn(`${file}: "${TEMPLE_NODE_NAME}" has no mesh, skipping trim`)
-      await io.write(join(output, file), document)
-      continue
-    }
-
-    let before = 0
-    let after = 0
-    for (const prim of mesh.listPrimitives()) {
-      const counts = trimPrimitive(prim, threshold)
-      before += counts.before
-      after += counts.after
-      tiltPrimitive(prim, tiltDegrees)
-    }
-
-    await document.transform(prune())
+    const result = await trimTempleTips(document, { threshold, tiltDegrees })
     await io.write(join(output, file), document)
-    console.log(
-      `${file}: ${TEMPLE_NODE_NAME} triangles ${before} -> ${after} (${(((before - after) / before) * 100).toFixed(1)}% trimmed), tilted ${tiltDegrees}deg`
-    )
+    if (result.skipped === 'already-trimmed') {
+      console.log(`${file}: already trimmed, left as is`)
+    } else if (result.skipped === 'no-temple-node') {
+      console.warn(`${file}: no "${TEMPLE_NODE_NAME}" mesh found, skipping trim`)
+    } else {
+      const { before, after } = result
+      console.log(
+        `${file}: ${TEMPLE_NODE_NAME} triangles ${before} -> ${after} (${(((before - after) / before) * 100).toFixed(1)}% trimmed), tilted ${tiltDegrees}deg`
+      )
+    }
   }
 }
 

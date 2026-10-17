@@ -5,6 +5,8 @@ import {
   FIT_MIN_SAMPLES,
   estimateFaceWidthMm,
   faceWidthVerdict,
+  fitVerdictFor,
+  rankByFit,
   updateFaceWidthEstimate,
   type FaceWidthEstimate,
   type TryOnFitVerdict
@@ -117,5 +119,46 @@ describe('updateFaceWidthEstimate', () => {
     const estimate = { mean: 140, samples: 3 }
     expect(updateFaceWidthEstimate(estimate, 0)).toBe(estimate)
     expect(updateFaceWidthEstimate(null, 0)).toBeNull()
+  })
+})
+
+describe('catalog ranking', () => {
+  const face = 140
+  const catalog = [
+    { file: 'wide', frameWidthMm: 152 },
+    { file: 'ideal', frameWidthMm: 140 },
+    { file: 'unknown', frameWidthMm: 0 },
+    { file: 'narrow', frameWidthMm: 128 },
+    { file: 'near', frameWidthMm: 143 }
+  ]
+
+  it('gives each frame its verdict without hysteresis', () => {
+    expect(fitVerdictFor(152, face)).toBe('wide')
+    expect(fitVerdictFor(140, face)).toBe('good')
+    expect(fitVerdictFor(128, face)).toBe('narrow')
+    expect(fitVerdictFor(0, face)).toBeNull()
+  })
+
+  it('ranks best first and leaves out frames of unknown width', () => {
+    const ranked = rankByFit(catalog, face)
+    expect(ranked.map((r) => r.file)).toEqual(['ideal', 'near', 'wide', 'narrow'])
+    expect(ranked[0]).toEqual({ file: 'ideal', verdict: 'good', frameWidthMm: 140, deviation: 0 })
+    expect(ranked[1]!.deviation).toBeCloseTo(3 / 140, 6)
+  })
+
+  it('keeps the catalog order on ties', () => {
+    const ranked = rankByFit(
+      [
+        // ±6.25 %, exact in binary.
+        { file: 'b', frameWidthMm: 136 },
+        { file: 'a', frameWidthMm: 120 }
+      ],
+      128
+    )
+    expect(ranked.map((r) => r.file)).toEqual(['b', 'a'])
+  })
+
+  it('is empty without a face width', () => {
+    expect(rankByFit(catalog, 0)).toEqual([])
   })
 })

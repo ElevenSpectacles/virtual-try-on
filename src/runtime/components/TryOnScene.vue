@@ -12,6 +12,13 @@ import {
   DataTexture,
   DoubleSide,
   EquirectangularReflectionMapping,
+  DataUtils,
+  HalfFloatType,
+  LinearSRGBColorSpace,
+  PMREMGenerator,
+  RGBAFormat,
+  type WebGLRenderer,
+  type WebGLRenderTarget,
   LinearFilter,
   Matrix4,
   Quaternion,
@@ -31,11 +38,12 @@ import {
 } from 'three'
 // three's own loaders instead of @tresjs/cientos: cientos ships as one
 // non-tree-shakeable file, so `useGLTF` + `Environment` pulled the whole
-// library (plus three-stdlib and camera-controls) into the host bundle.
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
-import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
+// library (plus three-stdlib and camera-controls) into the host bundle. The
+// GLTF/Draco loaders live in the model cache.
+import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
-import { useTres } from '@tresjs/core'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import { useLoop, useTres } from '@tresjs/core'
 import {
   EAR_LEVEL_LEFT,
   EAR_LEVEL_RIGHT,
@@ -45,12 +53,87 @@ import {
   type HeadOccluderGeometry,
   type OneEuroState
 } from '../utils/tryon'
-import { rigTemples, templeAngles, type TempleRig } from '../utils/tryon-temples'
+import {
+  EAR_BEND_RAMP_METERS,
+  earBendFor,
+  patchEarBendShader,
+  templeAngles,
+  templeFramePoints,
+  type TempleRig
+} from '../utils/tryon-temples'
+import {
+  useTryOnModelCache,
+  type TryOnModelCache
+} from '../composables/tryon/useTryOnModelCache'
 import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 import { lightingColor } from '../utils/tryon-lighting'
-import { NO_LENS_OVERRIDE, type TryOnLens } from '../utils/tryon-lens'
+import {
+  CAMERA_ENV_HEIGHT,
+  CAMERA_ENV_WIDTH,
+  aimLight,
+  cameraEnvironment,
+  downsampleEquirect,
+  type LightDirection
+} from '../utils/tryon-room'
+import {
+  grainAmount,
+  LIGHT_WRAP_STRENGTH,
+  lightWrapColor,
+  patchCameraMatchShader,
+  type CameraMatchUniforms
+} from '../utils/tryon-camera-match'
+import type { RoomSample } from '../composables/tryon/useTryOnLighting'
+import {
+  LENS_HEIGHT_ATTRIBUTE,
+  NO_LENS_OVERRIDE,
+  patchLensGradientShader,
+  type TryOnLens
+} from '../utils/tryon-lens'
+
+// A lens mesh's own height, 0 at its bottom … 1 at its top in the GLB's
+// frame (up is +y there), as a vertex attribute for the gradient tint. Baked
+// once per geometry: the node transforms are fixed.
+function bakeLensHeight(mesh: Mesh, root: Object3D) {
+  const geometry = mesh.geometry as BufferGeometry
+  if (geometry.getAttribute(LENS_HEIGHT_ATTRIBUTE)) return
+  const position = geometry.getAttribute('position')
+  if (!position) return
+  root.updateMatrixWorld(true)
+  const toFrame = new Matrix4().copy(root.matrixWorld).invert().multiply(mesh.matrixWorld)
+  const point = new Vector3()
+  const heights = new Float32Array(position.count)
+  let min = Infinity
+  let max = -Infinity
+  for (let i = 0; i < position.count; i++) {
+    const y = point.fromBufferAttribute(position, i).applyMatrix4(toFrame).y
+    heights[i] = y
+    min = Math.min(min, y)
+    max = Math.max(max, y)
+  }
+  const span = max - min || 1
+  for (let i = 0; i < heights.length; i++) heights[i] = (heights[i]! - min) / span
+  geometry.setAttribute(LENS_HEIGHT_ATTRIBUTE, new BufferAttribute(heights, 1))
+}
+
+/**
+ * Gradient tint (`lens.gradient`): the lens's base opacity follows its
+ * height, dark to light top to bottom with a smooth middle
+ * (`gradientDensityAt`). Composes with the Fresnel patch, which reads the
+ * opacity after this.
+ */
+function applyLensGradient(material: Material, gradient: { top: number; bottom: number }) {
+  const previous = material.onBeforeCompile.bind(material)
+  const previousKey = material.customProgramCacheKey.bind(material)
+  material.onBeforeCompile = (shader, renderer) => {
+    previous(shader, renderer)
+    shader.uniforms.uLensGradient = { value: [gradient.bottom, gradient.top] }
+    patchLensGradientShader(shader)
+  }
+  material.customProgramCacheKey = () => `${previousKey()}|tryon-lens-gradient`
+}
 import {
   CONTACT_SHADOW_STRENGTH,
+  SHADOW_LIGHT_DIRECTION,
   contactShadowLight
 } from '../utils/tryon-contact-shadow'
 import {
@@ -68,12 +151,6 @@ const props = withDefaults(
     position?: { x: number; y: number; z?: number }
     /** Uniform scale (GLBs are modelled in metres). */
     scale?: number
-    /**
-     * Horizontal-only multiplier on top of `scale` (the deprecated
-     * `templeWidthBoost`). It stretches the lenses too; `templeFit` opens
-     * the arms at the hinge instead.
-     */
-    scaleXBoost?: number
     /** Yaw (radians) so the lenses can be faced at the camera. */
     rotationY?: number
     /** Full Euler rotation (radians). Overrides rotationY when provided. */
@@ -84,6 +161,17 @@ const props = withDefaults(
     envIntensity?: number
     /** Toggle the environment map (isolates the CDN dependency in demos). */
     useEnvironment?: boolean
+    /**
+     * URL of an equirect `.hdr` to use instead of the `envPreset` file, to
+     * self-host it. Ignored with `proceduralEnvironment`.
+     */
+    environmentUrl?: string | undefined
+    /**
+     * Use three's procedural `RoomEnvironment` (generated on the GPU, no
+     * download) instead of an HDR file. For low-tier devices, where the
+     * 1.6 MB preset costs more first-load time than its reflections are worth.
+     */
+    proceduralEnvironment?: boolean
     /** Depth-only head proxy that hides geometry behind it (temple arms). */
     occluderEnabled?: boolean
     /**
@@ -99,6 +187,12 @@ const props = withDefaults(
      * authored.
      */
     templeFit?: boolean
+    /**
+     * Bend the temple tips down behind the ear, as an optician fits them
+     * (utils/tryon-temples, `earBendPoint`). Shows on profile views. Needs
+     * `templeFit`; off keeps the straight authored tips.
+     */
+    templeEarBend?: boolean
     occluderPosition?: { x: number; y: number; z?: number }
     occluderRadius?: HeadOccluderGeometry
     occluderRotation?: { x: number; y: number; z: number }
@@ -111,6 +205,22 @@ const props = withDefaults(
     lightGain?: number
     /** Colour cast of the room, each channel 0…1. White keeps the lights neutral. */
     lightTint?: [number, number, number]
+    /**
+     * Smoothed 16×16 room sample (utils/tryon-room): reflections from the
+     * camera, blended with the studio environment. Null keeps the studio map.
+     */
+    roomSample?: RoomSample | null
+    /** Where the room's light comes from; aims the key and shadow lights. */
+    lightDirection?: LightDirection | null
+    /**
+     * Grain and light wrap on the frame (utils/tryon-camera-match), so it
+     * reads as filmed with the face. The CSS blur is the host canvas's.
+     */
+    cameraMatch?: boolean
+    /** The room's smoothed luma (grain amount, wrap colour); null unsampled. */
+    roomLuma?: number | null
+    /** Fixed grain seed (goldens); omit to re-seed every frame like sensor noise. */
+    grainSeed?: number | undefined
     /**
      * Soft shadow of the frame on the tracked face mesh (shadow map from the
      * key light, see utils/tryon-contact-shadow). Needs `occluderPositions`;
@@ -141,6 +251,12 @@ const props = withDefaults(
     /** Draco decoder path override — omit to use the gstatic CDN default. */
     dracoDecoderPath?: string | undefined
     /**
+     * Parsed-GLB cache shared with the parent (instant switching, prefetch).
+     * Omit for a cache of this scene's own (`draco` and `dracoDecoderPath`
+     * apply to it; a passed cache brings its own).
+     */
+    modelCache?: TryOnModelCache | undefined
+    /**
      * Physically-based lens: Fresnel opacity, additive reflections, a
      * clearcoat and the anti-reflective coating's thin-film sheen. Off keeps
      * the cheaper standard lens.
@@ -160,7 +276,6 @@ const props = withDefaults(
   {
     position: () => ({ x: 0, y: 0, z: 0 }),
     scale: 6,
-    scaleXBoost: 1,
     rotationY: 0,
     // 'city' reads as neutral architectural reflections rather than a
     // photo-studio product shot — at low intensity it lifts color/specular
@@ -168,21 +283,30 @@ const props = withDefaults(
     envPreset: 'city',
     envIntensity: 0.35,
     useEnvironment: true,
+    environmentUrl: undefined,
+    proceduralEnvironment: false,
     occluderEnabled: false,
     occluderPositions: null,
     templeFit: true,
+    templeEarBend: false,
     occluderPosition: () => ({ x: 0, y: 0, z: 0 }),
     occluderRadius: () => ({ radiusX: 0.1, radiusY: 0.13, radiusZ: 0.12 }),
     occluderRotation: () => ({ x: 0, y: 0, z: 0 }),
     occluderDebugVisible: false,
     lightGain: 1,
     lightTint: () => [1, 1, 1],
+    roomSample: null,
+    lightDirection: null,
+    cameraMatch: false,
+    roomLuma: null,
+    grainSeed: undefined,
     contactShadow: false,
     contactShadowStrength: CONTACT_SHADOW_STRENGTH,
     showBoundingBox: false,
     modelOffset: () => ({ x: 0, y: 0, z: 0 }),
     visible: true,
     draco: true,
+    modelCache: undefined,
     physicalLens: false,
     lens: () => NO_LENS_OVERRIDE,
     hairMask: null,
@@ -196,25 +320,29 @@ const emit = defineEmits<{
   error: [source: 'model' | 'environment', message: string]
   /** The loaded GLB's width (bounding-box x extent), in GLB metres. */
   loaded: [widthMeters: number]
+  /**
+   * Once at setup: renders the scene now and returns the canvas, for
+   * `capture()`. Read the canvas in the same task (before the browser
+   * composites), so no `preserveDrawingBuffer` is needed.
+   */
+  snapshot: [render: () => HTMLCanvasElement | null]
+  /** How long an asset took to load and become usable, ms (metrics). */
+  timing: [asset: 'model' | 'environment', ms: number]
 }>()
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-// Same decoder build cientos defaulted to, so self-hosting paths carry over.
-const DEFAULT_DRACO_DECODER_PATH =
-  'https://www.gstatic.com/draco/versioned/decoders/1.5.6/'
-
-// GLTFLoader only invokes the decoder for meshes carrying
-// KHR_draco_mesh_compression, so wiring it up is harmless otherwise.
-const gltfLoader = new GLTFLoader()
-const dracoLoader = props.draco
-  ? new DRACOLoader().setDecoderPath(
-      props.dracoDecoderPath ?? DEFAULT_DRACO_DECODER_PATH
-    )
-  : null
-if (dracoLoader) gltfLoader.setDRACOLoader(dracoLoader)
+// Parsed GLBs come from the cache: a switch back to a frame (or to a
+// prefetched one) mounts it at once instead of fetching and parsing again.
+const modelCache =
+  props.modelCache ??
+  useTryOnModelCache({
+    draco: props.draco,
+    dracoDecoderPath: props.dracoDecoderPath,
+    capacity: 2
+  })
 
 // Non-blocking loader: `model` is null until the first GLB resolves, so a
 // heavy frame download never stalls the whole scene graph. On a model switch
@@ -222,7 +350,7 @@ if (dracoLoader) gltfLoader.setDRACOLoader(dracoLoader)
 // superseded `src` are dropped.
 const model = shallowRef<GLTF | null>(null)
 let modelLoadId = 0
-// The loaded GLB's temples on hinge pivots (null: kept as authored), and
+// The shown GLB's temples on hinge pivots (null: kept as authored), and
 // the One-Euro state of each arm's opening angle.
 let templeRig: TempleRig | null = null
 let templeFilters: (OneEuroState | null)[] = []
@@ -231,12 +359,17 @@ watch(
   () => props.src,
   async (src) => {
     const id = ++modelLoadId
+    const startedAt = performance.now()
     try {
-      const gltf = await gltfLoader.loadAsync(src)
+      const { gltf, rig } = await modelCache.load(src)
       if (id === modelLoadId) {
-        templeRig = rigTemples(gltf.scene)
+        emit('timing', 'model', performance.now() - startedAt)
+        // A cached frame keeps its last opening: start from the GLB's own.
+        for (const temple of rig?.temples ?? []) temple.pivot.rotation.z = 0
+        templeRig = rig
         templeFilters = []
         model.value = gltf
+        modelCache.setActive(src)
         emit('loaded', localBounds(gltf.scene).getSize(new Vector3()).x)
       }
     } catch (err) {
@@ -262,33 +395,153 @@ const ENV_PRESET_FILES: Record<EnvPreset, string> = {
   snow: 'outdoor/snowy_forest_path_01_1k.hdr'
 }
 
-const { scene } = useTres()
+const { scene, renderer, camera } = useTres()
 let envTexture: Texture | null = null
+
+// Render on demand for `capture()`: the drawing buffer is cleared after the
+// browser composites a frame, so a capture renders the current pose itself
+// and the caller copies the canvas before returning to the event loop.
+emit('snapshot', () => {
+  const active = camera.value
+  if (!active) return null
+  // `useTres().renderer` is the renderer instance itself (WebGL or WebGPU);
+  // both draw with render(scene, camera) into their domElement.
+  renderer.render(scene.value, active)
+  return renderer.domElement
+})
+// The studio map downsampled to the camera environment's size, for blending.
+let studioGrid: Float32Array | null = null
 let envLoadId = 0
 
 function clearEnvironment() {
   if (scene.value.environment === envTexture) scene.value.environment = null
   envTexture?.dispose()
   envTexture = null
+  studioGrid = null
+}
+
+/**
+ * The renderer as a WebGLRenderer, or null: PMREM filtering needs WebGL, and
+ * Tres can also run three's WebGPU `Renderer` (the one with `isRenderer`).
+ */
+function webglRenderer(): WebGLRenderer | null {
+  if ('isRenderer' in renderer) return null
+  return typeof renderer.getContext === 'function' ? renderer : null
+}
+
+// Procedural room: three's RoomEnvironment PMREM-filtered once on the GPU.
+// No download, a few ms of GPU time; neutral soft-box reflections.
+function roomEnvironment(): Texture | null {
+  const target = webglRenderer()
+  if (!target) return null
+  const generator = new PMREMGenerator(target)
+  const room = new RoomEnvironment()
+  const texture = generator.fromScene(room, 0.04).texture
+  room.dispose()
+  generator.dispose()
+  return texture
+}
+
+// Camera reflections (issue #84): the room sample becomes a 128×64 equirect
+// (utils/tryon-room `cameraEnvironment`, blended with the studio map),
+// PMREM-filtered at most every CAMERA_ENV_INTERVAL_MS (the sample is
+// smoothed anyway; ~0.3 ms per update on a laptop GPU). Without a sample
+// the studio map stays.
+const CAMERA_ENV_INTERVAL_MS = 500
+let pmrem: PMREMGenerator | null = null
+let cameraEnvTarget: WebGLRenderTarget | null = null
+let cameraEnvUpdatedAt = -Infinity
+
+function clearCameraEnvironment() {
+  if (cameraEnvTarget && scene.value.environment === cameraEnvTarget.texture) {
+    scene.value.environment = envTexture
+  }
+  cameraEnvTarget?.dispose()
+  cameraEnvTarget = null
 }
 
 watch(
-  [() => props.useEnvironment, () => props.envPreset],
-  async ([enabled, preset]) => {
+  () => props.roomSample,
+  (sample) => {
+    if (!sample || !props.useEnvironment) {
+      clearCameraEnvironment()
+      return
+    }
+    const now = performance.now()
+    if (now - cameraEnvUpdatedAt < CAMERA_ENV_INTERVAL_MS) return
+    const target = webglRenderer()
+    if (!target) return
+    cameraEnvUpdatedAt = now
+    // Half float: linear filtering of full floats is an extension
+    // (OES_texture_float_linear) some GPUs lack; half floats always filter.
+    const radiance = cameraEnvironment(sample.pixels, sample.width, sample.height, {
+      studio: studioGrid
+    })
+    const half = new Uint16Array(radiance.length)
+    for (let i = 0; i < radiance.length; i++) half[i] = DataUtils.toHalfFloat(radiance[i]!)
+    const equirect = new DataTexture(
+      half,
+      CAMERA_ENV_WIDTH,
+      CAMERA_ENV_HEIGHT,
+      RGBAFormat,
+      HalfFloatType
+    )
+    equirect.mapping = EquirectangularReflectionMapping
+    equirect.colorSpace = LinearSRGBColorSpace
+    equirect.magFilter = LinearFilter
+    equirect.minFilter = LinearFilter
+    equirect.needsUpdate = true
+    pmrem ??= new PMREMGenerator(target)
+    const next = pmrem.fromEquirectangular(equirect)
+    equirect.dispose()
+    cameraEnvTarget?.dispose()
+    cameraEnvTarget = next
+    scene.value.environment = next.texture
+  }
+)
+
+watch(
+  [
+    () => props.useEnvironment,
+    () => props.envPreset,
+    () => props.environmentUrl,
+    () => props.proceduralEnvironment
+  ],
+  async ([enabled, preset, url, procedural]) => {
     const id = ++envLoadId
     clearEnvironment()
     if (!enabled) return
+    const startedAt = performance.now()
+    if (procedural) {
+      envTexture = roomEnvironment()
+      if (envTexture) {
+        scene.value.environment = envTexture
+        emit('timing', 'environment', performance.now() - startedAt)
+      }
+      return
+    }
     try {
-      const texture = await new HDRLoader()
-        .setPath(ENV_PRESET_ROOT)
-        .loadAsync(ENV_PRESET_FILES[preset])
+      const texture = await new HDRLoader().loadAsync(
+        url ?? `${ENV_PRESET_ROOT}${ENV_PRESET_FILES[preset]}`
+      )
       if (id !== envLoadId) {
         texture.dispose()
         return
       }
       texture.mapping = EquirectangularReflectionMapping
       envTexture = texture
-      scene.value.environment = texture
+      const image = texture.image as { data: ArrayLike<number>; width: number; height: number }
+      studioGrid = downsampleEquirect(
+        image.data,
+        image.width,
+        image.height,
+        4,
+        CAMERA_ENV_WIDTH,
+        CAMERA_ENV_HEIGHT,
+        texture.type === HalfFloatType ? DataUtils.fromHalfFloat : (v) => v
+      )
+      if (!cameraEnvTarget) scene.value.environment = texture
+      emit('timing', 'environment', performance.now() - startedAt)
     } catch (err) {
       if (id === envLoadId) emit('error', 'environment', errorMessage(err))
     }
@@ -380,6 +633,9 @@ function buildLens(
   if (lens.tint) material.color.setRGB(...lens.tint)
   if (lens.density !== null) material.opacity = lens.density
   if (material instanceof MeshPhysicalMaterial) applyLensFresnel(material)
+  // After the Fresnel patch, so it wraps it: the gradient sets the base
+  // opacity the Fresnel term then raises toward grazing angles.
+  if (lens.gradient) applyLensGradient(material, lens.gradient)
   return material
 }
 
@@ -401,6 +657,7 @@ watch(
       obj.userData.tryOnAuthoredMaterial = authored
       const swap = (material: Material) => {
         if (!LENS_MATERIAL_NAME.test(material.name)) return material
+        if (lens.gradient && gltf) bakeLensHeight(obj, gltf.scene)
         let lensMaterial = built.get(material)
         if (!lensMaterial) {
           lensMaterial = buildLens(material as MeshStandardMaterial, physical, lens)
@@ -415,6 +672,63 @@ watch(
   },
   { immediate: true }
 )
+
+// Camera match (issue #86): one shared uniform set, patched into every frame
+// and lens material (standard/physical only: the patch reads their normal
+// and view vectors) after the lens materials are built. Off sets the
+// amounts to 0; patched materials stay patched until the GLB is evicted.
+const cameraMatchUniforms: CameraMatchUniforms = {
+  uCameraGrain: { value: 0 },
+  uCameraGrainSeed: { value: 0 },
+  uCameraWrap: { value: 0 },
+  uCameraWrapColor: { value: { r: 0.5, g: 0.5, b: 0.5 } }
+}
+
+function patchCameraMatch(material: Material) {
+  if (!(material as MeshStandardMaterial).isMeshStandardMaterial) return
+  if (material.userData.tryOnCameraMatch) return
+  material.userData.tryOnCameraMatch = true
+  const previous = material.onBeforeCompile.bind(material)
+  const previousKey = material.customProgramCacheKey.bind(material)
+  material.onBeforeCompile = (shader, renderer) => {
+    previous(shader, renderer)
+    Object.assign(shader.uniforms, cameraMatchUniforms)
+    shader.fragmentShader = patchCameraMatchShader(shader.fragmentShader)
+  }
+  material.customProgramCacheKey = () => `${previousKey()}|tryon-camera-match`
+  material.needsUpdate = true
+}
+
+watch(
+  [model, () => props.physicalLens, () => props.lens, () => props.cameraMatch],
+  ([gltf, , , enabled]) => {
+    if (!enabled || !gltf) return
+    gltf.scene.traverse((obj) => {
+      if (!(obj instanceof Mesh)) return
+      for (const material of Array.isArray(obj.material) ? obj.material : [obj.material]) {
+        patchCameraMatch(material)
+      }
+    })
+  },
+  { immediate: true }
+)
+
+watch(
+  [() => props.cameraMatch, () => props.roomLuma, () => props.lightTint],
+  ([enabled, luma, tint]) => {
+    cameraMatchUniforms.uCameraGrain.value = enabled ? grainAmount(luma) : 0
+    cameraMatchUniforms.uCameraWrap.value = enabled ? LIGHT_WRAP_STRENGTH : 0
+    cameraMatchUniforms.uCameraWrapColor.value = lightWrapColor(tint, luma)
+  },
+  { immediate: true }
+)
+
+// Re-seed the grain every rendered frame, like sensor noise; a fixed seed
+// keeps goldens stable.
+useLoop().onBeforeRender(() => {
+  cameraMatchUniforms.uCameraGrainSeed.value =
+    props.grainSeed ?? (cameraMatchUniforms.uCameraGrainSeed.value + 1.618) % 1000
+})
 
 // The GLB's local-space bounding box: the debug helper below, and the frame
 // width the fit verdict compares with the face. Calibration y-centers the
@@ -452,10 +766,12 @@ onUnmounted(() => {
   hairMaterial.dispose()
   hairPlaneGeometry.dispose()
   envLoadId++
+  clearCameraEnvironment()
+  pmrem?.dispose()
   clearEnvironment()
-  dracoLoader?.dispose()
   for (const material of builtLenses) material.dispose()
   shadowLight.dispose()
+  clearEarBend()
   for (const material of lensDepthMaterials) material.dispose()
   occluderMeshGeometry.value?.dispose()
   boundingBoxHelper.value?.dispose()
@@ -565,14 +881,20 @@ const cameraPosition = new Vector3(0, 0, TRYON_CAMERA.distance)
 const cameraTarget = new Vector3(0, 0, 0)
 // Dimmer fill light opposite the key light — without it, colored
 // acetate/metal reads duller/darker on the unlit side of the frame.
-const lightPosition = new Vector3(2, 3, 4)
+const KEY_LIGHT_POSITION = { x: 2, y: 3, z: 4 }
+const KEY_LIGHT_DISTANCE = Math.hypot(2, 3, 4)
+// The key light leans toward the room's light when its direction is known.
+const lightPosition = computed(() => {
+  const d = aimLight(KEY_LIGHT_POSITION, props.lightDirection)
+  return new Vector3(d.x, d.y, d.z).multiplyScalar(KEY_LIGHT_DISTANCE)
+})
 const fillLightPosition = new Vector3(-2, 3, 4)
 
 const groupPosition = computed(
   () => new Vector3(props.position.x, props.position.y, props.position.z ?? 0)
 )
 const groupScale = computed(
-  () => new Vector3(props.scale * props.scaleXBoost, props.scale, props.scale)
+  () => new Vector3(props.scale, props.scale, props.scale)
 )
 const groupRotation = computed(() => {
   if (props.rotation) {
@@ -636,8 +958,79 @@ watch(
       templeFilters[i] = state
       rig.temples[i]!.pivot.rotation.z = state.value
     })
+    updateEarBend(rig, points, dt)
   },
   { immediate: true }
+)
+
+// Ear bend (opt-in): each arm gets its own clone of the frame material with
+// a vertex-shader bend past the ear (`EAR_BEND_UNIFORMS`), since the arms
+// share their material with the frame front. The bend line follows the
+// head's oval point at temple height, smoothed like the opening angle.
+const earBendMaterials = new Map<Mesh, { material: Material; uniform: { value: Vector4 } }>()
+let earBendFilter: OneEuroState | null = null
+
+function clearEarBend() {
+  for (const [mesh, { material }] of earBendMaterials) {
+    mesh.material = mesh.userData.tryOnTempleMaterial ?? mesh.material
+    material.dispose()
+  }
+  earBendMaterials.clear()
+  earBendFilter = null
+}
+
+function bendMaterial(mesh: Mesh) {
+  const existing = earBendMaterials.get(mesh)
+  if (existing) {
+    // A lens-material rebuild re-assigns the authored materials: put ours back.
+    if (mesh.material !== existing.material) mesh.material = existing.material
+    return existing
+  }
+  const authored = mesh.material as Material
+  mesh.userData.tryOnTempleMaterial = authored
+  const material = authored.clone()
+  const uniform = { value: new Vector4(0, 0, 0, EAR_BEND_RAMP_METERS) }
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uEarBend = uniform
+    shader.vertexShader = patchEarBendShader(shader.vertexShader)
+  }
+  material.customProgramCacheKey = () => `tryon-ear-bend-${authored.customProgramCacheKey()}`
+  mesh.material = material
+  const entry = { material, uniform }
+  earBendMaterials.set(mesh, entry)
+  return entry
+}
+
+function updateEarBend(
+  rig: TempleRig,
+  scenePoints: { x: number; y: number; z: number }[],
+  dt: number
+) {
+  if (!props.templeEarBend) {
+    if (earBendMaterials.size) clearEarBend()
+    return
+  }
+  const local = templeFramePoints(rig, scenePoints)
+  // One bend line for both arms (the ears are level on a head in a frame);
+  // the further-back oval point, so neither tip drops in front of its ear.
+  const ear = Math.max(...local.map((p) => p.x))
+  const state = oneEuroFilter(earBendFilter, ear, dt, TEMPLE_FILTER)
+  earBendFilter = state
+  for (const temple of rig.temples) {
+    const mesh = temple.pivot.children[0]
+    if (!(mesh instanceof Mesh)) continue
+    const bend = earBendFor(temple.profile, { x: state.value })
+    bendMaterial(mesh).uniform.value.set(bend.start, bend.z, bend.angle, EAR_BEND_RAMP_METERS)
+  }
+}
+
+// A new GLB has its own arms; turning the bend off restores the authored material.
+watch(model, clearEarBend)
+watch(
+  () => props.templeEarBend,
+  (enabled) => {
+    if (!enabled) clearEarBend()
+  }
 )
 
 const occluderPositionVec = computed(
@@ -723,9 +1116,9 @@ watch(
 // Frame the shadow camera on the frame. The light is directional and has
 // no intensity, so moving it changes only what the shadow map covers.
 watch(
-  [() => props.position, () => props.scale],
-  ([position, scale]) => {
-    const light = contactShadowLight(position, scale)
+  [() => props.position, () => props.scale, () => props.lightDirection],
+  ([position, scale, direction]) => {
+    const light = contactShadowLight(position, scale, aimLight(SHADOW_LIGHT_DIRECTION, direction))
     shadowLight.position.set(light.position.x, light.position.y, light.position.z)
     shadowLight.target.position.set(light.target.x, light.target.y, light.target.z)
     shadowLight.target.updateMatrixWorld()
