@@ -12,6 +12,13 @@ import {
   DataTexture,
   DoubleSide,
   EquirectangularReflectionMapping,
+  DataUtils,
+  HalfFloatType,
+  LinearSRGBColorSpace,
+  PMREMGenerator,
+  RGBAFormat,
+  type WebGLRenderer,
+  type WebGLRenderTarget,
   LinearFilter,
   Matrix4,
   Quaternion,
@@ -20,7 +27,6 @@ import {
   MeshDepthMaterial,
   SRGBColorSpace,
   MeshPhysicalMaterial,
-  PMREMGenerator,
   PlaneGeometry,
   RedFormat,
   ShaderMaterial,
@@ -28,8 +34,7 @@ import {
   type Material,
   type Object3D,
   type MeshStandardMaterial,
-  type Texture,
-  type WebGLRenderer
+  type Texture
 } from 'three'
 // three's own loaders instead of @tresjs/cientos: cientos ships as one
 // non-tree-shakeable file, so `useGLTF` + `Environment` pulled the whole
@@ -38,7 +43,7 @@ import {
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
-import { useTres } from '@tresjs/core'
+import { useLoop, useTres } from '@tresjs/core'
 import {
   EAR_LEVEL_LEFT,
   EAR_LEVEL_RIGHT,
@@ -62,9 +67,73 @@ import {
 } from '../composables/tryon/useTryOnModelCache'
 import { FACE_MESH_OCCLUDER_INDEX } from '../utils/tryon-occluder'
 import { lightingColor } from '../utils/tryon-lighting'
-import { NO_LENS_OVERRIDE, type TryOnLens } from '../utils/tryon-lens'
+import {
+  CAMERA_ENV_HEIGHT,
+  CAMERA_ENV_WIDTH,
+  aimLight,
+  cameraEnvironment,
+  downsampleEquirect,
+  type LightDirection
+} from '../utils/tryon-room'
+import {
+  grainAmount,
+  LIGHT_WRAP_STRENGTH,
+  lightWrapColor,
+  patchCameraMatchShader,
+  type CameraMatchUniforms
+} from '../utils/tryon-camera-match'
+import type { RoomSample } from '../composables/tryon/useTryOnLighting'
+import {
+  LENS_HEIGHT_ATTRIBUTE,
+  NO_LENS_OVERRIDE,
+  patchLensGradientShader,
+  type TryOnLens
+} from '../utils/tryon-lens'
+
+// A lens mesh's own height, 0 at its bottom … 1 at its top in the GLB's
+// frame (up is +y there), as a vertex attribute for the gradient tint. Baked
+// once per geometry: the node transforms are fixed.
+function bakeLensHeight(mesh: Mesh, root: Object3D) {
+  const geometry = mesh.geometry as BufferGeometry
+  if (geometry.getAttribute(LENS_HEIGHT_ATTRIBUTE)) return
+  const position = geometry.getAttribute('position')
+  if (!position) return
+  root.updateMatrixWorld(true)
+  const toFrame = new Matrix4().copy(root.matrixWorld).invert().multiply(mesh.matrixWorld)
+  const point = new Vector3()
+  const heights = new Float32Array(position.count)
+  let min = Infinity
+  let max = -Infinity
+  for (let i = 0; i < position.count; i++) {
+    const y = point.fromBufferAttribute(position, i).applyMatrix4(toFrame).y
+    heights[i] = y
+    min = Math.min(min, y)
+    max = Math.max(max, y)
+  }
+  const span = max - min || 1
+  for (let i = 0; i < heights.length; i++) heights[i] = (heights[i]! - min) / span
+  geometry.setAttribute(LENS_HEIGHT_ATTRIBUTE, new BufferAttribute(heights, 1))
+}
+
+/**
+ * Gradient tint (`lens.gradient`): the lens's base opacity follows its
+ * height, dark to light top to bottom with a smooth middle
+ * (`gradientDensityAt`). Composes with the Fresnel patch, which reads the
+ * opacity after this.
+ */
+function applyLensGradient(material: Material, gradient: { top: number; bottom: number }) {
+  const previous = material.onBeforeCompile.bind(material)
+  const previousKey = material.customProgramCacheKey.bind(material)
+  material.onBeforeCompile = (shader, renderer) => {
+    previous(shader, renderer)
+    shader.uniforms.uLensGradient = { value: [gradient.bottom, gradient.top] }
+    patchLensGradientShader(shader)
+  }
+  material.customProgramCacheKey = () => `${previousKey()}|tryon-lens-gradient`
+}
 import {
   CONTACT_SHADOW_STRENGTH,
+  SHADOW_LIGHT_DIRECTION,
   contactShadowLight
 } from '../utils/tryon-contact-shadow'
 import {
@@ -82,12 +151,6 @@ const props = withDefaults(
     position?: { x: number; y: number; z?: number }
     /** Uniform scale (GLBs are modelled in metres). */
     scale?: number
-    /**
-     * Horizontal-only multiplier on top of `scale` (the deprecated
-     * `templeWidthBoost`). It stretches the lenses too; `templeFit` opens
-     * the arms at the hinge instead.
-     */
-    scaleXBoost?: number
     /** Yaw (radians) so the lenses can be faced at the camera. */
     rotationY?: number
     /** Full Euler rotation (radians). Overrides rotationY when provided. */
@@ -143,6 +206,22 @@ const props = withDefaults(
     /** Colour cast of the room, each channel 0…1. White keeps the lights neutral. */
     lightTint?: [number, number, number]
     /**
+     * Smoothed 16×16 room sample (utils/tryon-room): reflections from the
+     * camera, blended with the studio environment. Null keeps the studio map.
+     */
+    roomSample?: RoomSample | null
+    /** Where the room's light comes from; aims the key and shadow lights. */
+    lightDirection?: LightDirection | null
+    /**
+     * Grain and light wrap on the frame (utils/tryon-camera-match), so it
+     * reads as filmed with the face. The CSS blur is the host canvas's.
+     */
+    cameraMatch?: boolean
+    /** The room's smoothed luma (grain amount, wrap colour); null unsampled. */
+    roomLuma?: number | null
+    /** Fixed grain seed (goldens); omit to re-seed every frame like sensor noise. */
+    grainSeed?: number | undefined
+    /**
      * Soft shadow of the frame on the tracked face mesh (shadow map from the
      * key light, see utils/tryon-contact-shadow). Needs `occluderPositions`;
      * the host canvas must have shadows enabled.
@@ -197,7 +276,6 @@ const props = withDefaults(
   {
     position: () => ({ x: 0, y: 0, z: 0 }),
     scale: 6,
-    scaleXBoost: 1,
     rotationY: 0,
     // 'city' reads as neutral architectural reflections rather than a
     // photo-studio product shot — at low intensity it lifts color/specular
@@ -217,6 +295,11 @@ const props = withDefaults(
     occluderDebugVisible: false,
     lightGain: 1,
     lightTint: () => [1, 1, 1],
+    roomSample: null,
+    lightDirection: null,
+    cameraMatch: false,
+    roomLuma: null,
+    grainSeed: undefined,
     contactShadow: false,
     contactShadowStrength: CONTACT_SHADOW_STRENGTH,
     showBoundingBox: false,
@@ -326,12 +409,15 @@ emit('snapshot', () => {
   renderer.render(scene.value, active)
   return renderer.domElement
 })
+// The studio map downsampled to the camera environment's size, for blending.
+let studioGrid: Float32Array | null = null
 let envLoadId = 0
 
 function clearEnvironment() {
   if (scene.value.environment === envTexture) scene.value.environment = null
   envTexture?.dispose()
   envTexture = null
+  studioGrid = null
 }
 
 /**
@@ -355,6 +441,64 @@ function roomEnvironment(): Texture | null {
   generator.dispose()
   return texture
 }
+
+// Camera reflections (issue #84): the room sample becomes a 128×64 equirect
+// (utils/tryon-room `cameraEnvironment`, blended with the studio map),
+// PMREM-filtered at most every CAMERA_ENV_INTERVAL_MS (the sample is
+// smoothed anyway; ~0.3 ms per update on a laptop GPU). Without a sample
+// the studio map stays.
+const CAMERA_ENV_INTERVAL_MS = 500
+let pmrem: PMREMGenerator | null = null
+let cameraEnvTarget: WebGLRenderTarget | null = null
+let cameraEnvUpdatedAt = -Infinity
+
+function clearCameraEnvironment() {
+  if (cameraEnvTarget && scene.value.environment === cameraEnvTarget.texture) {
+    scene.value.environment = envTexture
+  }
+  cameraEnvTarget?.dispose()
+  cameraEnvTarget = null
+}
+
+watch(
+  () => props.roomSample,
+  (sample) => {
+    if (!sample || !props.useEnvironment) {
+      clearCameraEnvironment()
+      return
+    }
+    const now = performance.now()
+    if (now - cameraEnvUpdatedAt < CAMERA_ENV_INTERVAL_MS) return
+    const target = webglRenderer()
+    if (!target) return
+    cameraEnvUpdatedAt = now
+    // Half float: linear filtering of full floats is an extension
+    // (OES_texture_float_linear) some GPUs lack; half floats always filter.
+    const radiance = cameraEnvironment(sample.pixels, sample.width, sample.height, {
+      studio: studioGrid
+    })
+    const half = new Uint16Array(radiance.length)
+    for (let i = 0; i < radiance.length; i++) half[i] = DataUtils.toHalfFloat(radiance[i]!)
+    const equirect = new DataTexture(
+      half,
+      CAMERA_ENV_WIDTH,
+      CAMERA_ENV_HEIGHT,
+      RGBAFormat,
+      HalfFloatType
+    )
+    equirect.mapping = EquirectangularReflectionMapping
+    equirect.colorSpace = LinearSRGBColorSpace
+    equirect.magFilter = LinearFilter
+    equirect.minFilter = LinearFilter
+    equirect.needsUpdate = true
+    pmrem ??= new PMREMGenerator(target)
+    const next = pmrem.fromEquirectangular(equirect)
+    equirect.dispose()
+    cameraEnvTarget?.dispose()
+    cameraEnvTarget = next
+    scene.value.environment = next.texture
+  }
+)
 
 watch(
   [
@@ -386,7 +530,17 @@ watch(
       }
       texture.mapping = EquirectangularReflectionMapping
       envTexture = texture
-      scene.value.environment = texture
+      const image = texture.image as { data: ArrayLike<number>; width: number; height: number }
+      studioGrid = downsampleEquirect(
+        image.data,
+        image.width,
+        image.height,
+        4,
+        CAMERA_ENV_WIDTH,
+        CAMERA_ENV_HEIGHT,
+        texture.type === HalfFloatType ? DataUtils.fromHalfFloat : (v) => v
+      )
+      if (!cameraEnvTarget) scene.value.environment = texture
       emit('timing', 'environment', performance.now() - startedAt)
     } catch (err) {
       if (id === envLoadId) emit('error', 'environment', errorMessage(err))
@@ -479,6 +633,9 @@ function buildLens(
   if (lens.tint) material.color.setRGB(...lens.tint)
   if (lens.density !== null) material.opacity = lens.density
   if (material instanceof MeshPhysicalMaterial) applyLensFresnel(material)
+  // After the Fresnel patch, so it wraps it: the gradient sets the base
+  // opacity the Fresnel term then raises toward grazing angles.
+  if (lens.gradient) applyLensGradient(material, lens.gradient)
   return material
 }
 
@@ -500,6 +657,7 @@ watch(
       obj.userData.tryOnAuthoredMaterial = authored
       const swap = (material: Material) => {
         if (!LENS_MATERIAL_NAME.test(material.name)) return material
+        if (lens.gradient && gltf) bakeLensHeight(obj, gltf.scene)
         let lensMaterial = built.get(material)
         if (!lensMaterial) {
           lensMaterial = buildLens(material as MeshStandardMaterial, physical, lens)
@@ -514,6 +672,63 @@ watch(
   },
   { immediate: true }
 )
+
+// Camera match (issue #86): one shared uniform set, patched into every frame
+// and lens material (standard/physical only: the patch reads their normal
+// and view vectors) after the lens materials are built. Off sets the
+// amounts to 0; patched materials stay patched until the GLB is evicted.
+const cameraMatchUniforms: CameraMatchUniforms = {
+  uCameraGrain: { value: 0 },
+  uCameraGrainSeed: { value: 0 },
+  uCameraWrap: { value: 0 },
+  uCameraWrapColor: { value: { r: 0.5, g: 0.5, b: 0.5 } }
+}
+
+function patchCameraMatch(material: Material) {
+  if (!(material as MeshStandardMaterial).isMeshStandardMaterial) return
+  if (material.userData.tryOnCameraMatch) return
+  material.userData.tryOnCameraMatch = true
+  const previous = material.onBeforeCompile.bind(material)
+  const previousKey = material.customProgramCacheKey.bind(material)
+  material.onBeforeCompile = (shader, renderer) => {
+    previous(shader, renderer)
+    Object.assign(shader.uniforms, cameraMatchUniforms)
+    shader.fragmentShader = patchCameraMatchShader(shader.fragmentShader)
+  }
+  material.customProgramCacheKey = () => `${previousKey()}|tryon-camera-match`
+  material.needsUpdate = true
+}
+
+watch(
+  [model, () => props.physicalLens, () => props.lens, () => props.cameraMatch],
+  ([gltf, , , enabled]) => {
+    if (!enabled || !gltf) return
+    gltf.scene.traverse((obj) => {
+      if (!(obj instanceof Mesh)) return
+      for (const material of Array.isArray(obj.material) ? obj.material : [obj.material]) {
+        patchCameraMatch(material)
+      }
+    })
+  },
+  { immediate: true }
+)
+
+watch(
+  [() => props.cameraMatch, () => props.roomLuma, () => props.lightTint],
+  ([enabled, luma, tint]) => {
+    cameraMatchUniforms.uCameraGrain.value = enabled ? grainAmount(luma) : 0
+    cameraMatchUniforms.uCameraWrap.value = enabled ? LIGHT_WRAP_STRENGTH : 0
+    cameraMatchUniforms.uCameraWrapColor.value = lightWrapColor(tint, luma)
+  },
+  { immediate: true }
+)
+
+// Re-seed the grain every rendered frame, like sensor noise; a fixed seed
+// keeps goldens stable.
+useLoop().onBeforeRender(() => {
+  cameraMatchUniforms.uCameraGrainSeed.value =
+    props.grainSeed ?? (cameraMatchUniforms.uCameraGrainSeed.value + 1.618) % 1000
+})
 
 // The GLB's local-space bounding box: the debug helper below, and the frame
 // width the fit verdict compares with the face. Calibration y-centers the
@@ -551,6 +766,8 @@ onUnmounted(() => {
   hairMaterial.dispose()
   hairPlaneGeometry.dispose()
   envLoadId++
+  clearCameraEnvironment()
+  pmrem?.dispose()
   clearEnvironment()
   for (const material of builtLenses) material.dispose()
   shadowLight.dispose()
@@ -664,14 +881,20 @@ const cameraPosition = new Vector3(0, 0, TRYON_CAMERA.distance)
 const cameraTarget = new Vector3(0, 0, 0)
 // Dimmer fill light opposite the key light — without it, colored
 // acetate/metal reads duller/darker on the unlit side of the frame.
-const lightPosition = new Vector3(2, 3, 4)
+const KEY_LIGHT_POSITION = { x: 2, y: 3, z: 4 }
+const KEY_LIGHT_DISTANCE = Math.hypot(2, 3, 4)
+// The key light leans toward the room's light when its direction is known.
+const lightPosition = computed(() => {
+  const d = aimLight(KEY_LIGHT_POSITION, props.lightDirection)
+  return new Vector3(d.x, d.y, d.z).multiplyScalar(KEY_LIGHT_DISTANCE)
+})
 const fillLightPosition = new Vector3(-2, 3, 4)
 
 const groupPosition = computed(
   () => new Vector3(props.position.x, props.position.y, props.position.z ?? 0)
 )
 const groupScale = computed(
-  () => new Vector3(props.scale * props.scaleXBoost, props.scale, props.scale)
+  () => new Vector3(props.scale, props.scale, props.scale)
 )
 const groupRotation = computed(() => {
   if (props.rotation) {
@@ -893,9 +1116,9 @@ watch(
 // Frame the shadow camera on the frame. The light is directional and has
 // no intensity, so moving it changes only what the shadow map covers.
 watch(
-  [() => props.position, () => props.scale],
-  ([position, scale]) => {
-    const light = contactShadowLight(position, scale)
+  [() => props.position, () => props.scale, () => props.lightDirection],
+  ([position, scale, direction]) => {
+    const light = contactShadowLight(position, scale, aimLight(SHADOW_LIGHT_DIRECTION, direction))
     shadowLight.position.set(light.position.x, light.position.y, light.position.z)
     shadowLight.target.position.set(light.target.x, light.target.y, light.target.z)
     shadowLight.target.updateMatrixWorld()

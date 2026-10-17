@@ -29,6 +29,7 @@ import { guideHintFor } from '../utils/tryon-guide'
 import { maskCoverage } from '../utils/tryon-hair'
 import { useTryOnModelCache } from '../composables/tryon/useTryOnModelCache'
 import { modelCacheCapacity, neighbourFiles } from '../utils/tryon-model-cache'
+import { faceRegion } from '../utils/tryon-room'
 import type { TryOnTier } from '../utils/tryon-capability'
 import {
   createMetricsAccumulator,
@@ -55,6 +56,7 @@ import {
   type TryOnCaptureOptions
 } from '../utils/tryon-capture'
 import { preconnectOrigins } from '../utils/tryon-preconnect'
+import { CAMERA_BLUR_PX } from '../utils/tryon-camera-match'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -83,17 +85,6 @@ const props = withDefaults(
     exposure?: number
     /** Multiplier on the computed frame scale. */
     frameScale?: number
-    /**
-     * @deprecated No effect since 4.4.0 — the frame renders only on a
-     * tracked face, which supplies its rotation. Removed in 5.0.
-     */
-    frameYaw?: number
-    /**
-     * @deprecated Multiplier on the calibrated `templeWidthBoost`, which
-     * stretches the whole frame; the temple arms now open at the hinge to
-     * meet the tracked head. Removed in 5.0.
-     */
-    templeWidth?: number
     /**
      * Directory the MediaPipe Wasm fileset is served from. Omit to use the
      * built-in jsDelivr CDN default; pass a same-origin path (e.g.
@@ -187,6 +178,20 @@ const props = withDefaults(
      * environment instead and downloads nothing.
      */
     environmentUrl?: string | undefined
+    /**
+     * Reflect the shopper's own room in the lenses (the camera's view,
+     * blended with the studio environment) and aim the key light and the
+     * contact shadow at where the room's light comes from. Needs
+     * `adaptiveLighting` (and so the `mid` tier). On-device: it uses the
+     * 16×16 room sample the lighting already takes.
+     */
+    roomReflections?: boolean
+    /**
+     * Make the frame look filmed with the face: grain that grows in dim
+     * rooms, a sub-pixel blur, and light wrap at its edges. Needs the `mid`
+     * tier or higher.
+     */
+    cameraMatch?: boolean
   }>(),
   {
     adaptiveLighting: true,
@@ -198,12 +203,12 @@ const props = withDefaults(
     hairOcclusion: false,
     templeEarBend: false,
     preload: 1,
+    roomReflections: false,
+    cameraMatch: false,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
     frameScale: 1,
-    frameYaw: 0,
-    templeWidth: 1,
     draco: true,
     // Explicit undefined, not Vue's absent-boolean `false`, so an omitted
     // prop falls through to the module option.
@@ -218,7 +223,7 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const { getCalibration } = useFrameCalibration(props.calibrationUrl)
+const { getCalibration, getCalibrationProblems } = useFrameCalibration(props.calibrationUrl)
 
 const queryModel = route.query.model as string | undefined
 const initialModel =
@@ -291,11 +296,23 @@ const lightingEnabled = computed(
 // The room is sampled on every tier while the camera is on, for the guide's
 // `tooDark` hint (one 16×16 readback in the worker every few detections);
 // the lighting itself still needs the mid tier.
-const { wantFrameSample, onFrameSample, lightGain, lightTint, lighting, roomLuma } =
-  useTryOnLighting({
-    enabled: () => lightingEnabled.value,
-    sample: () => isActive.value
-  })
+const {
+  wantFrameSample,
+  onFrameSample,
+  lightGain,
+  lightTint,
+  lighting,
+  roomLuma,
+  roomSample,
+  lightDirection
+} = useTryOnLighting({
+  enabled: () => lightingEnabled.value,
+  sample: () => isActive.value,
+  room: () => props.roomReflections,
+  // The face's box in the raw frame, for the light direction. Read when a
+  // sample arrives, after its detection.
+  faceRegion: () => faceRegion(faceLandmarks.value)
+})
 
 const {
   error: faceError,
@@ -388,7 +405,8 @@ function emitMetrics(final: boolean) {
       contactShadow: contactShadowEnabled.value,
       adaptiveLighting: lightingEnabled.value,
       physicalLens: physicalLensEnabled.value,
-      hairOcclusion: hairActive.value
+      hairOcclusion: hairActive.value,
+      cameraMatch: cameraMatchEnabled.value
     }
   })
 }
@@ -473,10 +491,6 @@ const hairActive = computed(
     hairOcclusionAllowed.value &&
     !hairSegmenter.overBudget.value &&
     !hairSegmenter.error.value
-)
-
-const templeScaleBoost = computed(
-  () => calibration.value.templeWidthBoost * props.templeWidth
 )
 
 // The frame renders only on a tracked face: never before the camera starts
@@ -967,6 +981,26 @@ watch(faceError, (err) => {
   }
 })
 
+// A bad calibration entry is reported once per model (the frame still
+// renders, with the invalid fields at their defaults).
+const reportedCalibration = new Set<string>()
+watch(
+  () => {
+    const file = model.value ?? initialModel
+    return { file, problems: getCalibrationProblems(file) }
+  },
+  ({ file, problems }) => {
+    if (!problems.length || reportedCalibration.has(file)) return
+    reportedCalibration.add(file)
+    trackTryOn('TRY_ON_ERROR', {
+      errorType: 'invalid_calibration',
+      source: 'calibration',
+      message: `${file}: ${problems.join('; ')}`
+    })
+  },
+  { immediate: true }
+)
+
 function onSceneError(source: 'model' | 'environment', message: string) {
   trackTryOn('TRY_ON_ERROR', {
     errorType: 'load_failed',
@@ -980,6 +1014,9 @@ function onSceneError(source: 'model' | 'environment', message: string) {
 // strength follows the room light.
 const contactShadowEnabled = computed(
   () => props.contactShadow && capability.allows('contactShadow')
+)
+const cameraMatchEnabled = computed(
+  () => props.cameraMatch && capability.allows('cameraMatch')
 )
 const physicalLensEnabled = computed(
   () => props.physicalLens && capability.allows('physicalLens')
@@ -1065,7 +1102,14 @@ watch(model, (value) => {
     />
 
     <ClientOnly>
-      <div class="vto-layer vto-frame" :class="{ 'vto-frame--hidden': !frameVisible }">
+      <div
+        class="vto-layer vto-frame"
+        :class="{
+          'vto-frame--hidden': !frameVisible,
+          'vto-layer--camera-match': cameraMatchEnabled
+        }"
+        :style="cameraMatchEnabled ? { '--vto-camera-blur': `${CAMERA_BLUR_PX}px` } : undefined"
+      >
         <!-- Neutral tone mapping (Khronos PBR Neutral), not ACES: the
              camera feed behind the canvas is untone-mapped sRGB, and
              ACES' filmic curve would desaturate frame colors against it.
@@ -1091,7 +1135,6 @@ watch(model, (value) => {
             :position="framePosition"
             :model-offset="calibration.translation"
             :scale="smoothedScale"
-            :scale-x-boost="templeScaleBoost"
             :rotation="smoothedEuler"
             :occluder-enabled="occluderEnabled"
             :occluder-positions="occluderPositions"
@@ -1099,6 +1142,10 @@ watch(model, (value) => {
             :contact-shadow-strength="contactShadowStrength"
             :light-gain="lightGain"
             :light-tint="lightTint"
+            :room-sample="roomSample"
+            :light-direction="lightDirection"
+            :camera-match="cameraMatchEnabled"
+            :room-luma="roomLuma"
             :occluder-position="occluderPosition"
             :occluder-radius="occluderGeometry"
             :occluder-rotation="smoothedEuler"
@@ -1179,5 +1226,10 @@ watch(model, (value) => {
 
 .vto-frame--hidden {
   opacity: 0;
+}
+
+/* A webcam is a touch soft; only the rendered frame layer is blurred. */
+.vto-layer--camera-match {
+  filter: blur(var(--vto-camera-blur));
 }
 </style>
