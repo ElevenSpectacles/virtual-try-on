@@ -56,6 +56,7 @@ import {
   type TryOnCaptureOptions
 } from '../utils/tryon-capture'
 import { preconnectOrigins } from '../utils/tryon-preconnect'
+import { CAMERA_BLUR_PX } from '../utils/tryon-camera-match'
 import type {
   FaceLandmarkerError,
   TryOnGuideHint,
@@ -196,6 +197,12 @@ const props = withDefaults(
      * 16×16 room sample the lighting already takes.
      */
     roomReflections?: boolean
+    /**
+     * Make the frame look filmed with the face: grain that grows in dim
+     * rooms, a sub-pixel blur, and light wrap at its edges. Needs the `mid`
+     * tier or higher.
+     */
+    cameraMatch?: boolean
   }>(),
   {
     adaptiveLighting: true,
@@ -208,6 +215,7 @@ const props = withDefaults(
     templeEarBend: false,
     preload: 1,
     roomReflections: false,
+    cameraMatch: false,
     modelBaseUrl: '/models/virtual-try-on',
     autoStart: false,
     exposure: 1,
@@ -410,7 +418,8 @@ function emitMetrics(final: boolean) {
       contactShadow: contactShadowEnabled.value,
       adaptiveLighting: lightingEnabled.value,
       physicalLens: physicalLensEnabled.value,
-      hairOcclusion: hairActive.value
+      hairOcclusion: hairActive.value,
+      cameraMatch: cameraMatchEnabled.value
     }
   })
 }
@@ -1003,6 +1012,9 @@ function onSceneError(source: 'model' | 'environment', message: string) {
 const contactShadowEnabled = computed(
   () => props.contactShadow && capability.allows('contactShadow')
 )
+const cameraMatchEnabled = computed(
+  () => props.cameraMatch && capability.allows('cameraMatch')
+)
 const physicalLensEnabled = computed(
   () => props.physicalLens && capability.allows('physicalLens')
 )
@@ -1087,7 +1099,14 @@ watch(model, (value) => {
     />
 
     <ClientOnly>
-      <div class="vto-layer vto-frame" :class="{ 'vto-frame--hidden': !frameVisible }">
+      <div
+        class="vto-layer vto-frame"
+        :class="{
+          'vto-frame--hidden': !frameVisible,
+          'vto-layer--camera-match': cameraMatchEnabled
+        }"
+        :style="cameraMatchEnabled ? { '--vto-camera-blur': `${CAMERA_BLUR_PX}px` } : undefined"
+      >
         <!-- Neutral tone mapping (Khronos PBR Neutral), not ACES: the
              camera feed behind the canvas is untone-mapped sRGB, and
              ACES' filmic curve would desaturate frame colors against it.
@@ -1123,6 +1142,8 @@ watch(model, (value) => {
             :light-tint="lightTint"
             :room-sample="roomSample"
             :light-direction="lightDirection"
+            :camera-match="cameraMatchEnabled"
+            :room-luma="roomLuma"
             :occluder-position="occluderPosition"
             :occluder-radius="occluderGeometry"
             :occluder-rotation="smoothedEuler"
@@ -1203,5 +1224,10 @@ watch(model, (value) => {
 
 .vto-frame--hidden {
   opacity: 0;
+}
+
+/* A webcam is a touch soft; only the rendered frame layer is blurred. */
+.vto-layer--camera-match {
+  filter: blur(var(--vto-camera-blur));
 }
 </style>

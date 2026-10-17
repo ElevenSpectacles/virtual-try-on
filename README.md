@@ -207,6 +207,7 @@ product's own units, from its sheet:
 | `roomReflections` | `boolean` | `false` | Reflects the shopper's own room in the lenses (the camera's view, blended with the studio environment) and aims the key light and the contact shadow at where the room's light comes from. Needs `adaptiveLighting`. |
 | `contactShadow` | `boolean` | `true` | Soft shadow the frame casts on the tracked skin (rims, temples, and a partial shadow from tinted lenses). Needs the face-mesh occluder and the `mid` tier or higher. |
 | `physicalLens` | `boolean` | `true` | Lenses that read as glass: opacity rises toward grazing angles, reflections add on top of the tint, and an anti-reflective sheen. Needs the `mid` tier or higher; off keeps the cheaper standard lens. |
+| `cameraMatch` | `boolean` | `false` | Makes the frame look filmed with the face: grain that grows in dim rooms (re-seeded every frame like sensor noise), a 0.6 px blur of the frame layer, and light wrap in the room's colour at its edges. Needs the `mid` tier or higher. |
 | `fitTolerance` | `number` | `0.06` | Half-width of the "good fit" band of the fit verdict, as a fraction of the ideal frame width. The face estimate itself carries about ±5% until the PD is measured. |
 | `trueToSize` | `boolean` | `true` | Sizes the frame and the fit verdict from the shopper's measured PD (see [True to size](#true-to-size)). Off keeps the average-face sizing. |
 | `reportMetrics` | `boolean` | `false` | Emits the `metrics` event (see below). Off means nothing is measured. |
