@@ -160,6 +160,13 @@ const props = withDefaults(
     /** URL/path of `hair_segmenter.tflite`, to self-host it. */
     mediapipeHairModelAssetPath?: string | undefined
     /**
+     * Tint the lenses' shadow with their colour: a brown lens throws a warm
+     * shadow, a green one a green shadow. Costs a second shadow map and a
+     * camera-texture upload per frame, so it is opt-in and needs the `high`
+     * tier and `contactShadow`.
+     */
+    tintedLensShadow?: boolean
+    /**
      * Bend the temple tips down behind the ears, as an optician fits a
      * frame. Visible when the shopper turns to see the temples. Off keeps
      * the straight authored tips.
@@ -201,6 +208,7 @@ const props = withDefaults(
     trueToSize: true,
     physicalLens: true,
     hairOcclusion: false,
+    tintedLensShadow: false,
     templeEarBend: false,
     preload: 1,
     roomReflections: false,
@@ -406,6 +414,7 @@ function emitMetrics(final: boolean) {
       adaptiveLighting: lightingEnabled.value,
       physicalLens: physicalLensEnabled.value,
       hairOcclusion: hairActive.value,
+      tintedLensShadow: tintedLensShadowEnabled.value,
       cameraMatch: cameraMatchEnabled.value
     }
   })
@@ -1015,6 +1024,12 @@ function onSceneError(source: 'model' | 'environment', message: string) {
 const contactShadowEnabled = computed(
   () => props.contactShadow && capability.allows('contactShadow')
 )
+const tintedLensShadowEnabled = computed(
+  () =>
+    props.tintedLensShadow &&
+    contactShadowEnabled.value &&
+    capability.allows('tintedLensShadow')
+)
 const cameraMatchEnabled = computed(
   () => props.cameraMatch && capability.allows('cameraMatch')
 )
@@ -1140,6 +1155,8 @@ watch(model, (value) => {
             :occluder-positions="occluderPositions"
             :contact-shadow="contactShadowEnabled && occluderEnabled"
             :contact-shadow-strength="contactShadowStrength"
+            :tinted-lens-shadow="tintedLensShadowEnabled"
+            :video-element="videoRef"
             :light-gain="lightGain"
             :light-tint="lightTint"
             :room-sample="roomSample"

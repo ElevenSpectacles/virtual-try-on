@@ -131,7 +131,11 @@ Key facts:
   hinge pivots at load, the opening angle that meets the tracked head, and
   the opt-in ear bend: `earBendPoint` and the matching vertex-shader patch),
   `tryon-contact-shadow.ts` (framing of the shadow-only light whose shadow
-  map puts the frame's soft shadow on the tracked skin), `tryon-lens.ts` (per-model lens tint and darkness from
+  map puts the frame's soft shadow on the tracked skin),
+  `tryon-contact-occlusion.ts` (spheres fitted to the GLB and the analytic
+  contact darkening they put on the skin under pads, bridge and temples), `tryon-lens-shadow.ts` (opt-in tinted lens shadow: lens transmission
+  from its colour, the per-channel multiply and its composite against the
+  DOM video, the per-light shadow-caster filter), `tryon-lens.ts` (per-model lens tint and darkness from
   calibration — ISO 12312-1 category, transmittance or density — gradient
   lenses and their shader patch, the Fresnel term of the physical lens), `tryon-seat.ts` (pad-contact seat: nose side-wall profile from the face
   mesh, where pads of a given spacing rest, the offset from the reference

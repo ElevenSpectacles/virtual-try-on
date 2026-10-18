@@ -79,6 +79,7 @@ test.describe('metrics event', () => {
       adaptiveLighting: expect.any(Boolean),
       physicalLens: expect.any(Boolean),
       hairOcclusion: expect.any(Boolean),
+      tintedLensShadow: expect.any(Boolean),
       cameraMatch: expect.any(Boolean)
     })
   })
