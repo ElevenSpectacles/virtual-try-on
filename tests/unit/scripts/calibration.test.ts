@@ -34,6 +34,12 @@ describe('modelCalibration', () => {
     expect(entry.scale).toBeCloseTo((1 + 1 / 0.98) / 2, 4)
   })
 
+  it('writes the rendered frame width in millimetres', () => {
+    const entry = modelCalibration(model('a', 0.1397, 0.0493 * 0.98), reference)
+    expect(entry.frameWidthMm).toBeCloseTo(0.1397 * entry.scale * 1000, 1)
+    expect(modelCalibration(reference, reference).frameWidthMm).toBe(139.7)
+  })
+
   it('ignores depth for the scale', () => {
     const deep = model('a', 0.1397, 0.0493)
     deep.bounds.min.z -= 0.05
@@ -52,11 +58,9 @@ describe('modelCalibration', () => {
       translation: { x: 9, y: 9, z: 9 },
       rotation: { x: 0.1, y: 0, z: 0 },
       scale: 9,
-      templeWidthBoost: 1.05,
       lens: { tint: '#3a4a5c', density: 0.6 }
     })
     expect(entry.rotation).toEqual({ x: 0.1, y: 0, z: 0 })
-    expect(entry.templeWidthBoost).toBe(1.05)
     expect(entry.lens).toEqual({ tint: '#3a4a5c', density: 0.6 })
     // Measured fields are recomputed, not carried over.
     expect(entry.scale).not.toBe(9)
@@ -127,12 +131,12 @@ describe('parseCalibrationFile', () => {
         }
       }
     })
+    // templeWidthBoost (removed in 5.0) is dropped from an old manifest.
     expect(file.models.a).toEqual({
       model: 'a',
       translation: { x: 0, y: -0.02, z: -0.004 },
       rotation: { x: 0.1, y: 0, z: 0 },
       scale: 1.01,
-      templeWidthBoost: 1.05,
       lens: { tint: '#202020', density: 0.6 }
     })
   })
@@ -144,8 +148,34 @@ describe('parseCalibrationFile', () => {
 
   it('rejects a mistyped hand-tuned field instead of carrying it over', () => {
     expect(() => parseCalibrationFile({ models: { a: { rotation: { x: '0' } } } })).toThrow(/rotation/)
-    expect(() => parseCalibrationFile({ models: { a: { templeWidthBoost: '1' } } })).toThrow(/templeWidthBoost/)
     expect(() => parseCalibrationFile({ models: { a: { lens: { density: 'dark' } } } })).toThrow(/lens/)
   })
 })
 
+describe('pads', () => {
+  it('carries the pad spacing over and rejects a malformed one', () => {
+    expect(parseCalibrationFile({ models: { a: { pads: { spacingMm: 18 } } } }).models.a!.pads).toEqual({ spacingMm: 18 })
+    expect(() => parseCalibrationFile({ models: { a: { pads: { spacingMm: 'x' } } } })).toThrow(/pads/)
+  })
+})
+
+describe('physical lens fields', () => {
+  it('carries the category, transmittance and gradient over', () => {
+    const file = parseCalibrationFile({
+      models: {
+        a: { lens: { tint: '#5a4632', category: 3, transmittance: 0.12, gradient: { top: 0.9, bottom: 0.3 } } }
+      }
+    })
+    expect(file.models.a!.lens).toEqual({
+      tint: '#5a4632',
+      category: 3,
+      transmittance: 0.12,
+      gradient: { top: 0.9, bottom: 0.3 }
+    })
+  })
+
+  it('rejects a category outside 0-4 and a half gradient', () => {
+    expect(() => parseCalibrationFile({ models: { a: { lens: { category: 5 } } } })).toThrow(/lens/)
+    expect(() => parseCalibrationFile({ models: { a: { lens: { gradient: { top: 1 } } } } })).toThrow(/lens/)
+  })
+})

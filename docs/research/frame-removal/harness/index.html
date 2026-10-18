@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Frame-removal spike harness</title>
+<!-- Served by segment.mjs. Runs MediaPipe FaceLandmarker and the multiclass
+     selfie segmenter (CPU delegate) on each fixture portrait. -->
+<script type="module">
+  import { FaceLandmarker, FilesetResolver, ImageSegmenter } from '/vision_bundle.mjs'
+
+  window.run = async (names) => {
+    const vision = await FilesetResolver.forVisionTasks('/wasm')
+    const landmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: '/models/face_landmarker.task', delegate: 'CPU' },
+      runningMode: 'IMAGE',
+      numFaces: 1
+    })
+    const segmenter = await ImageSegmenter.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: '/models/selfie_multiclass_256x256.tflite', delegate: 'CPU' },
+      runningMode: 'IMAGE',
+      outputCategoryMask: true,
+      outputConfidenceMasks: true
+    })
+    const out = { labels: segmenter.getLabels() }
+    for (const name of names) {
+      const img = new Image()
+      img.src = `/faces/${name}.jpg`
+      await img.decode()
+      const lm = landmarker.detect(img).faceLandmarks[0].map((p) => [p.x, p.y])
+      // The first call warms up; the median of the rest is reported.
+      const times = []
+      let result
+      for (let i = 0; i < 6; i++) {
+        const t = performance.now()
+        result = segmenter.segment(img)
+        times.push(performance.now() - t)
+        if (i < 5) result.close()
+      }
+      const cat = result.categoryMask
+      out[name] = {
+        lm,
+        w: cat.width,
+        h: cat.height,
+        cat: Array.from(cat.getAsUint8Array()),
+        // Confidence of class 5 ("others": accessories), 0–255.
+        acc: Array.from(result.confidenceMasks[5].getAsFloat32Array(), (v) => Math.round(v * 255)),
+        ms: times.slice(1)
+      }
+      result.close()
+    }
+    return out
+  }
+  window.ready = true
+</script>
