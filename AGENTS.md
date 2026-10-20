@@ -61,6 +61,10 @@ Key facts:
   - `TryOnScene.vue` — the TresJS scene (GLB mounting through the model cache, occluder, environment).
     Uses three's own `GLTFLoader`/`DRACOLoader`/`HDRLoader`, not
     `@tresjs/cientos` — cientos does not tree-shake, so keep it out.
+  - Each SFC stays **under 400 lines**: its stateful glue lives in internal
+    composables (`composables/tryon/scene/`, `composables/tryon/experience/`)
+    and its props type in `types/`, so the SFC holds the props block, the
+    composable calls and the template. Grow a composable, not the SFC.
 - `composables/tryon/` — stateful logic:
   - `useFaceLandmarker.ts` — worker-backed MediaPipe integration, rAF detect
     loop, pose/confidence exposure.
@@ -102,6 +106,31 @@ Key facts:
   - `useHairSegmenter.ts` — hair segmentation in its own worker for the
     opt-in hair occluder: lazy start, ~10 Hz, one request in flight, mask
     shrunk and smoothed; switches itself off over its worker-time budget.
+- `composables/tryon/scene/` and `composables/tryon/experience/` — the two
+  SFCs' internal composables. Not auto-imported (the module registers only
+  the top level of `composables/tryon/`) and not public: the SFCs import them
+  by relative path. New files for either SFC go here, nowhere else. Each is
+  called once from its SFC's setup, **in the order the code ran when it was
+  inline**, so watchers, computeds and lifecycle hooks register in the same
+  order; keep that order (the SFC's comments say which calls depend on
+  which), and keep lazy getters lazy.
+  - `scene/` (TryOnScene): `useSceneModel` (GLB load through the model cache,
+    temple rig), `useSceneSnapshot` (`capture()` render), `useSceneEnvironment`
+    (HDR / procedural / camera environment), `useLensMaterials` (physical and
+    calibrated lenses), `useCameraMatch` (grain + light-wrap patch),
+    `useBoundingBoxHelper`, `useHairOccluder`, `useTempleFit` (hinge opening,
+    ear bend), `useFaceMeshOccluder` (the per-detection face-mesh geometry),
+    `useContactShadow` (shadow and lens-shadow lights, casters, the
+    contact-occlusion spheres, receiver uniforms) and `useContactOcclusion`
+    (the ShadowMaterial receiver: occlusion, tinted lens shadow).
+  - `experience/` (VirtualTryOnExperience): `useTryOnStage` (stage size,
+    cover window), `useTryOnTracking` (tracker, hold, lighting, card
+    calibration, freeze), `useTryOnSessionMetrics`, `useTryOnModelSwitch`
+    (cache, prefetch, switch latency), `useTryOnFeatures` (tier-gated
+    features, hair segmenter), `useTryOnFrame` (visibility, placement, guide
+    hint), `useTryOnFrameFit` (fit, measurements, card calibration controls,
+    fit ranking), `useTryOnSession` (consent, start, status),
+    `useTryOnCapture`, `useTryOnTrackEvents` (`track` reporting).
 - `workers/` — the two **classic** Web Workers (see constraints). Their
   message types live in `types/` (`face-landmarker-worker.ts`,
   `hair-segmenter-worker.ts`), since a worker file can't `export` and a repo
@@ -160,8 +189,14 @@ Key facts:
 - `types/tryon-calibration.ts` — calibration manifest types
   (`TryOnCalibrationFile`, `TryOnModelCalibration`, `TryOnFrameCalibration`).
 - `types/tryon-experience.ts` — slot/state types (`TryOnStatus`,
-  `TryOnGuideHint`, `WebcamError`, `FaceLandmarkerError`), re-exported by
-  `src/module.ts`.
+  `TryOnGuideHint`, `WebcamError`, `FaceLandmarkerError`,
+  `VirtualTryOnExperienceSlotProps`), re-exported by `src/module.ts`.
+- `types/tryon-experience-props.ts` / `types/tryon-scene-props.ts` — the two
+  SFCs' props interfaces (`VirtualTryOnExperienceProps` is re-exported by
+  `src/module.ts`). The SFCs keep `withDefaults(defineProps<…>(), { … })`
+  with the defaults inline, so the compiled runtime props do not change;
+  check a props change by diffing `defineProps({…})` in
+  `dist/runtime/components/*.vue` before and after `npm run build`.
 - No i18n layer and no UI copy — do not add `vue-i18n` / `@nuxtjs/i18n`.
 - `playground/` — standalone dev-only Nuxt app (`npm run playground`, port
   4000). Consumes this repo through `src/module.ts` itself (dogfooding the exact
