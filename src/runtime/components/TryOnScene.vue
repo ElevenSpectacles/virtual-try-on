@@ -166,9 +166,9 @@ const occluderPositionVec = computed(
 )
 
 const occluderMeshGeometry = useFaceMeshOccluder(props)
-const contactShadow = useContactShadow(model, props)
-const { shadowLight, lensShadowLight } = contactShadow
-const shadowReceiverMaterial = useContactOcclusion(model, props, contactShadow, earBendMaterials)
+const shadow = useContactShadow(model, props)
+const { shadowLight, lensShadowLight } = shadow
+const shadowReceiverMaterial = useContactOcclusion(model, props, shadow, earBendMaterials)
 
 // Lights follow the room: intensity scales with the estimated luma, colour
 // takes on the room's cast. Neutral props keep the original studio values.
