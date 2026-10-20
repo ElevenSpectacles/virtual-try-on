@@ -256,6 +256,31 @@ describe('useTryOnPlacement', () => {
       return out
     }
 
+    it('starts over when a held face comes back after a long loss', async () => {
+      // useTryOnTrackingHold empties the landmarks once per loss, so the
+      // reset must also be checked when the face returns.
+      const raf = stubRaf()
+      const options = inputs()
+      const scope = effectScope()
+      const placement = scope.run(() => useTryOnPlacement(options))!
+      for (let i = 0; i < PD_STABLE_SAMPLES; i++) {
+        options.landmarks.value = faceWithIris(58)
+        await nextTick()
+        raf.frames(1)
+      }
+      expect(placement.measurement.value?.stable).toBe(true)
+      const now = performance.now()
+      options.landmarks.value = []
+      await nextTick()
+      const clock = vi.spyOn(performance, 'now').mockReturnValue(now + 2500)
+      options.landmarks.value = faceWithIris(70)
+      await nextTick()
+      expect(placement.measurement.value?.stable).toBe(false)
+      expect(placement.measurement.value?.nearPdMm).toBeCloseTo(70, 6)
+      clock.mockRestore()
+      scope.stop()
+    })
+
     it('measures the PD and freezes it', async () => {
       const out = await measured(58, PD_STABLE_SAMPLES)
       expect(out.measurement?.stable).toBe(true)

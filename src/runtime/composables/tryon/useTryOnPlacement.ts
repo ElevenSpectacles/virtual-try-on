@@ -198,6 +198,11 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
       if (performance.now() - lostAt >= PD_RESET_AFTER_LOSS_MS) pdEstimate.value = null
       return
     }
+    // The held face (useTryOnTrackingHold) goes empty only once per loss, so
+    // a long loss is also caught when the face comes back.
+    if (lostAt !== null && performance.now() - lostAt >= PD_RESET_AFTER_LOSS_MS) {
+      pdEstimate.value = null
+    }
     lostAt = null
     const pose = options.pose.value
     if (!trueToSize() || !pose || pdEstimate.value?.stable) return

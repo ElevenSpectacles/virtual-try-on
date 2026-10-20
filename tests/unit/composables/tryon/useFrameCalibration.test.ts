@@ -151,6 +151,16 @@ describe('validateCalibration', () => {
     ])
   })
 
+  it('reports a gradient given in percent instead of clamping it silently', () => {
+    const percent = {
+      ...manifest,
+      models: { c: { ...manifest.models['iris-bronze']!, model: 'c', lens: { gradient: { top: 85, bottom: 20 } } } }
+    } as unknown as TryOnCalibrationFile
+    expect(validateCalibration(percent, 'c').problems).toEqual([
+      'lens.gradient must be { top, bottom } between 0 and 1'
+    ])
+  })
+
   it('falls back field by field and lists what is wrong', () => {
     const { calibration, problems } = validateCalibration(bad, 'a')
     expect(calibration.translation).toEqual({ x: 0, y: 0, z: 0 })
