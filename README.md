@@ -327,7 +327,7 @@ on the component ref.
 | `start` | `() => Promise<void>` | Start or retry the camera. |
 | `stop` | `() => void` | Stop the camera. |
 | `calibration` | `TryOnCardCalibration` | Card calibration state: `{ status, progress, pdMm }`, `status` `'idle'` \| `'detecting'` \| `'done'` \| `'failed'` (see [Card calibration](#card-calibration)). |
-| `startCalibration` / `cancelCalibration` | `() => void` | Start a card calibration / stop it or drop its result. |
+| `startCalibration` / `cancelCalibration` | `() => Promise<void>` / `() => void` | Start a card calibration (resuming the camera if frozen) / stop it or drop its result. |
 | `capture` | `(options?) => Promise<Blob>` | Snapshot of the try-on as the shopper sees it (see [Capture](#capture)). |
 | `frozen` | `boolean` | The camera frame and pose are held (see [Freeze](#freeze-and-compare)). |
 | `freeze` / `unfreeze` | `() => Promise<void>` | Hold the current frame and pose / go back to the live camera. |

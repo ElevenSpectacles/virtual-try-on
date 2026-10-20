@@ -45,6 +45,11 @@ export function useTryOnFaceShape(options: UseTryOnFaceShapeOptions) {
       }
       return
     }
+    // A held face goes empty only once per loss: also check on its return.
+    if (lostAt !== null && performance.now() - lostAt >= resetAfterLossMs) {
+      estimate.value = null
+      result.value = null
+    }
     lostAt = null
     const pose = options.pose.value
     if (!enabled() || !pose) return

@@ -545,7 +545,8 @@ watch(
     if (procedural) {
       envTexture = roomEnvironment()
       if (envTexture) {
-        scene.value.environment = envTexture
+        // Like the HDR branch: an active camera environment stays.
+        if (!cameraEnvTarget) scene.value.environment = envTexture
         emit('timing', 'environment', performance.now() - startedAt)
       }
       return
@@ -1023,7 +1024,12 @@ function bendMaterial(mesh: Mesh) {
   mesh.userData.tryOnTempleMaterial = authored
   const material = authored.clone()
   const uniform = { value: new Vector4(0, 0, 0, EAR_BEND_RAMP_METERS) }
-  material.onBeforeCompile = (shader) => {
+  // clone() copies userData but not onBeforeCompile: chain the authored
+  // patches (camera match), or the clone keeps their "patched" flag
+  // without their shader code and the arms lose grain and light wrap.
+  const authoredCompile = authored.onBeforeCompile.bind(authored)
+  material.onBeforeCompile = (shader, renderer) => {
+    authoredCompile(shader, renderer)
     shader.uniforms.uEarBend = uniform
     shader.vertexShader = patchEarBendShader(shader.vertexShader)
   }

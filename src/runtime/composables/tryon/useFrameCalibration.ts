@@ -80,7 +80,10 @@ export function validateCalibration(
       ) {
         problems.push('lens.category must be an ISO 12312-1 category 0-4')
       }
-      if (lensEntry.gradient !== undefined && !lens.gradient) {
+      // resolveLens clamps, so check the raw values: a sheet in percent
+      // (top: 85) would otherwise become an opaque lens without a report.
+      const gradient = lensEntry.gradient as { top?: unknown; bottom?: unknown } | undefined
+      if (gradient !== undefined && !(unit(gradient?.top) && unit(gradient?.bottom))) {
         problems.push('lens.gradient must be { top, bottom } between 0 and 1')
       }
     }

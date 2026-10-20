@@ -370,9 +370,11 @@ const {
 // Card calibration (optional, ±1 mm PD): the host shows its own "hold a
 // card to your forehead" UI and calls `startCalibration()`; the result
 // replaces the iris PD for the session (memory only).
+// Raw tracker, not the held face: each card crop must be measured against
+// the landmarks of its own detection.
 const cardCalibration = useTryOnCardCalibration({
-  landmarks: faceLandmarks,
-  pose: facePose,
+  landmarks: trackerLandmarks,
+  pose: trackerPose,
   mediaAspect
 })
 
@@ -386,6 +388,8 @@ const {
 
 /** Hold the current camera frame and pose; switching `model` re-renders on it. */
 async function freeze() {
+  // A calibration needs live frames; drop it rather than let it time out.
+  if (cardCalibration.calibration.value.status === 'detecting') cardCalibration.cancel()
   const wasFrozen = frozen.value
   await freezeTryOn()
   if (frozen.value && !wasFrozen) trackTryOn('TRY_ON_FREEZE', { frozen: true })
@@ -633,7 +637,9 @@ const measurements = computed<TryOnMeasurements | null>(() => {
 })
 
 /** Start a card calibration (see README); restarts one in progress. */
-function startCalibration() {
+async function startCalibration() {
+  // Card crops come from live detections: resume the camera first.
+  if (frozen.value) await unfreeze()
   cardCalibration.start()
 }
 
@@ -857,9 +863,15 @@ async function capture(options: TryOnCaptureOptions = {}): Promise<Blob> {
   )
   context.restore()
   // Render and copy in the same task: the drawing buffer is still intact.
-  const scene = renderSnapshot?.()
+  // As on screen: no frame while it is hidden (it fades out), and the
+  // camera-match blur scaled from stage pixels to output pixels.
+  const scene = frameVisible.value ? renderSnapshot?.() : null
   if (scene && scene.width > 0 && scene.height > 0) {
+    if (cameraMatchEnabled.value && stageWidth.value > 0) {
+      context.filter = `blur(${(CAMERA_BLUR_PX * layout.width) / stageWidth.value}px)`
+    }
     context.drawImage(scene, 0, 0, layout.width, layout.height)
+    context.filter = 'none'
   }
   const type = options.type ?? 'image/jpeg'
   const blob = await new Promise<Blob | null>((resolve) =>
@@ -934,7 +946,7 @@ defineSlots<{
     stop: () => void
     /** Card calibration: `{ status, progress, pdMm }` ('idle' until started). */
     calibration: TryOnCardCalibration
-    startCalibration: () => void
+    startCalibration: () => Promise<void>
     cancelCalibration: () => void
     /** Snapshot of the composited try-on as an image Blob (on-device). */
     capture: (options?: TryOnCaptureOptions) => Promise<Blob>
@@ -1030,6 +1042,9 @@ const tintedLensShadowEnabled = computed(
     contactShadowEnabled.value &&
     capability.allows('tintedLensShadow')
 )
+// While frozen the camera image is a still photo: hold the grain still too,
+// instead of re-seeding it every render (which would shimmer over the photo).
+const FROZEN_GRAIN_SEED = 0.5
 const cameraMatchEnabled = computed(
   () => props.cameraMatch && capability.allows('cameraMatch')
 )
@@ -1162,6 +1177,7 @@ watch(model, (value) => {
             :room-sample="roomSample"
             :light-direction="lightDirection"
             :camera-match="cameraMatchEnabled"
+            :grain-seed="frozen ? FROZEN_GRAIN_SEED : undefined"
             :room-luma="roomLuma"
             :occluder-position="occluderPosition"
             :occluder-radius="occluderGeometry"
