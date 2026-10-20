@@ -8,6 +8,7 @@ import {
   contactOcclusion,
   contactShadowAlpha,
   fitFrameOccluders,
+  fitFrameOccludersByPart,
   fitOccluderSpheres,
   silhouetteFade,
   sphereOcclusion
@@ -51,6 +52,18 @@ describe('fitFrameOccluders', () => {
     const parts = [{ points: rod(0.5), cellSize: 0.004, weight: 1 }]
     expect(fitOccluderSpheres(parts[0]!.points, 0.004).length).toBeGreaterThan(20)
     expect(fitFrameOccluders(parts, 20).length).toBeLessThanOrEqual(20)
+  })
+
+  it('keeps each part\'s spheres apart, in order, under one shared budget', () => {
+    const front = { points: rod(0.14), cellSize: 0.008, weight: 1 }
+    const arm = { points: rod(0.1), cellSize: 0.008, weight: 1 }
+    const byPart = fitFrameOccludersByPart([front, arm], 20)
+    expect(byPart).toHaveLength(2)
+    expect(byPart[0]!.length).toBeGreaterThan(0)
+    expect(byPart[1]!.length).toBeGreaterThan(0)
+    expect(byPart[0]!.length + byPart[1]!.length).toBeLessThanOrEqual(20)
+    // Same spheres as the flat fit, part by part.
+    expect(byPart.flat()).toEqual(fitFrameOccluders([front, arm], 20))
   })
 })
 
