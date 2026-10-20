@@ -187,12 +187,7 @@ const session = useTryOnSession({
 })
 const { status, hasConsented, hasReportedFaceDetected, start, prefetch, onSceneTiming } = session
 
-const { capture, onSceneSnapshot } = useTryOnCapture(
-  camera,
-  stage,
-  { visible: () => frameVisible.value, cameraMatch: () => cameraMatchEnabled.value },
-  trackTryOn
-)
+const { capture, onSceneSnapshot } = useTryOnCapture(camera, stage, frame, features, trackTryOn)
 
 defineExpose({
   start,

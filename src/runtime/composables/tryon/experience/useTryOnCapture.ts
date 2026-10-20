@@ -15,8 +15,10 @@ import type { TryOnTrack } from './useTryOnTrackEvents'
 export function useTryOnCapture(
   camera: { videoRef: Ref<HTMLVideoElement | null>; isActive: Ref<boolean> },
   stage: { width: Ref<number>; height: Ref<number> },
-  /** Whether the frame shows, and whether the camera-match blur is on. */
-  frame: { visible: () => boolean; cameraMatch: () => boolean },
+  /** Whether the frame shows (`useTryOnFrame`). */
+  frame: { frameVisible: Ref<boolean> },
+  /** Whether the camera-match blur is on (`useTryOnFeatures`). */
+  features: { cameraMatchEnabled: Ref<boolean> },
   track: TryOnTrack
 ) {
   // Snapshot of the composited try-on (issue #93), set by the scene.
@@ -68,9 +70,9 @@ export function useTryOnCapture(
     // Render and copy in the same task: the drawing buffer is still intact.
     // As on screen: no frame while it is hidden (it fades out), and the
     // camera-match blur scaled from stage pixels to output pixels.
-    const scene = frame.visible() ? renderSnapshot?.() : null
+    const scene = frame.frameVisible.value ? renderSnapshot?.() : null
     if (scene && scene.width > 0 && scene.height > 0) {
-      if (frame.cameraMatch() && stage.width.value > 0) {
+      if (features.cameraMatchEnabled.value && stage.width.value > 0) {
         context.filter = `blur(${(CAMERA_BLUR_PX * layout.width) / stage.width.value}px)`
       }
       context.drawImage(scene, 0, 0, layout.width, layout.height)
