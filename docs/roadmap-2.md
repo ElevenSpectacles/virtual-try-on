@@ -1,52 +1,46 @@
-# Roadmap 2: status and merge plan (issue #105)
+# Roadmap 2: status and merge record (issue #105)
 
 Roadmap 2 closes the gap with Fittingbox on four fronts: true-to-size fit,
 shopper features, glasses-wearers and the finishing of realism. Every child
-issue now has a branch with an implementation (or, for #100, a research
-spike), unit tests, and a PR description. The PR descriptions say what was
-verified and what still needs the local-only harness. This page tracks where
-each one stands and the order to merge them in.
+issue has landed on `main` (or, for #102, is in review). This page records
+which PR delivered each one and the order they merged in.
 
-## Merge order: one linear stack
+## Status
 
 Each feature was first written against `main`. Nearly every pair touched the
 same places: `VirtualTryOnExperience.vue` props, the exposed state, the
-README tables, `AGENTS.md`. Merged one by one, every second PR would
-conflict.
+README tables, `AGENTS.md`. So the branches were **stacked**, each PR based
+on the previous one, and merged in this order with merge commits. Every step
+passed `npx vitest run` and `nuxt typecheck` on its own.
 
-So the branches are **stacked**: each PR is based on the previous one. Each
-PR shows only its own diff, and merging them **in this order with merge
-commits** (the repo's existing style) never conflicts. GitHub retargets the
-next PR to `main` when its base merges. Every step of the stack passes
-`npx vitest run` and `nuxt typecheck` on its own.
-
-| # | Issue | Branch | Base | Phase |
-| --- | --- | --- | --- | --- |
-| 1 | #83 temple ear bend | `feat/temple-ear-bend` | `main` | 0 |
-| 2 | #87 pad-contact nose seat + tilt audit | `feat/nose-seat-tilt` | #83 | 0 |
-| 3 | #92 true-to-size from the iris | `feat/true-to-size-iris` | #87 | 1 |
-| 4 | #96 card calibration (±1 mm PD) | `feat/card-calibration` | #92 | 1 |
-| 5 | #98 measurements, face shape, fit ranking | `feat/fit-advisor` | #96 | 3 |
-| 6 | #93 `capture()` | `feat/capture` | #98 | 3 |
-| 7 | #94 GLB cache + neighbour prefetch | `feat/glb-cache` | #93 | 3 |
-| 8 | #97 `freeze()` / `unfreeze()` | `feat/freeze` | #94 | 3 |
-| 9 | #95 time-to-first-frame | `perf/time-to-first-frame` | #97 | 4 |
-| 10 | #99 tracking robustness, guide hints | `fix/tracking-robustness` | #95 | 4 |
-| 11 | #84 camera reflections + light direction | `feat/camera-reflections` | #99 | 2 |
-| 12 | #85 lens colour in physical units | `feat/lens-physical-colour` | #84 | 2 |
-| 13 | #86 webcam match | `feat/webcam-match` | #85 | 2 |
-| 14 | #103 model prep, lint, calibration validation | `feat/model-tooling` | #86 | 5 |
-| 15 | #101 5.0 breaking cleanup | `feat/v5-breaking-cleanup` | #103 | 5 |
-| 16 | #104 demo + README overhaul | `docs/demo-readme` | #101 | 5 |
-| 17 | #102 split the SFCs into composables | `refactor/scene-composables` | #104 | 5 |
-
-Off the stack (merge any time):
-
-| Issue | Branch | Base | Note |
+| # | Issue | PR | Phase |
 | --- | --- | --- | --- |
-| #88 tinted lens shadow | `feat/tinted-lens-shadow` | `feat/shadow-multiply` (#89) | Waits for #89. #89 is older than `main` and conflicts only in its 56 re-recorded goldens: rebase it, re-record them, then merge #88. |
-| #100 frame-removal spike | `docs/frame-removal-spike` | `main` | Docs and a harness only. |
-| #105 this page | `docs/roadmap-2` | `main` | Docs only. |
+| 1 | #83 temple ear bend | #108 | 0 |
+| 2 | #87 pad-contact nose seat + tilt audit | #109 | 0 |
+| 3 | #92 true-to-size from the iris | #110 | 1 |
+| 4 | #96 card calibration (±1 mm PD) | #111 | 1 |
+| 5 | #98 measurements, face shape, fit ranking | #112 | 3 |
+| 6 | #93 `capture()` | #113 | 3 |
+| 7 | #94 GLB cache + neighbour prefetch | #114 | 3 |
+| 8 | #97 `freeze()` / `unfreeze()` | #115 | 3 |
+| 9 | #95 time-to-first-frame | #116 | 4 |
+| 10 | #99 tracking robustness, guide hints | #117 | 4 |
+| 11 | #84 camera reflections + light direction | #118 | 2 |
+| 12 | #85 lens colour in physical units | #119 | 2 |
+| 13 | #86 webcam match | #120 | 2 |
+| 14 | #103 model prep, lint, calibration validation | #121 | 5 |
+| 15 | #101 5.0 breaking cleanup | #122 | 5 |
+| 16 | #104 demo + README overhaul | #123 | 5 |
+| 17 | #102 split the SFCs into composables | #129 (in review) | 5 |
+
+Off the stack:
+
+| Issue | PR | Note |
+| --- | --- | --- |
+| #88 realism shadows | #89, #124, #127 | #89: multiply-blended receiver and analytic contact occlusion (steps 1–2). #124: tinted lens shadow, opt-in, `high` tier (step 3). #127: occlusion follows the hinged and bent temples. The contact shadow is off on the `low` tier (`FEATURE_MIN_TIER.contactShadow = 'mid'`). |
+| #100 frame-removal spike | #125 | Docs and a harness only. |
+| #105 this page | #126 | Docs only. |
+| — | #128 | Integration fixes found by an audit of the merged stack. |
 
 ### Why the order differs from the issue's suggestion
 
@@ -98,8 +92,8 @@ The unit suites, typecheck, build and in-browser smoke checks ran for every
 branch. Some checks need the catalog GLBs or real hardware, so they are
 local-only by design (decided in #16):
 
-- **Goldens.** Re-record after #84, #85, #86 and #88, which change pixels on
-  purpose. Run `npx playwright test tests/e2e/rendering-goldens.spec.ts
+- **Goldens.** Re-recorded with #89. Re-record after any further change
+  that moves pixels on purpose. Run `npx playwright test tests/e2e/rendering-goldens.spec.ts
   --update-snapshots` and review the diffs. #102 must pass **without**
   re-recording.
 - **E2E specs.** The tracking, fit, hair, lighting and robustness specs, plus
@@ -107,8 +101,9 @@ local-only by design (decided in #16):
   run against the catalog models.
 - **Colour QA.** `tests/e2e/colour.spec.ts` skips until
   `tests/fixtures/colour-swatches.json` has measured swatches (#85).
-- **Phone timings.** Check the tier budgets and #95's time-to-first-frame on
-  a mid-tier phone.
+- **Phone timings.** Check the tier budgets, #95's time-to-first-frame and
+  #88's < 1 ms contact-shadow GPU budget on a
+  mid-tier phone.
 
 ## Follow-ups (not in this roadmap)
 
