@@ -18,8 +18,10 @@ export type {
   TryOnGuideHint,
   TryOnMeasurements,
   TryOnStatus,
+  VirtualTryOnExperienceSlotProps,
   WebcamError
 } from './runtime/types/tryon-experience'
+export type { VirtualTryOnExperienceProps } from './runtime/types/tryon-experience-props'
 
 /** Module options — `virtualTryOn` in the host's `nuxt.config`. */
 export interface ModuleOptions {
