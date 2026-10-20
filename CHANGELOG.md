@@ -1,5 +1,86 @@
 # Changelog
 
+## [5.0.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.8.1...v5.0.0) (2026-10-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* the `frameYaw` and `templeWidth` props and the `templeWidthBoost` calibration field are removed. Delete the props; old calibration manifests keep working (the field is ignored).
+
+### Features
+
+* capture() snapshot of the composited try-on ([32c7328](https://github.com/ElevenSpectacles/virtual-try-on/commit/32c732849b4eb251f816e439c5d5384f7c19b72d))
+* capture() snapshot of the composited try-on ([5f794bc](https://github.com/ElevenSpectacles/virtual-try-on/commit/5f794bc8c8638ea9af7982a5537610b2bbc58034)), closes [#93](https://github.com/ElevenSpectacles/virtual-try-on/issues/93)
+* face measurements, face shape and catalog-wide fit ranking ([e4f5a13](https://github.com/ElevenSpectacles/virtual-try-on/commit/e4f5a1341d777624304f5d19597a794daf1bdb2f))
+* face measurements, face shape and catalog-wide fit ranking ([584905b](https://github.com/ElevenSpectacles/virtual-try-on/commit/584905bc0c7a1af0bd4b37c5ea3da1aea095344a)), closes [#98](https://github.com/ElevenSpectacles/virtual-try-on/issues/98)
+* freeze() / unfreeze() to compare frames on a held pose ([fdb4016](https://github.com/ElevenSpectacles/virtual-try-on/commit/fdb401600f0df29f8705849e47d3fd5f81d4549b))
+* freeze() / unfreeze() to compare frames on a held pose ([9b7c2ea](https://github.com/ElevenSpectacles/virtual-try-on/commit/9b7c2eac354425d2f2d177a73a1c90b55bfdd832)), closes [#97](https://github.com/ElevenSpectacles/virtual-try-on/issues/97)
+* GLB cache and neighbour prefetch for instant frame switching ([0712f63](https://github.com/ElevenSpectacles/virtual-try-on/commit/0712f63f046273f6e7304eaa7309bcc14a7a2419))
+* GLB cache and neighbour prefetch for instant frame switching ([fd9b6d3](https://github.com/ElevenSpectacles/virtual-try-on/commit/fd9b6d327911935d08ddfdee7560029338a40538)), closes [#94](https://github.com/ElevenSpectacles/virtual-try-on/issues/94)
+* lens darkness in physical units, gradient lenses, colour QA tooling ([28093fa](https://github.com/ElevenSpectacles/virtual-try-on/commit/28093faa42ee35dc4b867210fac95b83285779ff))
+* lens darkness in physical units, gradient lenses, colour QA tooling ([20499d9](https://github.com/ElevenSpectacles/virtual-try-on/commit/20499d9ee1a8245be6105e234c58957e8299665a)), closes [#85](https://github.com/ElevenSpectacles/virtual-try-on/issues/85)
+* lens reflections from the camera feed and the room's light direction ([4598ace](https://github.com/ElevenSpectacles/virtual-try-on/commit/4598ace82c51e9edbade7622948b4754691c4a6f))
+* lens reflections from the camera feed and the room's light direction ([6ca35aa](https://github.com/ElevenSpectacles/virtual-try-on/commit/6ca35aad0e8d650aa2425fb7c43a938555e71181)), closes [#84](https://github.com/ElevenSpectacles/virtual-try-on/issues/84)
+* match the webcam with grain, a slight blur and light wrap ([57c8411](https://github.com/ElevenSpectacles/virtual-try-on/commit/57c84110fdc1defd4769604f0e62507a14b048db))
+* match the webcam with grain, a slight blur and light wrap ([d2ee85a](https://github.com/ElevenSpectacles/virtual-try-on/commit/d2ee85aa9157a14188543c2c317cb45a9aff0428)), closes [#86](https://github.com/ElevenSpectacles/virtual-try-on/issues/86)
+* multiply contact shadow and add soft contact occlusion ([9ac1493](https://github.com/ElevenSpectacles/virtual-try-on/commit/9ac1493d7e7f31640ec8a9c749b3d07665271a96))
+* multiply contact shadow and add soft contact occlusion ([974c669](https://github.com/ElevenSpectacles/virtual-try-on/commit/974c669ddf110f48c04d130668ee692fceccff55)), closes [#88](https://github.com/ElevenSpectacles/virtual-try-on/issues/88)
+* one-command model prep, model lint and calibration validation ([a90c52a](https://github.com/ElevenSpectacles/virtual-try-on/commit/a90c52ae11c739a3a7cbabc2b3f1390178dd2ba7))
+* one-command model prep, model lint and calibration validation ([2a3d5a4](https://github.com/ElevenSpectacles/virtual-try-on/commit/2a3d5a408862555b1e2ccab11f746ec43be6d01f)), closes [#103](https://github.com/ElevenSpectacles/virtual-try-on/issues/103)
+* open temple arms at the hinge to meet the tracked head ([63231a1](https://github.com/ElevenSpectacles/virtual-try-on/commit/63231a1f0a2354a5e83637dbd20e09190ce851df))
+* open temple arms at the hinge to meet the tracked head ([383bac1](https://github.com/ElevenSpectacles/virtual-try-on/commit/383bac1392d6425545eeb7d0c950a90d3db85d7d)), closes [#83](https://github.com/ElevenSpectacles/virtual-try-on/issues/83)
+* opt-in tinted lens shadow ([90b7d7c](https://github.com/ElevenSpectacles/virtual-try-on/commit/90b7d7c2df0adab9522fe49297bf0f2767126bea))
+* opt-in tinted lens shadow ([6a02658](https://github.com/ElevenSpectacles/virtual-try-on/commit/6a026585f05ab2f62b70f2d2dc875095a6bcdc68)), closes [#88](https://github.com/ElevenSpectacles/virtual-try-on/issues/88)
+* optional card calibration for a ±1 mm PD ([35e6f74](https://github.com/ElevenSpectacles/virtual-try-on/commit/35e6f746ab463e3092792160a207ce691de00719))
+* optional card calibration for a ±1 mm PD ([3fb7b4f](https://github.com/ElevenSpectacles/virtual-try-on/commit/3fb7b4f6cf9568822d90e3145692402ac685448e)), closes [#96](https://github.com/ElevenSpectacles/virtual-try-on/issues/96)
+* optional ear bend of the temple tips behind the ear ([45026eb](https://github.com/ElevenSpectacles/virtual-try-on/commit/45026eb14f657e7939116f55584c916147c2bf35))
+* optional ear bend of the temple tips behind the ear ([a5cb4f5](https://github.com/ElevenSpectacles/virtual-try-on/commit/a5cb4f59f74092ed5b6e70fd70412351ef6a5241)), closes [#83](https://github.com/ElevenSpectacles/virtual-try-on/issues/83)
+* pad-contact nose seat (opt-in) and a pantoscopic tilt audit ([1f739bc](https://github.com/ElevenSpectacles/virtual-try-on/commit/1f739bc6a4a8cd1e778e8144f820e859ff295239))
+* pad-contact nose seat (opt-in) and a pantoscopic tilt audit ([db9253e](https://github.com/ElevenSpectacles/virtual-try-on/commit/db9253e40b3d56e34e4f4b361490b5c276b4579d)), closes [#87](https://github.com/ElevenSpectacles/virtual-try-on/issues/87)
+* remove frameYaw, templeWidth and templeWidthBoost ([cd1369d](https://github.com/ElevenSpectacles/virtual-try-on/commit/cd1369d10763d911a66edd47659b740b112d35c5)), closes [#101](https://github.com/ElevenSpectacles/virtual-try-on/issues/101)
+* size the frame true to size from the iris-measured PD ([8d31c3f](https://github.com/ElevenSpectacles/virtual-try-on/commit/8d31c3f2cbcfda675fc1f6482c475aa5dd293692))
+* size the frame true to size from the iris-measured PD ([962b7d4](https://github.com/ElevenSpectacles/virtual-try-on/commit/962b7d41ee5f8cd774596a624715b824240b5605)), closes [#92](https://github.com/ElevenSpectacles/virtual-try-on/issues/92)
+
+
+### Bug Fixes
+
+* contact-occlusion spheres follow the hinged temple arms and the ear bend ([5a45def](https://github.com/ElevenSpectacles/virtual-try-on/commit/5a45defdd81b9203cb06ba27c72eb605eb29f39a))
+* contact-occlusion spheres follow the hinged temple arms and the ear bend ([7a1efed](https://github.com/ElevenSpectacles/virtual-try-on/commit/7a1efedeff841759cbe470cc1a6ce66cf7704d52))
+* eight cross-feature bugs found by auditing the Roadmap 2 merge ([d63e44e](https://github.com/ElevenSpectacles/virtual-try-on/commit/d63e44e043d17681e22cd0857edfdddee7b3d94f))
+* eight cross-feature bugs found by auditing the Roadmap 2 merge ([6842ac1](https://github.com/ElevenSpectacles/virtual-try-on/commit/6842ac1fdfca7b2d51a2323a74e9ed9401984caa))
+* gate the contact-shadow receiver on the prop again ([6710bee](https://github.com/ElevenSpectacles/virtual-try-on/commit/6710bee611543e377678bcec62c0d3289427ea68))
+* hold the frame through short tracking dropouts; turnBack and tooDark hints ([3d58b3f](https://github.com/ElevenSpectacles/virtual-try-on/commit/3d58b3f8b3881060b0c8008f9787b36e332dddb9))
+* hold the frame through short tracking dropouts; turnBack and tooDark hints ([0cfa7e7](https://github.com/ElevenSpectacles/virtual-try-on/commit/0cfa7e7b1f97c2f963bbf64bb2b0d7305116ec04)), closes [#99](https://github.com/ElevenSpectacles/virtual-try-on/issues/99)
+
+
+### Performance
+
+* time-to-first-frame budget: measure, parallelise, preconnect, self-host ([eb417fe](https://github.com/ElevenSpectacles/virtual-try-on/commit/eb417fee855f9e6ec2f63cc76c29b03b4c650c26))
+* time-to-first-frame budget: measure, parallelise, preconnect, self-host ([ab1fd99](https://github.com/ElevenSpectacles/virtual-try-on/commit/ab1fd993f00f0796508c782182309cf2fd23e741)), closes [#95](https://github.com/ElevenSpectacles/virtual-try-on/issues/95)
+
+
+### Documentation
+
+* **agents:** internal scene/experience composables and the 400-line SFC rule ([4cb2e83](https://github.com/ElevenSpectacles/virtual-try-on/commit/4cb2e83eb440ce03906087f6ff13c23d7bf19b3a))
+* drop the company name from the license note ([334f1ee](https://github.com/ElevenSpectacles/virtual-try-on/commit/334f1eefe69a1a671243b5e7f27150b4c5085db3))
+* frame-removal research spike ([41006f9](https://github.com/ElevenSpectacles/virtual-try-on/commit/41006f98dd104debeaff1316e62017205784f3cc))
+* frame-removal research spike ([e363726](https://github.com/ElevenSpectacles/virtual-try-on/commit/e3637262f70c978950973676d118f2450814e32a)), closes [#100](https://github.com/ElevenSpectacles/virtual-try-on/issues/100)
+* public demo on GitHub Pages and README overhaul ([2561e6e](https://github.com/ElevenSpectacles/virtual-try-on/commit/2561e6e162d8591277693ad87b87d9b807ada8a0))
+* public demo on GitHub Pages and README overhaul ([512c6fb](https://github.com/ElevenSpectacles/virtual-try-on/commit/512c6fba3af349977bfdaccde20ec09b25777ec6)), closes [#104](https://github.com/ElevenSpectacles/virtual-try-on/issues/104)
+* record the landed roadmap-2 PRs ([55fe695](https://github.com/ElevenSpectacles/virtual-try-on/commit/55fe6959932742f92a4b1d663034a9c86ea27ac1))
+* record the landed roadmap-2 PRs ([eedcd6c](https://github.com/ElevenSpectacles/virtual-try-on/commit/eedcd6cbccff99f737cf2510b524590075619f81)), closes [#88](https://github.com/ElevenSpectacles/virtual-try-on/issues/88)
+* research realism of shadows, fit, temples and colour ([49ce06b](https://github.com/ElevenSpectacles/virtual-try-on/commit/49ce06b9b19289d7e57dd961b34a60b7cae8eeb3))
+* research realism of shadows, fit, temples and colour ([e6c1b42](https://github.com/ElevenSpectacles/virtual-try-on/commit/e6c1b424e0242ba10e59bda64dff045ede328f70))
+* roadmap 2 status and merge plan ([e01ee0a](https://github.com/ElevenSpectacles/virtual-try-on/commit/e01ee0adde449645f12a4606c5d3e37f325c217d))
+* roadmap 2 status and merge plan ([a1f8f42](https://github.com/ElevenSpectacles/virtual-try-on/commit/a1f8f42632bfb2670563cb5265dafed6ec3f4ae3))
+
+
+### Refactoring
+
+* **experience:** split VirtualTryOnExperience.vue into internal composables ([4384770](https://github.com/ElevenSpectacles/virtual-try-on/commit/43847705324f22aa610439308bc040b5172b42a9))
+* **scene:** split TryOnScene.vue into internal composables ([3e80aee](https://github.com/ElevenSpectacles/virtual-try-on/commit/3e80aee95c308e2406a135f81568e04803540478))
+* split TryOnScene and VirtualTryOnExperience into internal composables ([2fb4f74](https://github.com/ElevenSpectacles/virtual-try-on/commit/2fb4f7436b5c2be3f7fd79afa602e4d72d13502c))
+
 ## [4.8.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.8.0...v4.8.1) (2026-10-14)
 
 
