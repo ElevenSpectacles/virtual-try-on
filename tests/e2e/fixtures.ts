@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -67,9 +68,10 @@ const FILTERS: Record<ClipKind, string> = {
   ].join(','),
   dim: 'scale=480:640,eq=brightness=-0.25:saturation=0.85',
   bright: 'scale=480:640,eq=brightness=0.12',
-  // Room luma 0.007–0.09 on the three fixtures (dim: 0.18–0.32), under the
-  // guide's 0.12 tooDark threshold.
-  dark: 'scale=480:640,eq=brightness=-0.55:saturation=0.7',
+  // Room luma 0.012–0.096 on the three fixtures in Chromium (dim:
+  // 0.24–0.40), under the guide's 0.12 tooDark threshold. -0.55 left the
+  // bright iris-moss portrait at 0.153.
+  dark: 'scale=480:640,eq=brightness=-0.65:saturation=0.7',
   // Face at half exposure, brightening to white toward the edges: a window
   // behind the shopper.
   backlit:
@@ -102,10 +104,18 @@ export function missingPrerequisite(): string | null {
   return null
 }
 
-/** Absolute path of the rendered Y4M clip, rendering it if stale. */
+/**
+ * Absolute path of the rendered Y4M clip, rendering it if stale. The name
+ * carries a hash of the filter and duration, so editing a clip kind renders
+ * a new clip instead of reusing the old one.
+ */
 export function faceClip(face: FaceFixture, kind: ClipKind): string {
   const source = join(FACES_DIR, `${face}.jpg`)
-  const clip = join(CLIPS_DIR, `${face}-${kind}.y4m`)
+  const recipe = createHash('sha256')
+    .update(`${FILTERS[kind]}|${DURATION_S[kind]}`)
+    .digest('hex')
+    .slice(0, 8)
+  const clip = join(CLIPS_DIR, `${face}-${kind}-${recipe}.y4m`)
   if (existsSync(clip) && statSync(clip).mtimeMs >= statSync(source).mtimeMs) {
     return clip
   }
