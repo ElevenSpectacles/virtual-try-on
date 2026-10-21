@@ -4,7 +4,6 @@ import {
   DirectionalLight,
   Matrix4,
   Mesh,
-  MeshDepthMaterial,
   Object3D,
   Vector3,
   Vector4,
@@ -62,11 +61,13 @@ export function useContactShadow(
   // Contact shadow (utils/tryon-contact-shadow): a shadow-only light (no
   // intensity, so it changes no shading) renders a small
   // shadow map of the frame, framed tightly on it, and a ShadowMaterial copy
-  // of the face mesh shows that shadow on the skin. The catalog is mostly
-  // rimless, so most of a real pair's shadow comes from its tinted lenses: a
-  // shadow map has no partial transparency, so lenses cast through an
-  // alpha-hashed depth material (a random share of texels, by lens density)
-  // that the blur turns into an even half-shadow. The host canvas uses VSM:
+  // of the face mesh shows that shadow on the skin. Only the opaque parts
+  // (rims, bridge, pads, temples) cast into it. A lens shadow needs the
+  // lens's colour, which a black multiply can't give: a brown lens's light
+  // stays warm, but black turns its shadow into a grey patch on the cheek,
+  // the more visible the paler the skin there. So lenses cast only with the
+  // tinted lens shadow (below), which colours their shadow against the
+  // camera pixels. The host canvas uses VSM:
   // its blur pass keeps the edge soft, as from a room light rather than a
   // spotlight, without PCF's speckle at a wide radius.
   //
@@ -149,24 +150,21 @@ export function useContactShadow(
     { immediate: true }
   )
 
-  // Every frame mesh casts; lens meshes through a partial (alpha-hashed)
-  // depth material. The receiver never casts.
-  let lensDepthMaterials: MeshDepthMaterial[] = []
+  // Every frame mesh casts; lens meshes only into the tinted lens shadow's
+  // map. The receiver never casts.
   /** Contact-occlusion spheres of the current frame (see below). */
   let occluderSpheres: MeshOccluderSphere[] = []
 
   watch(
     [model, () => props.contactShadow, () => props.lens, tinted],
     ([gltf, enabled, , tint]) => {
-      for (const material of lensDepthMaterials) material.dispose()
-      lensDepthMaterials = []
       let lensDensity = 0
       let lensColor: [number, number, number] | null = null
       gltf?.scene.traverse((obj) => {
         if (!(obj instanceof Mesh)) return
-        obj.castShadow = enabled
         const current = Array.isArray(obj.material) ? obj.material : [obj.material]
         const lens = current.find((m: Material) => LENS_MATERIAL_NAME.test(m.name))
+        obj.castShadow = enabled && (!lens || tint)
         // Tinted: each part casts into its own light's map only.
         const filter = tint
           ? shadowCasterFilter(!!lens, () => lensShadowLight.shadow.camera)
@@ -178,18 +176,6 @@ export function useContactShadow(
           const color = (lens as MeshStandardMaterial).color
           if (color) lensColor = [color.r, color.g, color.b]
         }
-        // The tinted lens map is a plain coverage map; the density is applied
-        // in the receiver instead of by alpha-hashing.
-        if (!enabled || !lens || tint) {
-          obj.customDepthMaterial = undefined
-          return
-        }
-        const depth = new MeshDepthMaterial({
-          alphaHash: true,
-          opacity: Math.min(lens.opacity * LENS_SHADOW_DENSITY, 1)
-        })
-        lensDepthMaterials.push(depth)
-        obj.customDepthMaterial = depth
       })
       occluderSpheres = enabled && gltf ? frameOccluderSpheres(gltf.scene) : []
       receiverUniforms.uLensShadowDensity.value = lensDensity
@@ -255,7 +241,6 @@ export function useContactShadow(
   onUnmounted(() => {
     shadowLight.dispose()
     lensShadowLight.dispose()
-    for (const material of lensDepthMaterials) material.dispose()
   })
 
   return {
