@@ -19,3 +19,7 @@ tests/e2e/__screenshots__/**/upna-*
 demo/public/
 # `nuxt generate` links demo/dist to .output/public.
 demo/dist
+
+# nuxt-skill-hub writes its wrapper next to the playground; the root skill
+# folders link straight to the generated tree in playground/.nuxt instead.
+playground/.claude/

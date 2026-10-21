@@ -338,10 +338,23 @@ claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
 - Third-party, locked: `nuxt-modules` (onmax/nuxt-skills), `playwright-cli`.
   `nuxt-modules` suggests changelogen/manual release workflows — ignore
   them; releases here go only through release-please.
+- Generated: `nuxt-virtual-try-on`, written by the `nuxt-skill-hub` module
+  (playground `modules`, `skillHub` in `playground/nuxt.config.ts`) on
+  `npx nuxi prepare playground` into `playground/.nuxt/skill-hub/`. The
+  `.agents/skills` and `.claude/skills` entries are symlinks into that
+  build dir, so they dangle until the first prepare; the module's own
+  wrapper in `playground/.claude/` is gitignored. It assumes an app with
+  auto-imports, Nuxt UI and VueUse — none of that applies to the shipped
+  runtime (explicit imports, no UI library, no VueUse); its
+  `module-authoring` and Vue guides are the useful parts.
 - Vendored and patched, so not in the lock (an update would revert the
   patches): `threejs-fundamentals`, `-geometry`, `-loaders`, `-materials`
   from cloudai-x/threejs-skills, moved to three r186 (`three/addons`,
   `HDRLoader`). Rendering still goes through TresJS — the rules above win.
+
+<!-- nuxt-skill-hub:start -->
+Use the nuxt-virtual-try-on skill as the Nuxt router/entrypoint for tasks in this repository.
+<!-- nuxt-skill-hub:end -->
 
 ## Host integration contract
 
