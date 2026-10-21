@@ -97,8 +97,8 @@ export interface TryOnSceneProps {
   /** Shadow opacity on skin, 0…1. */
   contactShadowStrength?: number
   /**
-   * Tint the lenses' shadow with their colour (utils/tryon-lens-shadow):
-   * lenses cast into their own shadow map, and the receiver samples the
+   * Add the lenses' shadow, in their colour (utils/tryon-lens-shadow); off,
+   * lenses cast none. Lenses cast into their own shadow map, and the receiver samples the
    * camera (`videoElement`) for the colour. Needs `contactShadow`.
    */
   tintedLensShadow?: boolean
