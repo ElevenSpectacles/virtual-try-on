@@ -33,8 +33,8 @@ export const GUIDE_TURN_BACK_YAW_RAD = (55 * Math.PI) / 180
 /**
  * Room luma (0…1, see utils/tryon-lighting) under which the room is too
  * dark: webcam sensor noise, and with it landmark noise, grows fast below
- * it. On the fixtures, normal light reads 0.43–0.58, the `dim` clip
- * 0.18–0.32 and the `dark` clip 0.007–0.09. Leaving the hint takes
+ * it. On the fixtures in Chromium, the `dim` clip reads 0.24–0.40 and
+ * the `dark` clip 0.012–0.096. Leaving the hint takes
  * `GUIDE_DARK_HYSTERESIS` more, so it doesn't flicker.
  */
 export const GUIDE_DARK_LUMA = 0.12
