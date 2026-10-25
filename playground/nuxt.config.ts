@@ -22,7 +22,14 @@ export default defineNuxtConfig({
   // Dogfooding: consume this repo through its own Nuxt module entry so the
   // auto-registration (components, composables/utils, Tailwind @source,
   // worker fs.allow) is exercised exactly like a host's.
-  modules: ['@nuxt/ui', r('../src/module')],
+  modules: ['@nuxt/ui', 'nuxt-skill-hub', r('../src/module')],
+
+  // Agent skill generated on `nuxt prepare` from the installed Nuxt stack,
+  // with the module-authoring guide since this repo ships a module.
+  skillHub: {
+    targets: ['claude-code'],
+    moduleAuthoring: true
+  },
 
   css: ['~/assets/css/main.css'],
 

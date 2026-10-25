@@ -99,6 +99,7 @@
     "@vueuse/core": "^14.4.0",
     "draco3dgltf": "^1.5.7",
     "husky": "^9.1.7",
+    "nuxt-skill-hub": "^0.2.0",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vite-doctor": "^0.0.12",

@@ -747,6 +747,16 @@ npm run build        # dist/ via @nuxt/module-builder
 `calibration.json` from a sibling host checkout — set `TRYON_MODELS_DIR` if
 yours live elsewhere.
 
+**Agent skill** — the playground also runs
+[nuxt-skill-hub](https://nuxt-skill.onmax.me/), which generates the
+`nuxt-virtual-try-on` agent skill in `playground/.nuxt/skill-hub/`. The
+`.agents/skills/` and `.claude/skills/` entries link there, so they are
+empty on a fresh clone until you run:
+
+```bash
+npx nuxi prepare playground
+```
+
 **Face-fixture tests** — `verify:e2e` feeds portraits from
 `tests/fixtures/faces/` to Chromium as a fake camera (rendered to video with
 `ffmpeg`), asserts detection rate and landmark jitter, and compares the
