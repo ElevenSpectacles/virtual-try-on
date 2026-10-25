@@ -95,8 +95,9 @@ export interface VirtualTryOnExperienceProps {
   /** URL/path of `hair_segmenter.tflite`, to self-host it. */
   mediapipeHairModelAssetPath?: string | undefined
   /**
-   * Tint the lenses' shadow with their colour: a brown lens throws a warm
-   * shadow, a green one a green shadow. Costs a second shadow map and a
+   * Add the lenses' shadow, in their colour: a brown lens throws a warm
+   * shadow, a green one a green shadow. Without it lenses cast no shadow (a
+   * colourless one reads as a grey patch on the cheek). Costs a second shadow map and a
    * camera-texture upload per frame, so it is opt-in and needs the `high`
    * tier and `contactShadow`.
    */
