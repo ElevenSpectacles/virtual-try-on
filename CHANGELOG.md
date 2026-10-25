@@ -1,5 +1,18 @@
 # Changelog
 
+## [5.0.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.0...v5.0.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* lenses cast no colourless contact shadow (grey patch on the cheek) ([960708c](https://github.com/ElevenSpectacles/virtual-try-on/commit/960708c323830381930ba98852ba07edea167884))
+* lenses cast no colourless contact shadow (grey patch on the cheek) ([cf823d6](https://github.com/ElevenSpectacles/virtual-try-on/commit/cf823d633573ab02cbb37fe923e40bcc59b15cf5))
+
+
+### Documentation
+
+* note the nuxi prepare step for the generated agent skill ([2bc65e7](https://github.com/ElevenSpectacles/virtual-try-on/commit/2bc65e753fbce91f0a0ba0359573430bc3ded9e6))
+
 ## [5.0.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v4.8.1...v5.0.0) (2026-10-20)
 
 
