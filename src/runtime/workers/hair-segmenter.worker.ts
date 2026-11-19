@@ -53,7 +53,7 @@ function post(message: HairSegmenterWorkerResponse, transfer: Transferable[] = [
 // Must match the face-landmarker worker's (and the pinned
 // `@mediapipe/tasks-vision`; enforced by tests/unit/mediapipe-version.test.ts).
 const DEFAULT_WASM_BASE_PATH =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm'
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm'
 // The hair-only model (782 KB, 512² input, labels background/hair), not the
 // 16 MB multiclass selfie model: this is a download on every phone that
 // turns the feature on.
