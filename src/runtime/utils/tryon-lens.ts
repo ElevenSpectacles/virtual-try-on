@@ -110,13 +110,34 @@ export function resolveLens(entry: TryOnLensCalibration | undefined): TryOnLens 
 }
 
 /**
- * Density across a gradient lens at height `t` (0 bottom … 1 top), with a
- * smooth middle like a real gradient tint. Mirrors the lens shader.
+ * Lowest transmittance a gradient end can have (density 1 → τv 0.1 %), so
+ * its logarithm stays finite. Darker than any ISO 12312-1 category (cat. 4
+ * starts at 3 %), so it never changes how a real lens looks.
+ */
+export const LENS_MIN_TRANSMITTANCE = 0.001
+
+/**
+ * A gradient's ends as natural-log transmittances `[bottom, top]`, the
+ * `uLensGradient` uniform of the lens shader.
+ */
+export function lensGradientLogTransmittance(gradient: { top: number; bottom: number }): [number, number] {
+  const logT = (density: number) => Math.log(Math.max(1 - density, LENS_MIN_TRANSMITTANCE))
+  return [logT(gradient.bottom), logT(gradient.top)]
+}
+
+/**
+ * Density across a gradient lens at height `t` (0 bottom … 1 top). A gradient
+ * lens is dyed with a concentration that falls from top to bottom, so its
+ * optical density (−log τ) follows that fall, not its opacity: it stays dark
+ * further down than a linear fade, as on the real lenses (measured on the
+ * catalog's product photos, docs/research/model-asset-audit.md). The fall is
+ * a smoothstep, for the soft ends of a dyed gradient. Mirrors the lens shader.
  */
 export function gradientDensityAt(gradient: { top: number; bottom: number }, t: number): number {
   const x = Math.min(Math.max(t, 0), 1)
   const s = x * x * (3 - 2 * x)
-  return gradient.bottom + (gradient.top - gradient.bottom) * s
+  const [bottom, top] = lensGradientLogTransmittance(gradient)
+  return 1 - Math.exp(bottom + (top - bottom) * s)
 }
 
 /** Reflectance of uncoated crown glass / polycarbonate at normal incidence (IOR ≈ 1.5). */
@@ -147,8 +168,9 @@ export const LENS_HEIGHT_ATTRIBUTE = 'tryOnLensHeight'
 
 /**
  * Patch a lens material's shaders for a gradient tint: the base opacity
- * follows the lens height (`LENS_HEIGHT_ATTRIBUTE`) between
- * `uLensGradient[0]` (bottom) and `[1]` (top), as `gradientDensityAt`.
+ * follows the lens height (`LENS_HEIGHT_ATTRIBUTE`), interpolating the log
+ * transmittances `uLensGradient[0]` (bottom) and `[1]` (top)
+ * (`lensGradientLogTransmittance`), as `gradientDensityAt`.
  */
 export function patchLensGradientShader(shader: { vertexShader: string; fragmentShader: string }) {
   shader.vertexShader = shader.vertexShader
@@ -163,6 +185,6 @@ export function patchLensGradientShader(shader: { vertexShader: string; fragment
       '#include <alphamap_fragment>',
       `#include <alphamap_fragment>
       float lensT = smoothstep( 0.0, 1.0, clamp( vLensHeight, 0.0, 1.0 ) );
-      diffuseColor.a = mix( uLensGradient[ 0 ], uLensGradient[ 1 ], lensT );`
+      diffuseColor.a = 1.0 - exp( mix( uLensGradient[ 0 ], uLensGradient[ 1 ], lensT ) );`
     )
 }
