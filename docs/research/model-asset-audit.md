@@ -54,13 +54,13 @@ assets and calibration data, not the renderer.
 
 ## Recommendations, by impact
 
-2. **Fill `lens` calibration per SKU** from product sheets: `category` or
+1. **Fill `lens` calibration per SKU** from product sheets: `category` or
    `transmittance`, `tint`, `gradient`. Then the shared lens textures stop
    deciding the colour.
-3. **Turn on the colour gate**: sample frame/lens hex from neutral-light
+2. **Turn on the colour gate**: sample frame/lens hex from neutral-light
    product photos into `colour-swatches.json`, run `colour.spec.ts`, fix to
    ΔE2000 ≤ 3.
-4. **KTX2 textures** (`gltf-transform uastc`/`etc1s`, `KTX2Loader` in the
+3. **KTX2 textures** (`gltf-transform uastc`/`etc1s`, `KTX2Loader` in the
    model cache) and run `prepare-model` on every GLB.
 
 ## Still needed
