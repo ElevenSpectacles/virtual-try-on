@@ -29,19 +29,18 @@ assets and calibration data, not the renderer.
    | nous-navy | Blue / Blue | `#243046` | 0.40 |
    | nous-obsidian | Black / Grey | `#525252` | 0.40 |
 
-   Gold and silver are authored mirror-polished, the coated colours satin.
-   If the real titanium is matte, roughness 0.00 is the gap: it renders as
-   polished chrome/gold.
-2. **Lens textures are shared across colourways.** One brown lens image
+   Gold and silver are polished, the coated colours satin, as the real
+   frames are (confirmed 2026-11-20). Frame colour and finish need no work.
+1. **Lens textures are shared across colourways.** One brown lens image
    (`c4f47a87`) serves bronze, moss, amber and hunter; one blue-grey
    (`fc226c61`) serves crystal and azure. The lens tint is a texture, not
    product data.
-3. **No lens calibration.** `lens` is unset for every model in
+2. **No lens calibration.** `lens` is unset for every model in
    `calibration.json`, so tint, category (ISO 12312-1), transmittance and
    gradient all fall back to the GLB. `tests/fixtures/colour-swatches.json`
    has no models, so the ΔE2000 colour gate (`tests/e2e/colour.spec.ts`)
    skips.
-4. **No material extensions.** No `KHR_materials_*`. None are needed for
+3. **No material extensions.** No `KHR_materials_*`. None are needed for
    coated titanium: the coating colour is the metal's base colour.
 5. **Metalness is right.** Packed ORM texture (AO = R, rough = G,
    metal = B). On the frame's UV islands ~90 % is metalness 1 and ~0 % is
@@ -55,10 +54,6 @@ assets and calibration data, not the renderer.
 
 ## Recommendations, by impact
 
-1. **Match the finish.** If the frames are matte, raise the metal-part
-   roughness in the GLB's packed ORM texture (green channel) to the
-   finish's value; a script over the catalog does it, no re-modelling.
-   Pick the value against a product photo, not by eye on a render.
 2. **Fill `lens` calibration per SKU** from product sheets: `category` or
    `transmittance`, `tint`, `gradient`. Then the shared lens textures stop
    deciding the colour.
@@ -70,8 +65,6 @@ assets and calibration data, not the renderer.
 
 ## Still needed
 
-- The finish: are the gold and silver frames polished (as authored, and as
-  the product photos look) or matte like the coated ones?
 - Lens data: every variation is a gradient lens (`colors.isGradient`), and
   the CMS gives only the lens colour name. Tint hex, category or τv and
   the gradient top/bottom come from the product sheet.
