@@ -5,8 +5,12 @@ import {
   densityFromCategory,
   densityFromTransmittance,
   gradientDensityAt,
+  LENS_HEIGHT_ATTRIBUTE,
+  LENS_MIN_TRANSMITTANCE,
+  lensGradientLogTransmittance,
   lensOpacityAt,
   parseHexColor,
+  patchLensGradientShader,
   resolveLens,
   schlickFresnel
 } from '../../../src/runtime/utils/tryon-lens'
@@ -111,7 +115,26 @@ describe('physical lens darkness', () => {
     const g = { top: 0.9, bottom: 0.2 }
     expect(gradientDensityAt(g, 1)).toBeCloseTo(0.9, 9)
     expect(gradientDensityAt(g, 0)).toBeCloseTo(0.2, 9)
-    expect(gradientDensityAt(g, 0.5)).toBeCloseTo(0.55, 9)
     expect(gradientDensityAt(g, 0.9)).toBeGreaterThan(gradientDensityAt(g, 0.6))
+  })
+
+  it('fades in optical density, so the middle passes the geometric mean of the ends', () => {
+    const g = { top: 0.9, bottom: 0.2 }
+    // τ(0.5) = √(τtop · τbottom) = √(0.1 · 0.8), darker than the opacity midpoint 0.55
+    expect(1 - gradientDensityAt(g, 0.5)).toBeCloseTo(Math.sqrt(0.1 * 0.8), 9)
+    expect(gradientDensityAt(g, 0.5)).toBeGreaterThan(0.55)
+  })
+
+  it('keeps an opaque end finite and a uniform gradient flat', () => {
+    expect(lensGradientLogTransmittance({ top: 1, bottom: 0 })).toEqual([0, Math.log(LENS_MIN_TRANSMITTANCE)])
+    expect(gradientDensityAt({ top: 1, bottom: 0.3 }, 1)).toBeCloseTo(1 - LENS_MIN_TRANSMITTANCE, 9)
+    for (const t of [0, 0.3, 0.7, 1]) expect(gradientDensityAt({ top: 0.4, bottom: 0.4 }, t)).toBeCloseTo(0.4, 9)
+  })
+
+  it('patches the shader to the same log-transmittance blend', () => {
+    const shader = { vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <alphamap_fragment>' }
+    patchLensGradientShader(shader)
+    expect(shader.fragmentShader).toContain('diffuseColor.a = 1.0 - exp( mix( uLensGradient[ 0 ], uLensGradient[ 1 ], lensT ) );')
+    expect(shader.vertexShader).toContain(`attribute float ${LENS_HEIGHT_ATTRIBUTE};`)
   })
 })

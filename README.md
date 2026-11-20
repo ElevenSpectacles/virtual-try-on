@@ -266,11 +266,11 @@ product's own units, from its sheet:
 
 | Field | Meaning |
 | --- | --- |
-| `tint` | Lens colour, `#rrggbb`. Its hue also tints the lens shadow. |
+| `tint` | Lens colour, `#rrggbb` (sRGB). Replaces the GLB's lens colour and its texture. Its hue also tints the lens shadow. |
 | `category` | ISO 12312-1 filter category `0`–`4` (cat. 2: 18–43 % light through, cat. 3: 8–18 %). The middle of the band is used. |
 | `transmittance` | Luminous transmittance τv, 0–1, when the sheet gives it. More precise than the category. |
 | `density` | Raw darkness 0 (clear) – 1 (opaque) = 1 − τv. Wins over the two above. |
-| `gradient` | `{ top, bottom }` densities for a gradient lens, dark to light top to bottom. Replaces the single darkness. |
+| `gradient` | `{ top, bottom }` densities for a gradient lens, dark to light top to bottom. Replaces the single darkness. In between, the lens fades in optical density (log τv) like a dyed lens, so it stays dark further down than a linear fade. |
 
 `generate-calibration` keeps all of them when it regenerates the file.
 
