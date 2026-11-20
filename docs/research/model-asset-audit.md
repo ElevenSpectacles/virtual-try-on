@@ -9,15 +9,29 @@ assets and calibration data, not the renderer.
 
 ## Findings
 
-1. **Four colourways render as chrome.** Every frame is titanium, and the
-   product name is the coating colour. The frame base-colour textures of
-   `iris-jade`, `kairos-crystal`, `pteron-azure` and `pteron-charcoal` are
-   pure white on the UV islands (mean 217/217/217 incl. grey padding), and
-   their roughness on the islands is 0.01 (mirror polish; `nous-navy` is
-   0.30). On a metal, white base colour + zero roughness is polished chrome:
-   all four render as the same mirror frame instead of jade, crystal, azure
-   or charcoal coated titanium. `iris-bronze`, `kairos-amber`,
-   `pteron-hunter`, `nous-navy`, `nous-obsidian` carry real colour.
+1. **Frame colours match the catalog.** Every frame is titanium. The CMS
+   (`product-variations.colors`) lists the frame, lens and decoration
+   colour per variation, and the colour in the product name is the
+   **lens** colour, not the frame's: jade, crystal, azure and charcoal are
+   silver frames, so their white base colour is correct. Metal-part base
+   colour and roughness per model:
+
+   | Model | CMS frame / lens | Metal base | Roughness (median) |
+   | --- | --- | --- | --- |
+   | iris-bronze | Gold / Brown | `#f3d1ab` | 0.00 |
+   | iris-moss | Gold / Green | `#f3d1ab` | 0.00 |
+   | iris-jade | Silver / Green | `#ffffff` | 0.00 |
+   | kairos-crystal | Silver / Blue | `#ffffff` | 0.00 |
+   | pteron-azure | Silver / Blue | `#ffffff` | 0.00 |
+   | pteron-charcoal | Silver / Grey | `#ffffff` | 0.00 |
+   | kairos-amber | Brown / Brown | `#675139` | 0.40 |
+   | pteron-hunter | Brown / Green | `#7b674e` | 0.40 |
+   | nous-navy | Blue / Blue | `#243046` | 0.40 |
+   | nous-obsidian | Black / Grey | `#525252` | 0.40 |
+
+   Gold and silver are authored mirror-polished, the coated colours satin.
+   If the real titanium is matte, roughness 0.00 is the gap: it renders as
+   polished chrome/gold.
 2. **Lens textures are shared across colourways.** One brown lens image
    (`c4f47a87`) serves bronze, moss, amber and hunter; one blue-grey
    (`fc226c61`) serves crystal and azure. The lens tint is a texture, not
@@ -41,12 +55,10 @@ assets and calibration data, not the renderer.
 
 ## Recommendations, by impact
 
-1. **Fix the four chrome colourways at source**: re-export with the
-   coating colour in the base colour and the real finish's roughness
-   (satin coated titanium is roughly 0.2–0.4). As a stopgap, a per-model
-   `frame` calibration block (`tint`, `roughness`) applied like the lens
-   overrides; a tint multiplies the whole texture, including the printed
-   temple text.
+1. **Match the finish.** If the frames are matte, raise the metal-part
+   roughness in the GLB's packed ORM texture (green channel) to the
+   finish's value; a script over the catalog does it, no re-modelling.
+   Pick the value against a product photo, not by eye on a render.
 2. **Fill `lens` calibration per SKU** from product sheets: `category` or
    `transmittance`, `tint`, `gradient`. Then the shared lens textures stop
    deciding the colour.
@@ -58,8 +70,8 @@ assets and calibration data, not the renderer.
 
 ## Still needed
 
-The coating colours themselves. The storefront only has approximate swatch
-classes (`TRYON_COLOR_SWATCH` in `nuxt/app/composables/useTryOnCatalog.ts`:
-jade `bg-emerald-600`, azure `bg-sky-600`, charcoal `bg-neutral-700`,
-crystal `bg-slate-300`); sample the real hex from neutral-light product
-photos or take it from the 3D source files.
+- The finish: are the gold and silver frames polished (as authored, and as
+  the product photos look) or matte like the coated ones?
+- Lens data: every variation is a gradient lens (`colors.isGradient`), and
+  the CMS gives only the lens colour name. Tint hex, category or τv and
+  the gradient top/bottom come from the product sheet.
