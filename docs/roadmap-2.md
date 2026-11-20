@@ -107,9 +107,6 @@ local-only by design (decided in #16):
 
 ## Follow-ups (not in this roadmap)
 
-- **Demo deployment (#104).** Pick frames cleared for publishing, set the
-  `DEMO_MODELS_URL` secret, set Pages to "GitHub Actions", run the Demo
-  workflow, and record the README GIF from the live demo.
 - **Frame removal (#100).** The spike is a go for clear prescription
   glasses. Its first task is a clear-lens fixture set of three consenting
   people. The estimate is ~2 weeks after that.
