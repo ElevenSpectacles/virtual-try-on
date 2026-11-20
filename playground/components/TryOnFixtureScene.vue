@@ -12,6 +12,7 @@
 import { computed } from 'vue'
 import { NeutralToneMapping, VSMShadowMap } from 'three'
 import TryOnScene from '../../src/runtime/components/TryOnScene.vue'
+import { useFrameCalibration } from '../../src/runtime/composables/tryon/useFrameCalibration'
 
 // Every recorded pose; `face` picks one. Missing names fall back to the first.
 const poses = import.meta.glob<PoseFixture>('../../tests/fixtures/tryon-pose/*.json', { eager: true, import: 'default' })
@@ -94,6 +95,12 @@ const fixture = computed<PoseFixture>(() => {
 const STAGE_WIDTH = 448
 const stageHeight = computed(() => STAGE_WIDTH / fixture.value.aspect)
 
+// The frame's lens override from calibration.json, as the shipped component
+// applies it, so lens tint/darkness/gradient show in goldens and colour QA.
+// Placement comes from the recorded pose, not from here.
+const { getCalibration } = useFrameCalibration('/models/virtual-try-on/calibration.json')
+const lensOverride = computed(() => getCalibration(props.model ?? fixture.value.face).lens)
+
 const occluderPositions = computed(() =>
   fixture.value.occluderPositions ? Float32Array.from(fixture.value.occluderPositions) : null
 )
@@ -133,6 +140,7 @@ const occluderPositions = computed(() =>
           :occluder-rotation="fixture.rotation"
           :contact-shadow="shadow"
           :physical-lens="lens === 'physical'"
+          :lens="lensOverride"
           :hair-mask="hairMask"
         />
       </TresCanvas>
