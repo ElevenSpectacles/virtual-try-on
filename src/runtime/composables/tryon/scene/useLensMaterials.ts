@@ -4,6 +4,7 @@ import {
   Matrix4,
   Mesh,
   MeshPhysicalMaterial,
+  SRGBColorSpace,
   Vector3,
   type BufferGeometry,
   type Material,
@@ -13,6 +14,7 @@ import {
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import {
   LENS_HEIGHT_ATTRIBUTE,
+  lensGradientLogTransmittance,
   patchLensGradientShader,
   type TryOnLens
 } from '../../../utils/tryon-lens'
@@ -44,8 +46,8 @@ function bakeLensHeight(mesh: Mesh, root: Object3D) {
 
 /**
  * Gradient tint (`lens.gradient`): the lens's base opacity follows its
- * height, dark to light top to bottom with a smooth middle
- * (`gradientDensityAt`). Composes with the Fresnel patch, which reads the
+ * height, dark to light top to bottom, fading in optical density like a dyed
+ * lens (`gradientDensityAt`). Composes with the Fresnel patch, which reads the
  * opacity after this.
  */
 function applyLensGradient(material: Material, gradient: { top: number; bottom: number }) {
@@ -53,7 +55,7 @@ function applyLensGradient(material: Material, gradient: { top: number; bottom: 
   const previousKey = material.customProgramCacheKey.bind(material)
   material.onBeforeCompile = (shader, renderer) => {
     previous(shader, renderer)
-    shader.uniforms.uLensGradient = { value: [gradient.bottom, gradient.top] }
+    shader.uniforms.uLensGradient = { value: lensGradientLogTransmittance(gradient) }
     patchLensGradientShader(shader)
   }
   material.customProgramCacheKey = () => `${previousKey()}|tryon-lens-gradient`
@@ -103,14 +105,21 @@ function applyLensFresnel(material: MeshPhysicalMaterial) {
   material.customProgramCacheKey = () => 'tryon-lens-fresnel'
 }
 
-function buildLens(
+/**
+ * The lens material for an authored one. A calibration `tint` replaces the
+ * authored colour, texture included: three multiplies `color` by `map`, and
+ * the catalog's lens textures carry the old colour (often one image shared
+ * across colourways), so keeping the map would darken and shift every tint.
+ * Exported for the unit test.
+ */
+export function buildLens(
   authored: MeshStandardMaterial,
   physical: boolean,
   lens: TryOnLens
 ): Material {
   const base = {
     name: authored.name,
-    map: authored.map,
+    map: lens.tint ? null : authored.map,
     alphaMap: authored.alphaMap,
     color: authored.color.clone(),
     opacity: authored.opacity,
@@ -132,7 +141,8 @@ function buildLens(
         iridescenceThicknessRange: [260, 420]
       })
     : Object.assign(authored.clone(), base)
-  if (lens.tint) material.color.setRGB(...lens.tint)
+  // `#rrggbb` is sRGB; three's working space is linear.
+  if (lens.tint) material.color.setRGB(...lens.tint, SRGBColorSpace)
   if (lens.density !== null) material.opacity = lens.density
   if (material instanceof MeshPhysicalMaterial) applyLensFresnel(material)
   // After the Fresnel patch, so it wraps it: the gradient sets the base
