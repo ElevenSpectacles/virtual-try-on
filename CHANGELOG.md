@@ -1,5 +1,26 @@
 # Changelog
 
+## [5.0.2](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.1...v5.0.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **lens:** a calibration tint is the colour shown ([7ddf75d](https://github.com/ElevenSpectacles/virtual-try-on/commit/7ddf75d59e9de3335c676e1302b69ccce2fa9e7a))
+* **lens:** gradient lenses fade in optical density ([4bc9908](https://github.com/ElevenSpectacles/virtual-try-on/commit/4bc990877f79795b12363c2e1e67890e113502cd))
+* **lens:** gradient lenses fade in optical density; calibration tint is the colour shown ([0703c97](https://github.com/ElevenSpectacles/virtual-try-on/commit/0703c97b6e43780ea27cd72b3573d2e11fb8cdba))
+
+
+### Documentation
+
+* asset audit — all frames are titanium; four colourways render as chrome ([f5f947b](https://github.com/ElevenSpectacles/virtual-try-on/commit/f5f947b464eb0b026a0aafba18151b9427fdfda8))
+* asset audit — frame colours match the CMS; the open question is the finish ([85b4a06](https://github.com/ElevenSpectacles/virtual-try-on/commit/85b4a0694419fdfbf11f14d04abaf88486aa5884))
+* asset audit — frame finish confirmed as authored ([5eaa5a2](https://github.com/ElevenSpectacles/virtual-try-on/commit/5eaa5a2ad63d84076b7fb9559cdbc18e92ab6762))
+* asset audit — lens transmittance and calibration measured from product photos ([1ccc226](https://github.com/ElevenSpectacles/virtual-try-on/commit/1ccc226cc162e26f4c9a742a90734dcfab390acc))
+* audit catalog GLBs for colour and material realism ([fcf3c39](https://github.com/ElevenSpectacles/virtual-try-on/commit/fcf3c3918a5c2f42b6131a83fad5a55a232e771a))
+* fix audit findings numbering ([84aab2f](https://github.com/ElevenSpectacles/virtual-try-on/commit/84aab2fe053135411bee38a0c13f397d5a62eac7))
+* fix audit recommendation numbering ([5aebda0](https://github.com/ElevenSpectacles/virtual-try-on/commit/5aebda0518ef6f4a8a8f5f045a15c08ec70d0276))
+* README — getting true colours, full model-lint list ([dfc879a](https://github.com/ElevenSpectacles/virtual-try-on/commit/dfc879ae75524d190f3c2a75e5538b9283b82c17))
+
 ## [5.0.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.0...v5.0.1) (2026-10-25)
 
 
