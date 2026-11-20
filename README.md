@@ -274,6 +274,35 @@ product's own units, from its sheet:
 
 `generate-calibration` keeps all of them when it regenerates the file.
 
+### Getting true colours
+
+The frame renders exactly as the GLB authors it; only the lenses are
+rebuilt. So the colour a shopper sees is decided by the asset and the
+calibration, not by the renderer:
+
+- **Frame finish lives in the GLB.** Each colourway needs its own base
+  colour texture (or `baseColorFactor`). A white base colour on a metal
+  part renders as polished silver, whatever the product is called. Pack
+  roughness and metalness per finish: metal parts at metalness 1, acetate
+  at 0. Material extensions the three.js glTF loader reads
+  (`KHR_materials_clearcoat` for polished acetate, `KHR_materials_ior`,
+  `_specular`) pass straight through.
+- **Lens colour comes from calibration.** A material whose name contains
+  `glass` or `lens` is rebuilt as a lens. Without a `lens` entry it keeps
+  the GLB's colour, often a texture shared across colourways. Set `tint`
+  and `category` (or `transmittance`) from the product sheet for every
+  frame.
+- **Measure it.** `tests/e2e/colour.spec.ts` renders each frame under
+  neutral light and compares frame and lens against product-photo swatches
+  in CIEDE2000 (ΔE ≤ 3 by default). Fill
+  `tests/fixtures/colour-swatches.json` with a `#rrggbb` per frame and lens,
+  sampled from a neutral-light product photo, and the box to sample on the
+  render. With no models listed, the spec skips.
+- **Room effects shift colour on purpose.** `adaptiveLighting` tints and
+  dims the frame to match the room, and `roomReflections` and `cameraMatch`
+  add the room and the webcam's look. Judge catalog colour under neutral
+  light, and realism on a live camera.
+
 ## API
 
 ### `<VirtualTryOnExperience>` props
@@ -788,9 +817,11 @@ changing it:
 npm run lint-models -- --input <catalog dir>
 ```
 
-The lint fails on a missing lens material or a frame in the wrong units, and
-warns about a missing `pt2` temple node, the placeholder lens colour, files
-over 1.5 MB, textures over 1024 px and uncompressed GLBs. At runtime, an
+The lint fails on a missing lens material, a frame in the wrong units or a
+file over 5 MB. It warns about a missing `pt2` temple node, the placeholder
+lens colour, an opaque lens, files over 1.5 MB, textures over 1024 px,
+textures over 60 % of the file (KTX2 would shrink them) and GLBs
+that `prepare-model` did not compress. At runtime, an
 invalid calibration entry (a typo, degrees instead of radians) falls back
 field by field to the defaults and is reported once as `TRY_ON_ERROR`
 (`source: 'calibration'`).

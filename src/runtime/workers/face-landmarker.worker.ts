@@ -173,7 +173,7 @@ function postCard(id: number, bitmap: ImageBitmap, region: CardRegion) {
 // The WASM must match the bundled JS exactly: keep this version equal to the
 // pinned `@mediapipe/tasks-vision` dependency (enforced by a unit test).
 const DEFAULT_WASM_BASE_PATH =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm'
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm'
 const DEFAULT_MODEL_ASSET_PATH =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
 
