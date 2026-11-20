@@ -3,9 +3,6 @@
 [![npm](https://img.shields.io/npm/v/@eleven.spectacles/virtual-try-on)](https://www.npmjs.com/package/@eleven.spectacles/virtual-try-on)
 [![CI](https://github.com/ElevenSpectacles/virtual-try-on/actions/workflows/ci.yml/badge.svg)](https://github.com/ElevenSpectacles/virtual-try-on/actions/workflows/ci.yml)
 
-**[Live demo →](https://elevenspectacles.github.io/virtual-try-on/)** Try it
-with your camera. Nothing leaves your device.
-
 Real-time virtual try-on for eyewear, as a Nuxt module. Renders 3D glasses
 (GLB) on the user's face over a live front-camera feed: MediaPipe
 `FaceLandmarker` tracks the face in a Web Worker, TresJS (Three.js) renders
@@ -42,7 +39,6 @@ with virtual try-on for every frame in the catalog.
 - [Migrating to 5.0](#migrating-to-50)
 - [Privacy](#privacy)
 - [Development](#development)
-- [Demo](#demo)
 - [Releasing](#releasing)
 - [License](#license)
 
@@ -707,7 +703,7 @@ export default defineNuxtConfig({
 
 `face_landmarker.task` and `canary_wharf_1k.hdr` go in `public/vto/`. With
 every path set, the try-on makes no third-party requests and adds no
-preconnect hints. The [demo](#demo) (`demo/app.vue`) is a working example.
+preconnect hints.
 
 To shave the tracker's load off the critical path entirely, call
 `prefetch()` on the ref before the shopper taps "Try on" (e.g. on hover of
@@ -742,8 +738,8 @@ Nothing else changed: hosts that never set these props need no change.
 - **Network.** The module makes no requests of its own beyond the assets in
   [Serving models and calibration](#serving-models-and-calibration) and
   [Self-hosting](#self-hosting-third-party-assets). With every
-  self-hosting prop set, none of them leave your origin. The
-  [demo](#demo) runs that way under a CSP restricted to its own origin.
+  self-hosting prop set, none of them leave your origin, so the try-on
+  runs under a CSP restricted to your own origin.
 - **Consent.** The camera starts only when your UI calls `start()` (or with
   `autoStart`, after consent you collected). It stops on `stop()` and on
   unmount.
@@ -844,37 +840,6 @@ npm run generate-calibration -- --input <dir> --output <dir>/calibration.json [-
 It recentres and scales every GLB against the reference frame, and keeps
 the fields you tuned by hand (`rotation`, `lens`) when
 the output file already exists.
-
-## Demo
-
-`demo/` is the [live demo](https://elevenspectacles.github.io/virtual-try-on/):
-the shipped component in a plain host page, without the playground's tuning
-UI. Its consent screen, error messages, fit verdict and frame picker are all
-built from the default slot, so it doubles as a reference integration. It
-serves every asset from its own origin. `scripts/prepare-demo.mjs` stages
-these files in `demo/public/`:
-
-- the MediaPipe Wasm and the Draco decoder, copied from `node_modules`;
-- `face_landmarker.task` and the HDR, downloaded and checked against pinned
-  SHA-256 sums;
-- the frames.
-
-The page then passes every self-hosting prop.
-
-```bash
-DEMO_MODELS_DIR=<dir with calibration.json + GLBs> npm run demo   # http://localhost:4100
-DEMO_MODELS=iris-moss,pteron-azure DEMO_MODELS_DIR=<dir> npm run demo:generate
-```
-
-Catalog frames are licensed, so they are not in this repo. Publish only frames
-cleared for it. `.github/workflows/demo.yml` deploys the demo to GitHub Pages
-on pushes to `main` that touch `src/`, `demo/` or the lockfile, and on manual
-runs. It needs:
-
-- **Settings → Pages → Source:** GitHub Actions.
-- **`DEMO_MODELS_URL` secret:** a `.tar.gz` of `calibration.json` plus the
-  GLBs. Without it the build is skipped.
-- **`DEMO_MODELS` variable (optional):** limits which frames are published.
 
 ## Releasing
 
