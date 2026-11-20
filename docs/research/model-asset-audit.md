@@ -31,16 +31,16 @@ assets and calibration data, not the renderer.
 
    Gold and silver are polished, the coated colours satin, as the real
    frames are (confirmed 2026-11-20). Frame colour and finish need no work.
-1. **Lens textures are shared across colourways.** One brown lens image
+2. **Lens textures are shared across colourways.** One brown lens image
    (`c4f47a87`) serves bronze, moss, amber and hunter; one blue-grey
    (`fc226c61`) serves crystal and azure. The lens tint is a texture, not
    product data.
-2. **No lens calibration.** `lens` is unset for every model in
+3. **No lens calibration.** `lens` is unset for every model in
    `calibration.json`, so tint, category (ISO 12312-1), transmittance and
    gradient all fall back to the GLB. `tests/fixtures/colour-swatches.json`
    has no models, so the ΔE2000 colour gate (`tests/e2e/colour.spec.ts`)
    skips.
-3. **No material extensions.** No `KHR_materials_*`. None are needed for
+4. **No material extensions.** No `KHR_materials_*`. None are needed for
    coated titanium: the coating colour is the metal's base colour.
 5. **Metalness is right.** Packed ORM texture (AO = R, rough = G,
    metal = B). On the frame's UV islands ~90 % is metalness 1 and ~0 % is
