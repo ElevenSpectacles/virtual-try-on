@@ -124,7 +124,11 @@ export function useHairSegmenter(
 
   function load() {
     if (worker || loading || error.value || !import.meta.client) return
-    if (typeof Worker === 'undefined' || typeof createImageBitmap !== 'function') {
+    if (
+      typeof Worker === 'undefined' ||
+      typeof OffscreenCanvas === 'undefined' ||
+      typeof createImageBitmap !== 'function'
+    ) {
       error.value = 'unsupported'
       return
     }

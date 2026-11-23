@@ -84,6 +84,7 @@ function supportsMediaPipe(): boolean {
     typeof window.WebAssembly !== 'undefined' &&
     typeof window.WebAssembly.instantiate === 'function' &&
     typeof window.Worker !== 'undefined' &&
+    typeof window.OffscreenCanvas !== 'undefined' &&
     typeof window.createImageBitmap === 'function'
   )
 }

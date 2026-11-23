@@ -71,6 +71,7 @@ async function init(basePath?: string, modelAssetPath?: string) {
         modelAssetPath: modelAssetPath ?? DEFAULT_MODEL_ASSET_PATH,
         delegate: 'GPU'
       },
+      canvas: new OffscreenCanvas(1, 1),
       runningMode: 'VIDEO',
       outputConfidenceMasks: true,
       outputCategoryMask: false
