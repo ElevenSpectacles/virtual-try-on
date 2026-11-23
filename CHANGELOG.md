@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.0.4](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.3...v5.0.4) (2026-11-23)
+
+
+### Bug Fixes
+
+* pass an OffscreenCanvas to MediaPipe so iOS non-Safari browsers load ([3459276](https://github.com/ElevenSpectacles/virtual-try-on/commit/3459276987f8f3243214d50bb597c932951436f0))
+
 ## [5.0.3](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.2...v5.0.3) (2026-11-23)
 
 
