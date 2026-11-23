@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { auditTilt, fitDepthPlane, pantoscopicTiltDeg } from '../../../scripts/lib/tilt'
 
-/** A 50×40 mm lens front tilted by `deg` (bottom back), with a little curve. */
 function lens(deg: number, curve = 0): number[] {
   const t = Math.tan((deg * Math.PI) / 180)
   const points: number[] = []

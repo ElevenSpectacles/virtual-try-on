@@ -10,12 +10,6 @@ import {
 } from '../../support/landmark-stream'
 import { stubRaf } from '../../support/raf'
 
-/**
- * Smoothing against synthetic tracker output with known ground truth
- * (umbrella #4, issue #15). The composable is driven through a stubbed rAF
- * at a fixed 60 fps, one tracker sample per frame.
- */
-
 const FPS = 60
 const FRAME_MS = 1000 / FPS
 
@@ -29,7 +23,6 @@ interface Output {
   scale: number
 }
 
-/** Feed `stream` through the smoothing, one frame at a time, recording its outputs. */
 function run(stream: StreamFrame[], latencyMs = 0): Output[] {
   const raf = stubRaf(FRAME_MS)
   const anchor = ref({ x: 0, y: 0, z: 0 })
@@ -81,10 +74,6 @@ const REST: Pose = {
 const WARMUP_FRAMES = FPS * 1.5
 const DEG = Math.PI / 180
 
-/**
- * Delay (ms) of `output` behind `input`: the shift, in whole frames, that
- * maximises their cross-correlation (both mean-removed).
- */
 function lagMs(input: readonly number[], output: readonly number[], maxFrames = 30): number {
   const mean = (v: readonly number[]) => v.reduce((s, x) => s + x, 0) / v.length
   const mi = mean(input)
@@ -125,7 +114,6 @@ describe('useTryOnSmoothing against synthetic tracker output', () => {
   })
 
   it('latency prediction cuts the tracking error on a moving target', () => {
-    // A slow sweep: 0.1 of frame width each way, one cycle every 3 s.
     const sweep = (t: number): Pose => ({
       anchor: { x: 0.5 + 0.1 * Math.sin((2 * Math.PI * t) / 3), y: 0.5 },
       euler: { x: 0, y: 0, z: 0 },
@@ -154,7 +142,6 @@ describe('useTryOnSmoothing against synthetic tracker output', () => {
     })
     const out = run(stream)
     const held = out.slice(121, 180).map((o) => o.scale)
-    // Control: the same noisy scale without the hold must move, so the flat line above is the hold.
     const unheld = run(landmarkStream({ seconds: 4, seed: 5, scaleNoise: 0.2, motion: () => REST })).slice(121, 180).map((o) => o.scale)
     expect(Math.max(...unheld) - Math.min(...unheld)).toBeGreaterThan(1e-3)
     console.log(`  blink hold: scale range ${(Math.max(...held) - Math.min(...held)).toExponential(2)}`)
@@ -174,7 +161,6 @@ describe('useTryOnSmoothing against synthetic tracker output', () => {
       lostFrames: [[60, 90]]
     })
     const out = run(stream)
-    // First frame the face is tracked again: the frame should be where the face is.
     const reacquired = out[90]!
     console.log(`  reacquire: smoothed x ${reacquired.anchor.x.toFixed(4)} vs target 0.8`)
     expect(Math.abs(reacquired.anchor.x - 0.8)).toBeLessThan(0.01)
@@ -187,7 +173,6 @@ describe('useTryOnSmoothing against synthetic tracker output', () => {
       rotationNoise: 0.5 * DEG,
       motion: () => REST
     })
-    // With and without latency prediction: prediction must not add jitter at rest.
     for (const latency of [0, 100]) {
       const settled = run(stream, latency).slice(WARMUP_FRAMES)
       const yawJitterDeg = stdDev(settled.map((o) => o.euler.y)) / DEG
@@ -197,8 +182,6 @@ describe('useTryOnSmoothing against synthetic tracker output', () => {
   })
 
   it('lags a slow yaw sweep by under 40 ms', () => {
-    // 20 degrees each way, one cycle every 4 s: a customer slowly turning to
-    // look at the temples.
     const sweep = (t: number): Pose => ({
       ...REST,
       euler: { x: 0, y: 20 * DEG * Math.sin((2 * Math.PI * t) / 4), z: 0 }
@@ -222,7 +205,6 @@ describe('useTryOnSmoothing against synthetic tracker output', () => {
     const overshoot = (peak - 0.5) / 0.1
     console.log(`  step overshoot: ${(overshoot * 100).toFixed(2)}%`)
     expect(overshoot).toBeLessThan(0.01)
-    // And it does arrive: within 1% of the step half a second later.
     expect(Math.abs(out[FPS / 2]!.anchor.x - 0.5)).toBeLessThan(0.001)
   })
 
@@ -238,7 +220,6 @@ describe('useTryOnSmoothing against synthetic tracker output', () => {
     const jitterWithout = stdDev(without.map((o) => o.anchor.x))
     const jitterWith = stdDev(withLatency.map((o) => o.anchor.x))
     console.log(`  still-head jitter: no latency ${jitterWithout.toExponential(2)}, latency 100 ms ${jitterWith.toExponential(2)}`)
-    // Prediction must not amplify jitter on a still head (it used to triple it).
     expect(jitterWith).toBeLessThan(jitterWithout * 1.25)
   })
 
@@ -247,7 +228,6 @@ describe('useTryOnSmoothing against synthetic tracker output', () => {
       ...REST,
       anchor: { x: 0.3 + 0.1 * t, y: 0.5 }
     })
-    // The tracker reports where the head was 100 ms ago.
     const latency = 0.1
     const stream = landmarkStream({ seconds: 4, seed: 23, motion: (t) => pan(t - latency) })
     const out = run(stream, latency * 1000).slice(WARMUP_FRAMES)
@@ -260,7 +240,6 @@ describe('useTryOnSmoothing against synthetic tracker output', () => {
   })
 
   it('latency prediction cuts the yaw error on a head turn', () => {
-    // 30 degrees each way, one cycle every 3 s; the tracker reports the pose 100 ms late.
     const turn = (t: number): Pose => ({
       ...REST,
       euler: { x: 0, y: 30 * DEG * Math.sin((2 * Math.PI * t) / 3), z: 0 }

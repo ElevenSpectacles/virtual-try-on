@@ -4,7 +4,6 @@ import {
   type FrameScheduler
 } from '../../../src/runtime/utils/tryon-frame-schedule'
 
-/** A video element with rVFC: `deliverFrame()` plays the presented-frame callbacks. */
 function videoWithRvfc() {
   const pending = new Map<number, () => void>()
   let nextHandle = 1
@@ -25,7 +24,6 @@ function videoWithRvfc() {
   }
 }
 
-/** A rAF stand-in that records requests and runs them on `flush()`. */
 function fakeFrames() {
   const pending = new Map<number, FrameRequestCallback>()
   let nextHandle = 1

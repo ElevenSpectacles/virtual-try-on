@@ -10,29 +10,12 @@ import {
   type TimedValue
 } from './pose-metrics'
 
-/**
- * Head-pose accuracy on a UPNA clip (University of Navarra head-pose
- * database). Runs the tracker over the clip and compares its yaw, pitch and
- * roll with the database's 3D ground truth.
- *
- * Needs two local files (not committed; UPNA is non-commercial, CC BY-NC-SA):
- * - `TRYON_VIDEO_CLIP`: the clip as Y4M (e.g. user01_v05_yaw.y4m)
- * - `TRYON_UPNA_GT`: its `_groundtruth3D.txt` (Tx Ty Tz Roll Yaw Pitch rows)
- */
-
 const GT_PATH = process.env.TRYON_UPNA_GT ?? ''
 const MODEL = 'iris-moss'
 const CLIP_FPS = 30
-// The 10 s clip, sampled from the first detection on.
 const CLIP_MS = 9_000
-// The motion axis must track this well. Correlation, not raw error: the
-// tracker's own scale and zero differ from UPNA's.
 const MIN_MOTION_CORRELATION = 0.8
-// Shape error after the best linear fit, in degrees. Observed ~0.3–0.4° on
-// the yaw and pitch clips; 3° leaves room for other clips and machines.
 const MAX_SHAPE_RMS_DEG = 3
-// Amplitude: the tracker may be mirrored (sign is not checked) but its sweep
-// should be 70–130% of UPNA's. Observed 0.87 on pitch, 1.00 on yaw.
 const AMPLITUDE_SLOPE_RANGE: [number, number] = [0.7, 1.3]
 
 const gtSkip = !GT_PATH
@@ -80,8 +63,6 @@ test.describe('UPNA head-pose accuracy', () => {
       roll: compareAxis(frames('roll'), truth.roll)
     }
 
-    // The motion axis is the one the clip actually sweeps: the largest range
-    // in the ground truth.
     const range = (values: number[]) => Math.max(...values) - Math.min(...values)
     const motion = (['yaw', 'pitch', 'roll'] as const).reduce((best, axis) =>
       range(truth[axis]) > range(truth[best]) ? axis : best

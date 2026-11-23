@@ -1,11 +1,5 @@
 import { vi } from 'vitest'
 
-/**
- * requestAnimationFrame stand-in for composables on `useTryOnFrameLoop`.
- * `frame(now)` runs the callbacks queued since the previous frame with that
- * timestamp; `frame()` advances the clock by `stepMs` first. Undo it with
- * `vi.unstubAllGlobals()`.
- */
 export function stubRaf(stepMs = 1000 / 60) {
   const queue = new Map<number, FrameRequestCallback>()
   let nextId = 1

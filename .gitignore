@@ -10,11 +10,8 @@ dist/
 test-results/
 playwright-report/
 
-# UPNA-derived fixtures are non-commercial: keep them local.
 tests/fixtures/tryon-pose/upna-*.json
 tests/e2e/__screenshots__/**/upna-*
 
 
-# nuxt-skill-hub writes its wrapper next to the playground; the root skill
-# folders link straight to the generated tree in playground/.nuxt instead.
 playground/.claude/

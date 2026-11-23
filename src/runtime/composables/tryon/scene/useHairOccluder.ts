@@ -17,21 +17,6 @@ import {
 } from '../../../utils/tryon-hair'
 import type { HairMask } from '../useHairSegmenter'
 
-// Hair occluder (utils/tryon-hair.ts): a depth-only plane in head space,
-// HAIR_PLANE_SETBACK_METERS behind the frame front, drawn before the frame
-// and kept only where the hair mask says hair. Arm parts behind the plane
-// fail the depth test there and are not drawn, so the live camera's own hair
-// shows through the empty canvas; lenses, rims and hinges are in front of the
-// plane and stay. Like the face-mesh occluder, no colour is written.
-//
-// The shader maps each fragment back to the camera frame exactly as the
-// preview shows it: mirrored `<video>`, `object-fit: cover` window
-// (`screenToMedia`). The mask is bilinear-sampled and cut at half
-// confidence, which gives a smooth hair contour from a 96-px-wide mask.
-//
-// (Redrawing the camera's pixels over the arm instead, for soft edges, was
-// tried: at antialiased arm edges the redraw is weighted by coverage twice
-// and leaves a dark outline, and it costs a camera-texture upload per frame.)
 const HAIR_VERTEX = /* glsl */ `
 varying vec4 vClip;
 void main() {
@@ -41,7 +26,7 @@ void main() {
 `
 const HAIR_FRAGMENT = /* glsl */ `
 uniform sampler2D uMask;
-uniform vec4 uWindow; // xMin, xMax, yMin, yMax of the raw camera frame
+uniform vec4 uWindow;
 varying vec4 vClip;
 void main() {
   vec2 ndc = vClip.xy / vClip.w;
@@ -50,13 +35,11 @@ void main() {
     uWindow.x + (1.0 - screen.x) * (uWindow.y - uWindow.x),
     uWindow.z + screen.y * (uWindow.w - uWindow.z)
   );
-  // Mask rows are uploaded top first (flipY off).
   if (texture2D(uMask, media).r < 0.5) discard;
   gl_FragColor = vec4(0.0);
 }
 `
 
-/** The hair occluder's mask texture, material and head-space plane. */
 export function useHairOccluder(props: { hairMask: HairMask | null; mediaWindow: MediaWindow }) {
   const hairMaskTexture = shallowRef<DataTexture | null>(null)
 

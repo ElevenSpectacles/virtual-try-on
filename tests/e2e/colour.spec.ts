@@ -4,20 +4,8 @@ import { expect, test } from './camera-test'
 import { missingPrerequisite } from './fixtures'
 import { deltaE2000, hexToLab, srgbToLab } from '../../scripts/lib/colour'
 
-/**
- * Colour QA (issue #85): each catalog frame rendered on a frozen pose under
- * neutral (greyscale) light, where Khronos PBR Neutral keeps hue exact, and
- * its frame and lens swatches compared with the product photo in CIEDE2000.
- * Swatches and sample boxes come from tests/fixtures/colour-swatches.json;
- * ΔE above its threshold fails unless the model is listed under `known`.
- * Local-only and SwiftShader (the `gl` option of camera-test's page), so
- * pixels match across machines.
- */
-
 interface Swatch {
-  /** Product-photo colour, #rrggbb. */
   hex: string
-  /** Sample box on the stage, fractions: [x, y, width, height]. */
   box: [number, number, number, number]
 }
 

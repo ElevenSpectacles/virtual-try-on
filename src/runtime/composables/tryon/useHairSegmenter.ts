@@ -15,7 +15,6 @@ import type {
   HairSegmenterWorkerResponse
 } from '../../types/hair-segmenter-worker'
 
-/** Hair confidence of the camera frame, 0…255 per pixel, row-major from the top. */
 export interface HairMask {
   data: Uint8Array
   width: number
@@ -23,15 +22,8 @@ export interface HairMask {
 }
 
 export interface UseHairSegmenterOptions {
-  /**
-   * Whether to segment. Checked per camera frame; the worker and model load
-   * the first time this is true (so they never delay the first try-on), and
-   * segmentation pauses (mask cleared) while it is false.
-   */
   enabled: () => boolean
-  /** MediaPipe Wasm directory override (same as the face landmarker's). */
   mediapipeBasePath?: string | undefined
-  /** `hair_segmenter.tflite` URL override, for self-hosting. */
   modelAssetPath?: string | undefined
 }
 
@@ -39,17 +31,6 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/**
- * Hair segmentation of the live camera frame in its own worker, for the hair
- * occluder (see utils/tryon-hair.ts). At most one request in flight, at most
- * one every HAIR_SEGMENT_INTERVAL_MS, on a small copy of the frame; the mask
- * comes back as confidence, is shrunk to HAIR_MASK_WIDTH and smoothed over
- * time.
- *
- * Switches itself off for the session (`overBudget`) when the worker's
- * segmentation time stays over HAIR_SEGMENT_BUDGET_MS. A load failure sets
- * `error` and leaves the mask null; the module never logs, the caller reports.
- */
 export function useHairSegmenter(
   videoRef: Ref<HTMLVideoElement | null>,
   options: UseHairSegmenterOptions
@@ -57,9 +38,7 @@ export function useHairSegmenter(
   const mask = shallowRef<HairMask | null>(null)
   const error = ref<string | null>(null)
   const ready = ref(false)
-  /** Mean worker time per segmentation (EMA), ms. */
   const segmentMs = ref<number | null>(null)
-  /** Masks received this session. */
   const masks = ref(0)
   const overBudget = ref(false)
 
@@ -200,7 +179,6 @@ export function useHairSegmenter(
     })
   }
 
-  // Run while enabled: the check in `loop` stops it, this restarts it.
   watch(
     [() => options.enabled(), videoRef],
     ([enabled, video]) => {

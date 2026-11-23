@@ -6,7 +6,6 @@ import type { FaceWidthEstimate, TryOnFitVerdict } from '../../../utils/tryon-fi
 import type { MetricsAccumulator } from '../../../utils/tryon-metrics'
 import type { FaceLandmarkerError, WebcamError } from '../../../types/tryon-experience'
 
-/** Events the component reports through `track`. */
 export type TryOnTrackEvent =
   | 'TRY_ON_OPENED'
   | 'TRY_ON_CAMERA_GRANTED'
@@ -23,7 +22,6 @@ export type TryOnTrackEvent =
 
 export type TryOnTrack = (event: TryOnTrackEvent, extra?: Record<string, unknown>) => void
 
-/** The `track` emitter: every payload names the active model. */
 export function createTryOnTrack(
   emit: (event: 'track', name: string, payload: Record<string, unknown>) => void,
   model: () => string | undefined
@@ -40,18 +38,12 @@ export function createTryOnTrack(
   }
 }
 
-/**
- * A capability tier change (`useCapabilityTier`'s `onChange`): the session
- * metrics count it, and a step-down is reported as TRY_ON_TIER.
- */
 export function reportTierChange(
   track: TryOnTrack,
   metrics: MetricsAccumulator | null,
   change: TierChange
 ) {
   metrics?.onTierChange(change.tier, change.previousTier !== null)
-  // The initial classification is reported with TRY_ON_FACE_DETECTED,
-  // which fires after consent. Only step-downs need an event of their own.
   if (change.previousTier === null) return
   track('TRY_ON_TIER', {
     tier: change.tier,
@@ -64,26 +56,19 @@ export function reportTierChange(
 
 export interface UseTryOnTrackEventsOptions {
   track: TryOnTrack
-  /** The camera (`useWebcamStream`). */
   camera: { error: Ref<WebcamError | null>; errorDetail: Ref<string | null> }
-  /** The tracker's failures, the held face and the detection confidence (`useTryOnTracking`). */
   tracking: {
     faceError: Ref<FaceLandmarkerError | null>
     faceErrorDetail: Ref<string | null>
     hasFace: Ref<boolean>
     confidence: Ref<number>
   }
-  /** Hair segmenter failure, reported only with hair occlusion on. */
   hairError: () => string | null
   hairOcclusion: () => boolean
-  /** The selected model, whose calibration entry is checked. */
   calibrationFile: () => string
   getCalibrationProblems: (file: string) => string[]
-  /** Reset by `start()` for each consented session. */
   hasReportedFaceDetected: Ref<boolean>
-  /** The capability tier, reported with the first face. */
   tier: () => TryOnTier
-  /** The selected frame's fit and the face shape (`useTryOnFrameFit`). */
   fit: {
     verdict: Ref<TryOnFitVerdict | null>
     faceWidthEstimate: Ref<FaceWidthEstimate | null>
@@ -92,12 +77,6 @@ export interface UseTryOnTrackEventsOptions {
   }
 }
 
-/**
- * The `track` events that only report: camera denial and failures, tracker,
- * hair-segmenter and calibration-manifest failures, the first face of a
- * session, fit verdict changes and the face shape. Returns the handler for
- * `TryOnScene`'s `error` (a GLB or environment map that failed to load).
- */
 export function useTryOnTrackEvents(options: UseTryOnTrackEventsOptions) {
   const { track, camera, tracking, fit } = options
 
@@ -132,8 +111,6 @@ export function useTryOnTrackEvents(options: UseTryOnTrackEventsOptions) {
     }
   })
 
-  // A bad calibration entry is reported once per model (the frame still
-  // renders, with the invalid fields at their defaults).
   const reportedCalibration = new Set<string>()
   watch(
     () => {
@@ -170,9 +147,6 @@ export function useTryOnTrackEvents(options: UseTryOnTrackEventsOptions) {
     }
   })
 
-  // One event per verdict change (per frame model too, since the frame width
-  // changes), so the host can relate fit to conversion. Widths are rounded to
-  // whole millimetres.
   watch(fit.verdict, (verdict) => {
     const estimate = fit.faceWidthEstimate.value
     if (!verdict || !estimate) return
@@ -183,8 +157,6 @@ export function useTryOnTrackEvents(options: UseTryOnTrackEventsOptions) {
     })
   })
 
-  // Face shape as a coarse class only (never measurements), once it appears
-  // and on each change.
   watch(
     () => fit.faceShape.value?.shape ?? null,
     (shape) => {

@@ -41,7 +41,6 @@ import {
   TRYON_CAMERA
 } from '../../../src/runtime/utils/tryon'
 
-/** 478 zeroed landmarks with both eyes set to the given lid opening. */
 function landmarksWithEyeOpening(opening: number) {
   const landmarks = Array.from({ length: 478 }, () => ({ x: 0, y: 0 }))
   for (const [top, bottom, outer, inner] of [
@@ -76,9 +75,7 @@ describe('try-on compositing helpers', () => {
     })
 
     it('flips x for the mirrored preview and inverts y (image is top-down)', () => {
-      // A landmark on the raw-frame left (x=0), upper area (y=0.25)…
       const ndc = landmarkToNdc({ x: 0, y: 0.25 })
-      // …lands on the right in NDC (mirrored) and above the centre (y-up).
       expect(ndc.x).toBe(1)
       expect(ndc.y).toBe(0.5)
     })
@@ -86,8 +83,6 @@ describe('try-on compositing helpers', () => {
     it('tracks backwards when the mirror is disabled (the classic bug)', () => {
       const mirrored = landmarkToNdc({ x: 0.2, y: 0.5 }, { mirror: true })
       const notMirrored = landmarkToNdc({ x: 0.2, y: 0.5 }, { mirror: false })
-      // Same landmark, opposite horizontal sign — this is the "frame tracks
-      // the head backwards" failure the prototype exists to rule out.
       expect(mirrored.x).toBeCloseTo(-notMirrored.x)
     })
   })
@@ -95,7 +90,7 @@ describe('try-on compositing helpers', () => {
   describe('frustumHalfExtents', () => {
     it('scales width by aspect ratio', () => {
       const { halfWidth, halfHeight } = frustumHalfExtents(2, 90, 1)
-      expect(halfHeight).toBeCloseTo(1) // tan(45°) * 1
+      expect(halfHeight).toBeCloseTo(1)
       expect(halfWidth).toBeCloseTo(2)
     })
   })
@@ -108,7 +103,7 @@ describe('try-on compositing helpers', () => {
     })
 
     it('stays within the visible frustum half-extents', () => {
-      const aspect = 0.75 // portrait phone
+      const aspect = 0.75
       const { halfWidth, halfHeight } = frustumHalfExtents(
         aspect,
         TRYON_CAMERA.fovDeg,
@@ -220,13 +215,10 @@ describe('try-on compositing helpers', () => {
 
   describe('getEyeAspectRatio / isBlinking', () => {
     it('measures lid opening relative to eye width', () => {
-      // opening 0.03 over eye width 0.1 → ratio 0.3 (open eye)
       expect(getEyeAspectRatio(landmarksWithEyeOpening(0.03))).toBeCloseTo(0.3)
     })
 
     it('corrects for media aspect (y is normalized by height, x by width)', () => {
-      // A 2:1 landscape frame deflates the raw ratio by half; aspect 2
-      // restores it.
       const landmarks = landmarksWithEyeOpening(0.03)
       expect(getEyeAspectRatio(landmarks, 2)).toBeCloseTo(0.15)
     })
@@ -258,7 +250,6 @@ describe('try-on compositing helpers', () => {
     })
 
     it('clamps the divisor near profile so scale cannot explode', () => {
-      // cos(80°) ≈ 0.17 < the 0.5 clamp — result divides by 0.5 instead.
       const compensated = compensateMeasureForPose(0.1, (80 * Math.PI) / 180)
       expect(compensated).toBeCloseTo(0.2)
     })
@@ -299,8 +290,6 @@ describe('try-on compositing helpers', () => {
     })
 
     it('suppresses jitter around a held value far more than it passes through', () => {
-      // Small alternating noise around a constant signal, the classic "still
-      // face, jittery landmarks" case — the filtered output should barely move.
       let state = oneEuroFilter(null, 0, 1 / 60)
       let maxDeviation = 0
       for (let i = 0; i < 120; i++) {
@@ -312,8 +301,6 @@ describe('try-on compositing helpers', () => {
     })
 
     it('tracks a fast-moving signal with less lag when beta is higher', () => {
-      // A steadily increasing signal (e.g. walking toward the camera) — a
-      // higher beta should let the filter keep up more closely.
       const ramp = (opts: { minCutoff: number; beta: number }) => {
         let state = oneEuroFilter(null, 0, 1 / 60)
         let target = 0
@@ -354,7 +341,6 @@ describe('try-on compositing helpers', () => {
         6: { x: 0.5, y: 0.4 },
         197: { x: 0.5, y: 0.6 }
       })
-      // Only 6 and 197 of TRYON_ANCHOR_INDICES are present — centroid of those.
       expect(computeAnchorCentroid(list, TRYON_ANCHOR_INDICES)).toEqual({
         x: 0.5,
         y: 0.5,
@@ -368,8 +354,6 @@ describe('try-on compositing helpers', () => {
     })
 
     describe('frame seat (issue #11)', () => {
-      // A frontal face: ridge points down the midline, eye corners and iris
-      // centres on the eye line, eyelids around the iris.
       const face = (shift = { x: 0, y: 0 }, gaze = { x: 0, y: 0 }, lidOpening = 0.03) => {
         const p = (x: number, y: number) => ({ x: x + shift.x, y: y + shift.y, z: 0 })
         return landmarks({
@@ -427,16 +411,11 @@ describe('try-on compositing helpers', () => {
     })
 
     it('extrapolates along the velocity estimate within the measurement gap', () => {
-      // Filtered value 1, measurement 2 (gap +1), velocity +4/s, 50ms ahead:
-      // raw prediction 1.2 — still short of the measurement, passes through.
       const state: OneEuroState = { value: 1, derivative: 4 }
       expect(predictOneEuro(state, 2, 0.05)).toBeCloseTo(1.2)
     })
 
     it('clamps overshoot beyond the latest measurement', () => {
-      // Value 1, measurement 2 (gap +1), velocity +40/s, 50ms: raw prediction
-      // 3 — 1.0 beyond the measurement, clamped to gap * (maxOvershoot - 1)
-      // = 0.2 beyond it.
       const state: OneEuroState = { value: 1, derivative: 40 }
       expect(predictOneEuro(state, 2, 0.05)).toBeCloseTo(2.2)
     })
@@ -458,14 +437,12 @@ describe('try-on compositing helpers', () => {
     })
 
     it('extrapolates only the speed above minSpeed, with no step at the edge', () => {
-      // Velocity +4/s, deadband 1/s: 3/s used, 50ms ahead → 1.15.
       const state: OneEuroState = { value: 1, derivative: 4 }
       expect(predictOneEuro(state, 2, 0.05, 1.2, 1)).toBeCloseTo(1.15)
       expect(predictOneEuro({ value: 1, derivative: -4 }, 0, 0.05, 1.2, 1)).toBeCloseTo(0.85)
     })
 
     it('caps the lookahead horizon so wild latency spikes cannot fling the value', () => {
-      // dt of 5s must be treated as the 100ms cap, not 5s of extrapolation.
       const state: OneEuroState = { value: 0, derivative: 1 }
       expect(predictOneEuro(state, 100, 5)).toBeCloseTo(0.1)
     })
@@ -497,8 +474,6 @@ describe('try-on compositing helpers', () => {
     })
 
     it('crops left/right when the media is relatively wider than the container', () => {
-      // A 16:9 camera stream (1.78) inside a 3:4 portrait stage (0.75) —
-      // `cover` crops the sides to fill the container's height.
       const window = objectCoverWindow(16 / 9, 3 / 4)
       expect(window.yMin).toBe(0)
       expect(window.yMax).toBe(1)
@@ -507,8 +482,6 @@ describe('try-on compositing helpers', () => {
     })
 
     it('crops top/bottom when the media is relatively taller than the container', () => {
-      // A 3:4 portrait photo (0.75) inside a wide 4:3 stage (1.33) — `cover`
-      // crops the top/bottom to fill the container's width.
       const window = objectCoverWindow(3 / 4, 4 / 3)
       expect(window.xMin).toBe(0)
       expect(window.xMax).toBe(1)
@@ -525,7 +498,6 @@ describe('try-on compositing helpers', () => {
     })
 
     it('remaps a landmark into the cropped window', () => {
-      // Raw-frame landmark at the crop-window centre should land at (0.5, 0.5).
       const window = { xMin: 0.25, xMax: 0.75, yMin: 0, yMax: 1 }
       const landmark = { x: 0.5, y: 0.5 }
       const mapped = mapLandmarkToObjectCover(landmark, window)

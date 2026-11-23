@@ -1,28 +1,8 @@
-/**
- * Compares the tracker's head pose against UPNA ground truth.
- *
- * The two streams differ in three ways, so the comparison ignores each of them:
- * - Sign: the tracker's camera-space axes may be mirrored relative to UPNA's.
- *   Correlation is taken on magnitude, and the sign is reported.
- * - Offset: the tracker's zero is not UPNA's zero, so both series are
- *   centred before comparing.
- * - Alignment: the harness records wall-clock times, and the clip's start
- *   isn't known. The best frame lag is searched for.
- *
- * Pure functions only, so the comparison is unit-tested on synthetic series.
- */
-
-/** A tracker sample: time in ms and one angle in degrees. */
 export interface TimedValue {
   atMs: number
   value: number
 }
 
-/**
- * Resample irregular samples onto a fixed frame grid: frame `k` takes the
- * nearest sample to `startMs + k * 1000 / fps`. A frame with no sample within
- * `maxGapMs` is null.
- */
 export function resampleToFrames(
   samples: readonly TimedValue[],
   startMs: number,
@@ -44,7 +24,6 @@ export function resampleToFrames(
   return out
 }
 
-/** Pearson correlation of two equal-length series; 0 when either is constant. */
 export function pearson(a: readonly number[], b: readonly number[]): number {
   const n = a.length
   if (n < 2) return 0
@@ -65,30 +44,13 @@ export function pearson(a: readonly number[], b: readonly number[]): number {
 }
 
 export interface AxisComparison {
-  /** Truth frame the tracker starts at: tracker frame k ↔ truth frame (k + lag) mod length. */
   lag: number
-  /** Signed correlation at the chosen lag. Negative means the axes are mirrored. */
   r: number
-  /** RMS residual in degrees after the best linear fit of tracker on truth (shape error). */
   rmsDeg: number
-  /**
-   * Least-squares slope of tracker on truth: degrees the tracker moves per
-   * degree of ground truth. 1 is matched amplitude; far from 1 means the
-   * tracker's angles are scaled, even when the shape matches (high |r|).
-   */
   slope: number
-  /** Frames compared at the chosen lag. */
   pairs: number
 }
 
-/**
- * Best alignment of `tracker` onto `truth`, chosen by the largest |r|.
- *
- * The lag runs over a full loop of the truth. The fake camera replays the
- * clip, so the tracker can start anywhere in it, and the truth index wraps
- * around. Frames where the tracker has no sample are skipped. Returns null
- * when fewer than `minPairs` frames overlap at every lag.
- */
 export function compareAxis(
   tracker: readonly (number | null)[],
   truth: readonly number[],
@@ -116,8 +78,6 @@ export function compareAxis(
       truthVariance += (g[i]! - meanG) ** 2
     }
     const slope = truthVariance === 0 ? 0 : crossed / truthVariance
-    // Residual after the best linear fit, so a mirrored or scaled tracker is
-    // scored on its shape, not penalised for the sign or amplitude slope reports.
     let squared = 0
     for (let i = 0; i < t.length; i++) {
       const residual = t[i]! - meanT - slope * (g[i]! - meanG)
@@ -135,7 +95,6 @@ export function compareAxis(
   return best
 }
 
-/** Parse a UPNA 3D ground-truth file: rows of `Tx Ty Tz Roll Yaw Pitch`. */
 export function parseGroundTruth(text: string): {
   roll: number[]
   yaw: number[]

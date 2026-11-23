@@ -1,25 +1,13 @@
 import type { Page } from '@playwright/test'
 
-/**
- * Shared driver for the fake-camera tracking specs: opens the playground
- * prototype with `?harness=true`, waits for the first detection, then samples
- * the raw detector results (landmarks in stage pixels) for a fixed window.
- */
-
 export interface HarnessResult {
   at: number
   landmarks: [number, number][]
-  /** Head pose in degrees; undefined or null when the tracker returned none. */
   pose?: { yaw: number; pitch: number; roll: number } | null
 }
 
 export const MIN_DETECTION_RATE = 0.95
 
-/**
- * Per-kind detection-rate floors (issue #99). Measured with MediaPipe's CPU
- * delegate on the fixture frames (2026-10-17): 100 % on still, dim, dark,
- * backlit and occluded, 96.7 % on dropout (its 200 ms of black frames).
- */
 export const MIN_DETECTION_RATE_BY_KIND: Record<string, number> = {
   still: MIN_DETECTION_RATE,
   motion: MIN_DETECTION_RATE,
@@ -28,21 +16,12 @@ export const MIN_DETECTION_RATE_BY_KIND: Record<string, number> = {
   dropout: 0.93
 }
 
-/**
- * Largest frame-to-frame move of the mean landmark allowed on a still
- * subject: a "pop" is a discontinuity well above the jitter floor. Measured
- * in camera pixels (480×640); the harness reports stage pixels, so recheck
- * the margin if the prototype's stage is much larger than the camera frame.
- * Measured: still 0.5–2.9, backlit 1.0–1.6, occluded 1.2–6.3 (the box
- * edge), dropout 1.8–6.8 (re-acquiring after the black frames).
- */
 export const MAX_POP_PX: Record<string, number> = {
   still: 4,
   backlit: 4,
   dropout: 10
 }
 
-/** Largest frame-to-frame move of the mean landmark position, stage px. */
 export function maxPopPx(results: HarnessResult[]): number {
   const tracked = results.filter((r) => r.landmarks.length > 0)
   let worst = 0
@@ -57,19 +36,14 @@ export function maxPopPx(results: HarnessResult[]): number {
   }
   return worst
 }
-// Median frame-to-frame landmark movement on a perfectly still input: the
-// tracker's own noise floor. Above this the frame visibly shimmers.
 export const MAX_STILL_JITTER_PX = 0.75
 export const SAMPLE_MS = 6_000
 
 export async function runTracking(page: Page, model: string, sampleMs = SAMPLE_MS) {
   await page.goto(`/?model=${model}&harness=true`)
   await page.waitForFunction(() => '__tryOnHarness' in window)
-  // The prototype switches tracking on by itself once the camera is live.
   await page.getByRole('button', { name: 'Allow camera access' }).click()
 
-  // Measure from the first detection: MediaPipe's Wasm + model download is
-  // load time, not tracking quality.
   await page.waitForFunction(
     () =>
       (
@@ -105,7 +79,6 @@ export function detectionRate(results: HarnessResult[]): number {
   return results.filter((r) => r.landmarks.length > 0).length / results.length
 }
 
-/** Median over consecutive detections of the mean per-landmark displacement. */
 export function medianJitterPx(results: HarnessResult[]): number {
   const tracked = results.filter((r) => r.landmarks.length > 0)
   const steps: number[] = []

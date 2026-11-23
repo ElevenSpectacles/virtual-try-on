@@ -1,8 +1,6 @@
 <!doctype html>
 <meta charset="utf-8" />
 <title>Frame-removal spike harness</title>
-<!-- Served by segment.mjs. Runs MediaPipe FaceLandmarker and the multiclass
-     selfie segmenter (CPU delegate) on each fixture portrait. -->
 <script type="module">
   import { FaceLandmarker, FilesetResolver, ImageSegmenter } from '/vision_bundle.mjs'
 
@@ -25,7 +23,6 @@
       img.src = `/faces/${name}.jpg`
       await img.decode()
       const lm = landmarker.detect(img).faceLandmarks[0].map((p) => [p.x, p.y])
-      // The first call warms up; the median of the rest is reported.
       const times = []
       let result
       for (let i = 0; i < 6; i++) {
@@ -40,7 +37,6 @@
         w: cat.width,
         h: cat.height,
         cat: Array.from(cat.getAsUint8Array()),
-        // Confidence of class 5 ("others": accessories), 0–255.
         acc: Array.from(result.confidenceMasks[5].getAsFloat32Array(), (v) => Math.round(v * 255)),
         ms: times.slice(1)
       }

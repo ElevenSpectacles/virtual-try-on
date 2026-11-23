@@ -25,7 +25,6 @@ import { gaussian, mulberry32 } from '../support/landmark-stream'
 const W = CARD_CROP_WIDTH
 const H = CARD_CROP_HEIGHT
 
-/** A grey crop: `skin` background, optional card from `left` to `right` (fractional columns, anti-aliased). */
 function crop({
   left,
   right,
@@ -49,14 +48,13 @@ function crop({
   const gray = new Uint8ClampedArray(W * H)
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      // Coverage of pixel [x, x+1) by the card [left, right).
       const cover =
         left !== undefined && right !== undefined
           ? Math.max(0, Math.min(x + 1, right) - Math.max(x, left))
           : 0
       let value = skin + (card - skin) * cover
       if (logo && x >= logo[0] && x < logo[1] && y > H * 0.3 && y < H * 0.6) value = 60
-      for (const h of hairlines) if (x >= h) value = 40 // dark hair past the line
+      for (const h of hairlines) if (x >= h) value = 40
       gray[y * W + x] = value + noise * gaussian(rand)
     }
   }
@@ -66,21 +64,17 @@ function crop({
 describe('findCardEdges', () => {
   it('finds both edges to a fraction of a pixel', () => {
     const edges = findCardEdges(crop({ left: 80.3, right: 210.7 }), W, H)!
-    // Sub-pixel: the gradient peak of an edge at 80.3 sits at 80.3 - 0.5 + ...
     expect(edges.right - edges.left).toBeCloseTo(210.7 - 80.3, 0)
     expect(Math.abs(edges.right - edges.left - (210.7 - 80.3))).toBeLessThan(0.5)
   })
 
   it('ignores a logo printed on the card', () => {
     const edges = findCardEdges(crop({ left: 70, right: 210, logo: [90, 120] }), W, H)!
-    // Edges sit at pixel boundaries (x − 0.5 in pixel-centre terms); the
-    // width is what matters.
     expect(Math.abs(edges.left - 69.5)).toBeLessThan(0.5)
     expect(edges.right - edges.left).toBeCloseTo(140, 0)
   })
 
   it('does not pair a card edge with a hairline', () => {
-    // Card against skin, hair starting 30 px to its right.
     const edges = findCardEdges(crop({ left: 70, right: 200, hairlines: [235] }), W, H)!
     expect(edges.right - edges.left).toBeCloseTo(130, 0)
   })
@@ -130,7 +124,6 @@ describe('cardRegion', () => {
 
 describe('nearPdFromCard', () => {
   it('scales the IPD by the card ruler', () => {
-    // Card 0.3 of the frame, IPD 0.2: 85.6 * 2/3 mm.
     expect(nearPdFromCard(0.3, 0.2)).toBeCloseTo((CARD_WIDTH_MM * 0.2) / 0.3, 6)
   })
 

@@ -37,10 +37,6 @@ const emit = defineEmits<{
 const route = useRoute()
 const { getCalibration } = useFrameCalibration(props.calibrationUrl)
 
-// Prototype for issue #606: how a TresJS-rendered frame composites over a live
-// front-camera feed. Deliberately minimal — a pointer stands in for a tracked
-// landmark so the mirroring behaviour is inspectable.
-
 const queryModel = route.query.model as string | undefined
 const initialModel =
   getTryOnModel(props.models, queryModel)?.file ?? props.models[0]?.file
@@ -99,8 +95,6 @@ const showModelBoundingBox = ref(false)
 const occluderWidthRatio = ref(1.3)
 const occluderHeightRatio = ref(1.3)
 const occluderDepthRatio = ref(1.4)
-// Landmark-shell occluder (the production path) with its tuning knobs; the
-// width/height/depth ratios above only steer the ellipsoid fallback.
 const occluderMeshEnabled = ref(true)
 const occluderSkinSetback = ref(0.006)
 const occluderMeshInflate = ref(1.04)
@@ -130,15 +124,10 @@ const {
   init: initFaceLandmarker
 } = useFaceLandmarker(videoRef)
 
-// Face-fixture harness (tests/e2e/tracking.spec.ts): `?harness=true` exposes
-// the raw tracking stream on `window.__tryOnHarness` so Playwright can assert
-// detection rate and landmark jitter. Records every detector result, with
-// landmarks in stage pixels, plus rAF frame intervals.
 if (import.meta.client && route.query.harness === 'true') {
   const results: {
     at: number
     landmarks: [number, number][]
-    /** Head pose in degrees, null when the tracker returned no matrix. */
     pose?: { yaw: number; pitch: number; roll: number } | null
   }[] = []
   const frameIntervals: number[] = []
@@ -155,8 +144,6 @@ if (import.meta.client && route.query.harness === 'true') {
     },
     { flush: 'sync' }
   )
-  // The detector sets landmarks before the pose in the same update, so the
-  // pose watcher runs after the landmark watcher has pushed this result.
   watch(
     facePose,
     (pose) => {
@@ -186,9 +173,6 @@ if (import.meta.client && route.query.harness === 'true') {
       latencyMs: () => faceLatencyMs.value,
       blink: () => faceBlinkScore.value,
       pose: () => facePose.value?.euler ?? null,
-      // Everything TryOnScene needs for one frame, in world units. The shadow
-      // spec replays it (tests/e2e/tryon-pose-scene.spec.ts) so a render can be
-      // compared without a live tracker.
       snapshot: () => ({
         aspect: aspect.value,
         faceWorldHalfWidth: faceWorldHalfWidth.value,
@@ -206,10 +190,6 @@ if (import.meta.client && route.query.harness === 'true') {
   })
 }
 
-// Same guide behavior as VirtualTryOnExperience: blurred surround +
-// corner-bracket rectangle while no face is found, fading out once a face is
-// tracked. No distance hints — the metric scale adapts to any workable
-// distance.
 const showGuideOverlay = computed(
   () => isActive.value && useFaceTracking.value
 )
@@ -253,8 +233,6 @@ useRafFn(
   { immediate: true }
 )
 
-// Anchor while no face is tracked: the pointer, or a slow idle drift so the
-// frame can be inspected before the camera starts.
 function idleOrPointerLandmark(): NormalizedLandmark {
   if (pointerActive.value) return landmark.value
   if (prefersReducedMotion.value === 'reduce') return { x: 0.5, y: 0.45 }
@@ -269,10 +247,6 @@ const frameVisible = computed(() => {
   return true
 })
 
-// Placement is shared with the production experience (useTryOnPlacement):
-// scale from the tracked face, One Euro / slerp smoothing, frame position and
-// the occluders. The knobs below are the playground's tuning inputs; at their
-// defaults the result is exactly what VirtualTryOnExperience renders.
 const {
   correctedLandmarks: correctedFaceLandmarks,
   correctedAnchor: correctedFaceAnchor,
@@ -305,7 +279,6 @@ const {
   autoScale: () => enableAutoScale.value,
   referenceFaceWidth: () => referenceFaceWidth.value,
   fallbackAnchor: idleOrPointerLandmark,
-  // Pointer mode turns the frame with the yaw slider.
   fallbackRotation: () => ({
     x: calibration.value.rotation.x,
     y: rotationY.value + calibration.value.rotation.y,
@@ -509,9 +482,6 @@ watch(selectedModel, (model) => {
 
 <template>
   <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
-    <!-- Stage: mirrored <video> under a transparent TresJS canvas. Sized to
-         dominate the layout like the Blackfin/Fittingbox reference — roughly
-         square, capped by viewport height so it never scrolls away. -->
     <div
       ref="stageRef"
       data-testid="tryon-stage"
@@ -519,8 +489,6 @@ watch(selectedModel, (model) => {
       @pointermove="onPointerMove"
       @pointerleave="onPointerLeave"
     >
-      <!-- Layer 1: the camera feed, mirrored ONCE here. Always mounted so the
-           webcam stream has an element to attach to; hidden until active. -->
       <video
         ref="videoRef"
         class="absolute inset-0 z-0 h-full w-full object-cover transition-opacity duration-500"
@@ -533,7 +501,6 @@ watch(selectedModel, (model) => {
         @loadedmetadata="onVideoLoadedMetadata"
       />
 
-      <!-- Layer 2: transparent WebGL canvas, matched sizing + clamped DPR. -->
       <ClientOnly>
         <div ref="canvasWrapperRef" class="absolute inset-0 z-10 h-full w-full">
           <TresCanvas
@@ -573,23 +540,17 @@ watch(selectedModel, (model) => {
         </div>
       </ClientOnly>
 
-      <!-- Layer 3: debug landmark overlay. -->
       <canvas
         v-if="isDebugMode"
         ref="debugCanvasRef"
         class="pointer-events-none absolute inset-0 z-30 h-full w-full"
       />
 
-      <!-- Positioning guide (Blackfin/Fittingbox-style): corner-bracket
-           rectangle; everything outside it is blurred + dimmed until a face
-           is found, then the whole overlay fades once aligned. -->
       <div
         v-if="showGuideOverlay"
         class="pointer-events-none absolute inset-0 z-20 transition-opacity duration-500"
         :class="guideVisible ? 'opacity-100' : 'opacity-0'"
       >
-        <!-- Blurred/dimmed surround, cut out around the guide rect. Shown
-             only while no face is found (hint states keep the feed clear). -->
         <div
           class="absolute inset-0 transition-opacity duration-500"
           :class="guideHint === 'noFace' ? 'opacity-100' : 'opacity-0'"
@@ -600,8 +561,6 @@ watch(selectedModel, (model) => {
           <div class="absolute right-0 top-[14%] bottom-[14%] w-[22%] bg-black/40 backdrop-blur-md" />
         </div>
 
-        <!-- Corner brackets (borders, not SVG strokes, so thickness stays
-             uniform under the stage's non-uniform aspect). -->
         <div
           class="absolute left-[22%] right-[22%] top-[14%] bottom-[14%] drop-shadow-md transition-opacity duration-300"
           :class="guideHint === 'aligned' ? 'opacity-95' : 'opacity-70'"
@@ -620,7 +579,6 @@ watch(selectedModel, (model) => {
         </p>
       </div>
 
-      <!-- Consent / idle / error states -------------------------------------->
       <div
         v-if="!isActive"
         class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-black/50 px-6 text-center backdrop-blur-sm"
@@ -693,7 +651,6 @@ watch(selectedModel, (model) => {
         </template>
       </div>
 
-      <!-- No-face / low-confidence states for face tracking. -->
       <div
         v-if="isActive && useFaceTracking && isFaceReady && showNoFaceMessage"
         class="absolute inset-x-3 top-3 z-20"
@@ -715,7 +672,6 @@ watch(selectedModel, (model) => {
       </div>
     </div>
 
-    <!-- Controls ------------------------------------------------------------->
     <div class="flex w-full flex-col gap-5 lg:max-w-xs">
       <div v-if="isActive" class="flex justify-end">
         <UButton
@@ -801,7 +757,6 @@ watch(selectedModel, (model) => {
         />
       </UFormField>
 
-      <!-- Debug tuning controls ------------------------------------------------ -->
       <template v-if="isDebugMode">
         <USeparator />
 

@@ -6,11 +6,6 @@ import type {
   FaceLandmarkerWorkerResponse
 } from '../../../../src/runtime/types/face-landmarker-worker'
 
-/**
- * Detection now runs in a Worker, so the tests fake the worker side: a
- * `postMessage` spy records requests, and each test drives responses back via
- * `emit()` exactly like the real worker's `onmessage` would.
- */
 class FakeWorker {
   onmessage:
     | ((event: MessageEvent<FaceLandmarkerWorkerResponse>) => void) | null = null
@@ -86,7 +81,6 @@ describe('useFaceLandmarker', () => {
   async function initReady(videoRef: Ref<HTMLVideoElement | null>) {
     const landmarker = useFaceLandmarker(videoRef)
     const initPromise = landmarker.init()
-    // Let the worker be constructed and receive the 'init' postMessage.
     await Promise.resolve()
     latestWorker().emit({ type: 'ready' })
     await initPromise
@@ -157,8 +151,6 @@ describe('useFaceLandmarker', () => {
       transformationMatrix: Array.from(new Float32Array(16))
     })
 
-    // Default anchor is the centroid of TRYON_ANCHOR_INDICES — of those,
-    // only 5 and 6 exist in this short sample: ({0.8,0.9,1.0} + {0.3,0.4,0.5})/2.
     expect(anchor.value?.x).toBeCloseTo(0.55)
     expect(anchor.value?.y).toBeCloseTo(0.65)
     expect(anchor.value?.z).toBeCloseTo(0.75)
@@ -169,7 +161,6 @@ describe('useFaceLandmarker', () => {
 
   it('falls back to the first landmark when no anchor index is in range', async () => {
     const videoRef = ref<HTMLVideoElement | null>(null)
-    // recreate with a custom, out-of-range anchorIndices.
     const landmarker = useFaceLandmarker(videoRef, { anchorIndices: [99] })
     const initPromise = landmarker.init()
     await Promise.resolve()
@@ -266,10 +257,8 @@ describe('useFaceLandmarker', () => {
       ended: false
     } as unknown as HTMLVideoElement
 
-    // The loop skips a paused video…
     expect(detect(performance.now())).toBeNull()
 
-    // …but a held detection sends it, and resolves once it is applied.
     let resolved = false
     const held = detectHeld().then(() => {
       resolved = true

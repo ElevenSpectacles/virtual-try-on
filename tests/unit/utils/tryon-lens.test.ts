@@ -120,7 +120,6 @@ describe('physical lens darkness', () => {
 
   it('fades in optical density, so the middle passes the geometric mean of the ends', () => {
     const g = { top: 0.9, bottom: 0.2 }
-    // τ(0.5) = √(τtop · τbottom) = √(0.1 · 0.8), darker than the opacity midpoint 0.55
     expect(1 - gradientDensityAt(g, 0.5)).toBeCloseTo(Math.sqrt(0.1 * 0.8), 9)
     expect(gradientDensityAt(g, 0.5)).toBeGreaterThan(0.55)
   })

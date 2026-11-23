@@ -1,9 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-// The worker bundles @mediapipe/tasks-vision's JS but loads its WASM from a
-// CDN by default. Mixing versions is unsupported, so the pinned dependency
-// and the default WASM URL must move together.
 describe('MediaPipe version', () => {
   const pkg = JSON.parse(
     readFileSync(new URL('../../package.json', import.meta.url), 'utf8')

@@ -1,13 +1,4 @@
 #!/usr/bin/env -S npx tsx
-// Writes the `calibration.json` the component loads (`calibration-url`):
-// measures every GLB in --input and normalises it against --reference (see
-// scripts/lib/calibration.ts for the maths). Run it on the final, compressed
-// models: Draco compression shifts bounding boxes by float rounding.
-//
-//   npm run generate-calibration -- --input <dir> --output <dir>/calibration.json
-//
-// When --output already exists, its hand-tuned fields (rotation,
-// lens) are kept.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { parseArgs } from 'node:util'

@@ -1,9 +1,3 @@
-/**
- * Catalog model lint (issue #103): what the runtime needs from a GLB, and
- * what silently produces a bad try-on. Pure over a gltf-transform Document.
- *
- * Errors fail `scripts/lint-models.ts`; warnings are listed.
- */
 import { getBounds, type Document } from '@gltf-transform/core'
 import { TEMPLE_NODE_NAME, preparedSteps } from './model-prep'
 
@@ -13,25 +7,17 @@ export interface LintFinding {
   message: string
 }
 
-/** Lens materials are found by name (TryOnScene's LENS_MATERIAL_NAME). */
 export const LENS_MATERIAL_NAME = /glass|lens/i
 
-/**
- * Lens base colours shared across the catalog as placeholders (issue #85):
- * a lens that still has one renders the wrong colour.
- */
 export const PLACEHOLDER_LENS_COLOURS: ReadonlyArray<readonly [number, number, number]> = [
   [1, 0.78, 0.82]
 ]
 
-/** Plausible frame size, metres (GLBs are authored in metres). */
 export const FRAME_WIDTH_RANGE = { min: 0.1, max: 0.17 } as const
 export const FRAME_HEIGHT_RANGE = { min: 0.02, max: 0.075 } as const
 
-/** File size budget, bytes: warn above, fail far above. */
 export const FILE_SIZE_BUDGET = { warn: 1.5e6, error: 5e6 } as const
 
-/** Texture side above which KTX2 (or a smaller texture) is worth it. */
 export const MAX_TEXTURE_SIDE = 1024
 
 const close = (a: readonly number[], b: readonly number[]) =>

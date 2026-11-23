@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-node@v4
         with:
@@ -20,15 +22,13 @@ jobs:
 
       - run: npm ci
 
-      # The playground smoke test (verify:playground) skips itself without the
-      # host GLB catalog, so CI runs the unit suite + typecheck — the full
-      # CI-runnable surface.
+      - name: Comment ratchet
+        run: npm run lint:comments -- --base HEAD^1
+
       - run: npm run verify:unit
 
       - run: npm run typecheck
 
-      # Proves the publishable dist/ (module-builder + worker URL rewrite in
-      # build.config.ts) still builds.
       - run: npm run build
 
   doctor:
@@ -44,8 +44,5 @@ jobs:
 
       - run: npm ci
 
-      # Blocking: --format text exits non-zero on any diagnostic. The root run
-      # covers the module source (worker constraint: no imports means it is
-      # analyzed as plain Vite); the playground run applies Nuxt-app rules.
       - run: npx vite-doctor . --format text
       - run: npx vite-doctor playground --format text

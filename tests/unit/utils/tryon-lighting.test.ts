@@ -7,7 +7,6 @@ import {
   smoothFrameLighting
 } from '../../../src/runtime/utils/tryon-lighting'
 
-/** RGBA buffer filled with one colour. */
 function solid(r: number, g: number, b: number, pixels: number) {
   const data = new Uint8ClampedArray(pixels * 4)
   for (let i = 0; i < pixels; i++) {

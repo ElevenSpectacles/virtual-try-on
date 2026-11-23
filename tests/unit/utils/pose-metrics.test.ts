@@ -6,11 +6,6 @@ import {
   resampleToFrames
 } from '../../e2e/pose-metrics'
 
-/**
- * 300 frames of a sweep in degrees. Two sinusoids with incommensurate periods,
- * so no shifted or negated copy lines up with it: a pure sine aliases every
- * half period, and the lag search would pick the alias.
- */
 const truth = Array.from(
   { length: 300 },
   (_, f) => 25 * Math.sin((2 * Math.PI * f) / 90) + 10 * Math.sin((2 * Math.PI * f) / 37)

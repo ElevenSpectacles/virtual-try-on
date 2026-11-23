@@ -23,7 +23,6 @@ describe('buildLens', () => {
     for (const physical of [true, false]) {
       const material = buildLens(authoredLens(), physical, lens) as MeshStandardMaterial
       expect(material.map).toBeNull()
-      // the hex is sRGB: stored linear, it reads back as the same hex
       expect(material.color.getHexString(SRGBColorSpace)).toBe('7dbcab')
       expect(material.color.r).toBeCloseTo(new Color().setRGB(...lens.tint!, SRGBColorSpace).r, 9)
       expect(material.opacity).toBeCloseTo(0.4, 9)

@@ -24,11 +24,6 @@ import { TINTED_SHADOW_FRAGMENT } from '../../../utils/tryon-lens-shadow'
 import { earBendPoint } from '../../../utils/tryon-temples'
 import type { ContactReceiverUniforms, MeshOccluderSphere } from './useContactShadow'
 
-/**
- * The contact shadow's receiver: a ShadowMaterial for the face-mesh copy that
- * draws the frame's shadow, its contact occlusion and, opt-in, the tinted
- * lens shadow on the skin.
- */
 export function useContactOcclusion(
   model: ShallowRef<GLTF | null>,
   props: {
@@ -42,16 +37,10 @@ export function useContactOcclusion(
     tinted: ComputedRef<boolean>
     occluderSpheres: () => MeshOccluderSphere[]
   },
-  /** The ear-bent arms (`useTempleFit`), whose spheres bend with them. */
   earBendMaterials: Map<Mesh, { material: Material; uniform: { value: Vector4 } }>
 ) {
   const { shadowColor: SHADOW_COLOR, receiverUniforms, tinted } = shadow
 
-  // ShadowMaterial with the occlusion folded into its alpha, mirroring
-  // `contactShadowAlpha`: shadow and occlusion darken independently, so their
-  // visibilities multiply. The skin normal is turned toward the camera, since
-  // the mesh is drawn double-sided, and the occlusion fades out toward the
-  // mesh's silhouette (`silhouetteFade`).
   const shadowReceiverMaterial = new ShadowMaterial({
     color: SHADOW_COLOR,
     transparent: true,
@@ -89,7 +78,6 @@ uniform sampler2D uVideo;
 uniform vec4 uWindow;
 varying vec4 vTintClip;
 
-// utils/tryon-contact-occlusion: contactOcclusion / sphereOcclusion.
 float contactOcclusion(vec3 p, vec3 n) {
   float visible = 1.0;
   for (int i = 0; i < ${MAX_OCCLUDER_SPHERES}; i++) {
@@ -111,7 +99,6 @@ float contactOcclusion(vec3 p, vec3 n) {
         `vec3 aoNormal = dot(vAoNormal, vAoNormal) > 0.0 ? normalize(vAoNormal) : vec3(0.0, 0.0, 1.0);
   vec3 aoView = normalize(cameraPosition - vAoPosition);
   if (dot(aoNormal, aoView) < 0.0) aoNormal = -aoNormal;
-  // silhouetteFade: none where the skin turns away, at the mesh's edge.
   float aoFacing = smoothstep(${SILHOUETTE_FADE_START.toFixed(2)}, ${SILHOUETTE_FADE_END.toFixed(2)}, dot(aoNormal, aoView));
   float occluded = 1.0 - uOcclusionStrength * aoFacing * contactOcclusion(vAoPosition, aoNormal);
 #if defined( TINTED_LENS_SHADOW ) && NUM_DIR_LIGHT_SHADOWS > 1
@@ -121,9 +108,6 @@ ${TINTED_SHADOW_FRAGMENT}
   gl_FragColor = vec4(color, 1.0 - shadowed * occluded);
 #endif`
       )
-      // The receiver composes in the display's (sRGB) space, against the DOM
-      // video: no tone mapping or colour-space encode on its output. (The
-      // untinted output is black, which neither changes.)
       .replace('#include <tonemapping_fragment>', '')
       .replace('#include <colorspace_fragment>', '')
   }
@@ -138,9 +122,6 @@ ${TINTED_SHADOW_FRAGMENT}
     { immediate: true }
   )
 
-  // The camera as a texture, only while the tinted lens shadow runs (one
-  // upload per video frame). Raw sRGB values: the receiver works in display
-  // space.
   watch(
     [tinted, () => props.videoElement],
     ([tint, video]) => {
@@ -162,10 +143,6 @@ ${TINTED_SHADOW_FRAGMENT}
     { immediate: true }
   )
 
-  // Spheres follow their meshes: the world matrices (the frame's pose and each
-  // arm's hinge angle) are current by the time the receiver draws. An arm with
-  // the ear bend on bends its spheres like its vertices (`earBendPoint` is the
-  // shader's maths).
   const sphereCentre = new Vector3()
   shadowReceiverMaterial.onBeforeRender = () => {
     const root = model.value?.scene

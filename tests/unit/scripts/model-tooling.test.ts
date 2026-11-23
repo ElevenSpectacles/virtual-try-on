@@ -8,11 +8,6 @@ import {
 } from '../../../scripts/lib/model-prep'
 import { lintModel } from '../../../scripts/lib/model-lint'
 
-/**
- * A synthetic frame: a 140 × 45 mm front with a lens material, and a `pt2`
- * temple mesh whose triangles run along local X from the hinge (0.02) to
- * past the trim threshold (0.15).
- */
 function frame({ lensColour = [0.3, 0.3, 0.3], width = 0.14, temple = true } = {}) {
   const doc = new Document()
   const buffer = doc.createBuffer()
@@ -41,7 +36,6 @@ function frame({ lensColour = [0.3, 0.3, 0.3], width = 0.14, temple = true } = {
       .createPrimitive()
       .setAttribute('POSITION', accessor('VEC3', new Float32Array(positions)))
       .setIndices(accessor('SCALAR', new Uint32Array(indices)))
-    // Like the catalog: pt2's local X (reach) runs to world -Z.
     scene.addChild(
       doc
         .createNode('pt2')
@@ -75,7 +69,6 @@ describe('model preparation', () => {
     const afterFirst = templeX(doc)
     const second = await trimTempleTips(doc)
     expect(second.skipped).toBe('already-trimmed')
-    // A second run would tilt the shaft again: it must not touch it.
     expect(templeX(doc)).toEqual(afterFirst)
   })
 

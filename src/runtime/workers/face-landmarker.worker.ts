@@ -1,21 +1,3 @@
-/**
- * Dedicated worker running MediaPipe FaceLandmarker's synchronous
- * `detectForVideo` calls off the main thread. The main thread grabs each
- * video frame as a transferable `ImageBitmap` and posts it here; only the
- * small landmark/matrix result comes back, so the worker never touches the
- * DOM. On request it also sends back a 16×16 RGBA downsample of the frame
- * for the room-lighting estimate: reading pixels back from a GPU-backed
- * bitmap costs about a millisecond, which belongs here, not on the render
- * thread.
- */
-
-// Classic (non-module) worker: this file must contain zero static
-// `import`/`export` syntax. esbuild treats any top-level import/export as an
-// ES module and appends a trailing `export {}` marker to the bundle — a hard
-// SyntaxError outside a module worker — even for a type-only `import type`.
-// The request/response types are therefore duplicated here (source of truth
-// lives in `../types/face-landmarker-worker`, consumed via normal import by
-// the main-thread composable) instead of imported.
 type FaceLandmarkerWorkerRequest =
   | { type: 'init'; basePath?: string; modelAssetPath?: string }
   | {
@@ -79,26 +61,15 @@ interface FaceLandmarkerInstance {
   close?(): void
 }
 
-// The landmarker is created in VIDEO mode and never leaves it — the camera
-// is the only input source.
 let faceLandmarker: FaceLandmarkerInstance | null = null
 
 function post(message: FaceLandmarkerWorkerResponse, transfer: Transferable[] = []) {
   self.postMessage(message, transfer)
 }
 
-// Side of the lighting downsample. 16×16 is 256 pixels: enough for a mean
-// luma and colour cast (see utils/tryon-lighting).
 const SAMPLE_SIZE = 16
-// undefined until first use; null when OffscreenCanvas 2D is unavailable,
-// in which case samples are silently skipped (lighting stays neutral).
 let sampleContext: OffscreenCanvasRenderingContext2D | null | undefined
 
-// Draw the frame into a 16×16 canvas and read it back. The readback waits
-// on the GPU (the bitmap is GPU-backed and MediaPipe has just queued work),
-// about 1.2 ms on a laptop; it runs here, after the result is posted, and the
-// main thread asks for one sample every LIGHTING_SAMPLE_EVERY detections.
-// (A GPU-side `createImageBitmap` resize first was slower: 2.5 ms.)
 function postSample(id: number, bitmap: ImageBitmap) {
   try {
     if (sampleContext === undefined) {
@@ -118,14 +89,9 @@ function postSample(id: number, bitmap: ImageBitmap) {
       { type: 'sample', id, pixels: data, width: SAMPLE_SIZE, height: SAMPLE_SIZE, ms },
       [data.buffer]
     )
-  } catch {
-    // A failed sample only costs the lighting estimate one frame.
-  }
+  } catch {}
 }
 
-// Card calibration crop (keep in step with CARD_CROP_WIDTH/HEIGHT in
-// utils/tryon-card): the forehead band, scaled down and turned grey here so
-// only ~30 KB crosses back, and only while the host runs a calibration.
 const CARD_CROP_WIDTH = 320
 const CARD_CROP_HEIGHT = 96
 let cardContext: OffscreenCanvasRenderingContext2D | null | undefined
@@ -161,17 +127,9 @@ function postCard(id: number, bitmap: ImageBitmap, region: CardRegion) {
       { type: 'card', id, gray, width: CARD_CROP_WIDTH, height: CARD_CROP_HEIGHT, region },
       [gray.buffer]
     )
-  } catch {
-    // A failed crop only costs the calibration one frame.
-  }
+  } catch {}
 }
 
-// Defaults used when the host doesn't pass a self-hosted path — kept as the
-// fallback rather than a hard requirement, since FilesetResolver.forVisionTasks
-// accepts any basePath (see docs on the class) and modelAssetPath is just a
-// URL/path string.
-// The WASM must match the bundled JS exactly: keep this version equal to the
-// pinned `@mediapipe/tasks-vision` dependency (enforced by a unit test).
 const DEFAULT_WASM_BASE_PATH =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm'
 const DEFAULT_MODEL_ASSET_PATH =
@@ -194,8 +152,6 @@ async function init(basePath?: string, modelAssetPath?: string) {
       baseOptions: { ...baseOptions, delegate },
       runningMode: 'VIDEO' as const,
       numFaces: 1,
-      // Only eyeBlinkLeft/Right are read (see `blinkScore`): calibrated
-      // blink scores that stay valid while the eyelid hides the iris.
       outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: true,
       minFacePresenceConfidence: 0.3,
@@ -203,17 +159,12 @@ async function init(basePath?: string, modelAssetPath?: string) {
     })
 
     try {
-      // The dynamically-imported FaceLandmarker satisfies the narrowed
-      // FaceLandmarkerInstance structurally (VIDEO-mode detectForVideo result
-      // is a superset), so no cast is needed — assign directly.
       const gpu: FaceLandmarkerInstance = await FaceLandmarker.createFromOptions(
         vision,
         landmarkerOptions('GPU')
       )
       faceLandmarker = gpu
     } catch {
-      // GPU delegate needs OffscreenCanvas/WebGL2 in-worker support; fall
-      // back to CPU the same way the main-thread path does.
       const cpu: FaceLandmarkerInstance = await FaceLandmarker.createFromOptions(
         vision,
         landmarkerOptions('CPU')
@@ -233,9 +184,6 @@ async function init(basePath?: string, modelAssetPath?: string) {
   }
 }
 
-// Stronger of the two eye-blink blendshapes (0 open … 1 closed), or null
-// when the model emitted no blendshapes (e.g. a self-hosted model without
-// the blendshape head) — callers fall back to the landmark heuristic.
 function blinkScore(blendshapes?: BlendshapeClassifications): number | null {
   if (!blendshapes) return null
   let score: number | null = null
@@ -296,7 +244,6 @@ self.addEventListener(
           if (!faceLandmarker) throw new Error('FaceLandmarker not ready')
           const raw = faceLandmarker.detectForVideo(bitmap, timestamp)
           post(toResult(id, raw))
-          // After the result, so the downsample never delays the landmarks.
           if (sample) postSample(id, bitmap)
           if (card) postCard(id, bitmap, card)
         } catch (err) {
@@ -314,9 +261,7 @@ self.addEventListener(
       case 'destroy':
         try {
           faceLandmarker?.close?.()
-        } catch {
-          // ignore
-        }
+        } catch {}
         faceLandmarker = null
         break
     }

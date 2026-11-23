@@ -13,38 +13,24 @@ import {
 
 export interface TierChange {
   tier: TryOnTier
-  /** The tier before this change; null for the initial classification. */
   previousTier: TryOnTier | null
   reason: 'initial' | 'frame_budget'
-  /** p95 frame time that caused a step-down; null for the initial classification. */
   p95Ms: number | null
   signals: TierSignals | null
 }
 
 export interface UseCapabilityTierOptions {
-  /**
-   * Pin the tier while it returns a value: no step-down, and the device
-   * classification is ignored. Read reactively, so setting or clearing it
-   * after mount takes effect. Clearing returns to the device's own tier.
-   * For tests and goldens.
-   */
   forcedTier?: () => TryOnTier | undefined
-  /**
-   * Whether frames count right now: camera active and a face tracked. Frames
-   * are sampled only while this is true, so idle time never counts as slow.
-   */
   sampling?: () => boolean
   onChange?: (change: TierChange) => void
 }
 
-/** Read the static device signals. Call on the client only. */
 function probeSignals(): TierSignals {
   const canvas = document.createElement('canvas')
   const gl = canvas.getContext('webgl2')
   let maxTextureSize = 0
   if (gl) {
     maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
-    // Release the probe context now; browsers cap live WebGL contexts.
     gl.getExtension('WEBGL_lose_context')?.loseContext()
   }
   return {
@@ -54,20 +40,11 @@ function probeSignals(): TierSignals {
   }
 }
 
-/**
- * The device capability tier and the features it allows, with a step-down
- * when the frame p95 stays over budget. Call from component setup: it
- * registers a frame loop, a watcher and an `onMounted` probe.
- *
- * The tier starts at `mid` on the server and before mount, then is set from
- * the device probe in `onMounted`. It only steps down during a session.
- */
 export function useCapabilityTier(options: UseCapabilityTierOptions = {}) {
   const forcedTier = options.forcedTier ?? (() => undefined)
   const tier = ref<TryOnTier>(forcedTier() ?? 'mid')
   const signals = ref<TierSignals | null>(null)
   const sampler = createTierSampler(tier.value, forcedTier() !== undefined)
-  // The device's own classification, kept so clearing a forced tier can return to it.
   let deviceTier: TryOnTier | null = null
 
   onMounted(() => {
@@ -87,8 +64,6 @@ export function useCapabilityTier(options: UseCapabilityTierOptions = {}) {
     })
   })
 
-  // A forced tier pins the sampler; clearing it resumes from the device tier.
-  // No onChange here: a forced tier is the host's own choice, not a measured step.
   watch(forcedTier, (value) => {
     if (value !== undefined) {
       sampler.forced = true
@@ -103,8 +78,6 @@ export function useCapabilityTier(options: UseCapabilityTierOptions = {}) {
   })
 
   useTryOnFrameLoop((deltaMs) => {
-    // A hidden tab resumes with one huge delta and throws frames away, so
-    // it is not sampled.
     const sampling = options.sampling?.() === true && !document.hidden
     const step = advanceTierSampler(sampler, sampling ? deltaMs : null)
     if (!step) return
@@ -118,12 +91,10 @@ export function useCapabilityTier(options: UseCapabilityTierOptions = {}) {
     })
   })
 
-  /** Restart warm-up. Call when the model changes, before the new GLB compiles. */
   function resetWarmup() {
     resetTierSampler(sampler)
   }
 
-  /** Whether `feature` runs at the current tier. Opt-in is checked by the caller. */
   function allows(feature: TryOnFeature): boolean {
     return isFeatureAllowed(tier.value, feature)
   }

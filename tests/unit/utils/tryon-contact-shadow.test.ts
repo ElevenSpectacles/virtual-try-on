@@ -20,7 +20,6 @@ describe('contactShadowLight', () => {
     expect(p.x / distance).toBeCloseTo(d.x / length)
     expect(p.y / distance).toBeCloseTo(d.y / length)
     expect(p.z / distance).toBeCloseTo(d.z / length)
-    // Light above and in front: the shadow drops below the rims, toward the face.
     expect(p.y).toBeGreaterThan(0)
     expect(p.z).toBeGreaterThan(0)
   })

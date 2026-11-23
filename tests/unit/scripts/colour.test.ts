@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { deltaE2000, hexToLab, srgbToLab, type Lab } from '../../../scripts/lib/colour'
 
 describe('deltaE2000', () => {
-  // Test pairs from Sharma, Wu & Dalal (2005), Table 1.
   const pairs: Array<[Lab, Lab, number]> = [
     [[50, 2.6772, -79.7751], [50, 0, -82.7485], 2.0425],
     [[50, 3.1571, -77.2803], [50, 0, -82.7485], 2.8615],
@@ -34,7 +33,6 @@ describe('srgbToLab', () => {
 
   it('reads #rrggbb', () => {
     expect(hexToLab('#ff0000')).toEqual(srgbToLab(255, 0, 0))
-    // sRGB red is about L 53.2, a 80.1, b 67.2.
     expect(hexToLab('#ff0000')[0]).toBeCloseTo(53.24, 1)
   })
 })

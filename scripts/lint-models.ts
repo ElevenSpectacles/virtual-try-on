@@ -1,9 +1,4 @@
 #!/usr/bin/env -S npx tsx
-// Model lint (issue #103): checks every GLB in --input for what the try-on
-// needs (lens material, temple node, sane size) and what silently looks
-// wrong (placeholder lens colour, big textures). Exits non-zero on errors.
-//
-//   npx tsx scripts/lint-models.ts --input <dir>
 import { readdirSync, statSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { parseArgs } from 'node:util'

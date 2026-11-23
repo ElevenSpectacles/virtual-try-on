@@ -1,11 +1,4 @@
 #!/usr/bin/env -S npx tsx
-// Pantoscopic tilt audit (issue #87): fits each GLB's lens plane and reports
-// its effective tilt (lens plane + calibration rotation.x) against the
-// 7–12° fitting range, with the rotation.x that gives 9°.
-//
-//   npx tsx scripts/audit-tilt.ts --input <dir> --calibration <dir>/calibration.json
-//
-// Exits non-zero when a model is out of range, so it can gate a catalog PR.
 import { readdirSync, readFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -48,7 +41,6 @@ async function main() {
         const v = [0, 0, 0]
         for (let i = 0; i < position.getCount(); i++) {
           position.getElement(i, v)
-          // Column-major 4×4 world matrix.
           points.push(
             world[0]! * v[0]! + world[4]! * v[1]! + world[8]! * v[2]! + world[12]!,
             world[1]! * v[0]! + world[5]! * v[1]! + world[9]! * v[2]! + world[13]!,

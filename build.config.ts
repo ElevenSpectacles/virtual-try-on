@@ -2,11 +2,6 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { BuildConfig } from 'unbuild'
 
-// mkdist transpiles the workers to `.js`, but leaves the
-// `new URL('…worker.ts', import.meta.url)` string in the composables that
-// start them untouched — point each built composable at its emitted `.js`
-// worker. Fails the build loudly if a reference ever moves, instead of
-// shipping a 404.
 const WORKERS = [
   {
     composable: 'runtime/composables/tryon/useFaceLandmarker.js',

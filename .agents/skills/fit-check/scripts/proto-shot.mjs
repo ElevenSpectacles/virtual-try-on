@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// Screenshot the playground PROTOTYPE (occluder on, debug panel) on a face
-// fixture through Chromium's fake camera, real GPU.
-//   node proto-shot.mjs <face> <out.png> [--occluder-off] [--occluder-debug]
-// Needs the playground served on :3298 (see SKILL.md) and the fixture clip
-// rendered once by `npm run verify:e2e` (os.tmpdir()/virtual-try-on-face-clips).
 import { createRequire } from 'node:module'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -38,8 +33,6 @@ const page = await (
 ).newPage()
 await page.goto(`http://localhost:3298/?model=${face}&harness=true&debug_tryon=true`)
 await page.waitForFunction(() => '__tryOnHarness' in window)
-// The prototype turns tracking on by itself once the camera is live —
-// clicking "Track my face" would turn it OFF.
 await page.getByRole('button', { name: 'Allow camera access' }).click()
 if (flags.includes('--occluder-off')) {
   await page.getByRole('switch', { name: 'Occluder enabled' }).click()

@@ -1,15 +1,3 @@
-/**
- * Face-mesh triangulation of the MediaPipe canonical face model
- * (mediapipe/modules/face_geometry/data/canonical_face_model.obj — vertex
- * i+1 in the OBJ is landmark i). 468 vertices, 898 triangles.
- *
- * Used to render the tracked face as a depth-only occluder: the same
- * technique as MediaPipe's own effect renderer, which draws the runtime face
- * mesh into the depth buffer before the virtual object.
- *
- * Generated — do not edit by hand. Depth-only rendering does not care about
- * winding, so no normals are needed.
- */
 export const FACE_MESH_VERTEX_COUNT = 468
 
 export const FACE_MESH_TRIANGLE_INDEX = new Uint16Array([

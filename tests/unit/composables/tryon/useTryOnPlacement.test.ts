@@ -25,33 +25,24 @@ import {
   PD_STABLE_SAMPLES
 } from '../../../../src/runtime/utils/tryon-measure'
 
-/**
- * The placement pipeline shared by VirtualTryOnExperience and the playground
- * prototype: deterministic synthetic face, fixed pose, driven through a
- * stubbed rAF so the smoothing settles.
- */
-
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-// 478 landmarks, with the points the pipeline reads placed on a frontal face.
 function face(): NormalizedLandmark[] {
   const points: NormalizedLandmark[] = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5, z: 0 }))
   const set = (i: number, x: number, y: number) => {
     points[i] = { x, y, z: 0 }
   }
-  set(234, 0.36, 0.45) // ear level, right
-  set(454, 0.64, 0.45) // ear level, left
-  set(127, 0.37, 0.47) // cheeks
+  set(234, 0.36, 0.45)
+  set(454, 0.64, 0.45)
+  set(127, 0.37, 0.47)
   set(356, 0.63, 0.47)
-  set(468, 0.44, 0.44) // iris centres
+  set(468, 0.44, 0.44)
   set(473, 0.56, 0.44)
   return points
 }
 
-// The same face with iris rings sized for a `pdMm` PD (iris centres are
-// 0.12 apart). A copy per call, so pushing it is a new detection.
 function faceWithIris(pdMm: number): NormalizedLandmark[] {
   const points = face()
   const radius = (0.12 * IRIS_DIAMETER_MM) / pdMm / 2
@@ -149,8 +140,6 @@ describe('useTryOnPlacement', () => {
   })
 
   it('gives the same placement with the prototype knobs at their defaults', () => {
-    // The playground prototype passes its tuning refs; at their defaults they
-    // must reproduce the experience exactly, so tuning there transfers 1:1.
     const experience = settled({ ...inputs(), scaleMultiplier: () => 1 })
     const prototype = settled({
       ...inputs(),
@@ -194,7 +183,6 @@ describe('useTryOnPlacement', () => {
   it('seats a frame with pad spacing lower on a narrow nose (opt-in)', async () => {
     const { nextTick } = await import('vue')
     const { NOSE_SIDE_PAIRS } = await import('../../../../src/runtime/utils/tryon-seat')
-    // A nose whose side wall is `widthMm` wide all the way down (ear 0.28 wide = 148 mm).
     const noseFace = (widthMm: number) => {
       const points = face()
       const half = ((widthMm / 148) * 0.28) / 2
@@ -230,8 +218,6 @@ describe('useTryOnPlacement', () => {
   })
 
   describe('true to size (iris ruler)', async () => {
-    // Feed `count` detections of a face with a `pdMm` PD, then let the
-    // smoothing settle; returns the scale and the measurement.
     async function measured(
       pdMm: number,
       count: number,
@@ -257,8 +243,6 @@ describe('useTryOnPlacement', () => {
     }
 
     it('starts over when a held face comes back after a long loss', async () => {
-      // useTryOnTrackingHold empties the landmarks once per loss, so the
-      // reset must also be checked when the face returns.
       const raf = stubRaf()
       const options = inputs()
       const scope = effectScope()
@@ -289,13 +273,10 @@ describe('useTryOnPlacement', () => {
     })
 
     it('sizes the frame from the measured ear width, so a bigger face gets a smaller frame', async () => {
-      // Same picture on screen, different iris sizes: the 70 mm-PD face is
-      // really bigger, so the same frame covers less of it.
       const narrow = await measured(56, PD_STABLE_SAMPLES)
       const wide = await measured(70, PD_STABLE_SAMPLES)
       expect(wide.scale).toBeLessThan(narrow.scale)
       expect(narrow.scale / wide.scale).toBeCloseTo(70 / 56, 3)
-      // True to size: the ear width on the 63 mm ruler, at full confidence.
       const earWidthMeters = (0.28 / 0.12) * 0.063
       const expected =
         computeMetricScaleFromMeasure(1, 0.28, earWidthMeters) * FRAME_FIT_SCALE_BOOST
@@ -305,7 +286,6 @@ describe('useTryOnPlacement', () => {
     it('eases in from the assumed size with no visible jump', async () => {
       const assumed = settled(inputs()).scale
       const first = await measured(70, 1)
-      // One sample of 45 moves the scale by about 1/45 of the way.
       expect(Math.abs(first.scale / assumed - 1)).toBeLessThan(0.01)
     })
 

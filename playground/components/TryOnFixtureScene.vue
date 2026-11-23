@@ -1,23 +1,11 @@
 <script setup lang="ts">
-/**
- * One frozen try-on frame: `TryOnScene` fed from a recorded snapshot
- * (tests/fixtures/tryon-pose, written by record-tryon-pose.spec.ts) instead of
- * a live tracker. No camera and no detection, so two renders differ only by
- * the props that change: this is what makes the shadow on/off comparison exact.
- *
- * `?view=scene&shadow=on|off` picks the contact shadow. The background is flat
- * grey, not a portrait: the shadow is painted on the occluder mesh, so it
- * lands on the same skin whatever is behind it.
- */
 import { computed } from 'vue'
 import { NeutralToneMapping, VSMShadowMap } from 'three'
 import TryOnScene from '../../src/runtime/components/TryOnScene.vue'
 import { useFrameCalibration } from '../../src/runtime/composables/tryon/useFrameCalibration'
 
-// Every recorded pose; `face` picks one. Missing names fall back to the first.
 const poses = import.meta.glob<PoseFixture>('../../tests/fixtures/tryon-pose/*.json', { eager: true, import: 'default' })
 
-/** Shape of tests/fixtures/tryon-pose/<face>.json (see record-tryon-pose.spec.ts). */
 interface PoseFixture {
   face: string
   aspect: number
@@ -31,25 +19,16 @@ interface PoseFixture {
   occluderRadius: { radiusX: number; radiusY: number; radiusZ: number }
 }
 
-// Flags for the rendering goldens (tests/e2e/rendering-goldens.spec.ts).
-// Defaults reproduce the frozen frame used by tryon-pose-scene.spec.ts.
 const props = withDefaults(
   defineProps<{
     shadow: boolean
     face?: string
-    /** Occluder (#E): hides the far temple behind the head. */
     occluder?: boolean
-    /** Room light (#A): dims or brightens the key, fill and ambient lights. */
     light?: 'neutral' | 'dim' | 'bright'
-    /** Flat backdrop behind the frame. */
     background?: 'mid' | 'light' | 'dark'
-    /** Lens material (#10): physical (shipped default) or the standard fallback. */
     lens?: 'physical' | 'standard'
-    /** Catalog model to render on the recorded pose; defaults to the face's own frame. */
     model?: string | undefined
-    /** Hair occluder (#9): a painted hair band over the near temple arm. */
     hair?: 'off' | 'band'
-    /** Horizontal extent of the hair band, as fractions of the stage width. */
     hairBand?: [number, number]
   }>(),
   {
@@ -64,15 +43,10 @@ const props = withDefaults(
   }
 )
 
-// Gains match LIGHT_GAIN_RANGE in utils/tryon-lighting: dim is the floor, bright the ceiling.
 const LIGHT_GAIN = { neutral: 1, dim: 0.5, bright: 1.5 } as const
 const BACKDROP = { mid: '#c9c9c9', light: '#f2f2f2', dark: '#1e1e1e' } as const
 const lightGain = computed(() => LIGHT_GAIN[props.light])
 
-// Hair-occlusion check (#9): a vertical hair band in the stage's screen space
-// (`hairBand`, stage x fractions) over the near temple arm: the arm behind the
-// temple roots is not drawn under the band, so the backdrop shows, while the
-// frame front stays. The mask is in mirrored camera space, like the live one.
 const HAIR_MASK_SIZE = { width: 96, height: 128 } as const
 const hairMask = computed(() => {
   if (props.hair !== 'band') return null
@@ -91,13 +65,9 @@ const fixture = computed<PoseFixture>(() => {
   return (match ?? Object.entries(poses)[0]!)[1]
 })
 
-/** Stage width in CSS px; height follows the recorded aspect. */
 const STAGE_WIDTH = 448
 const stageHeight = computed(() => STAGE_WIDTH / fixture.value.aspect)
 
-// The frame's lens override from calibration.json, as the shipped component
-// applies it, so lens tint/darkness/gradient show in goldens and colour QA.
-// Placement comes from the recorded pose, not from here.
 const { getCalibration } = useFrameCalibration('/models/virtual-try-on/calibration.json')
 const lensOverride = computed(() => getCalibration(props.model ?? fixture.value.face).lens)
 

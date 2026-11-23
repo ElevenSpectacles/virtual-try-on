@@ -1,15 +1,3 @@
-/**
- * Synthetic tracker output for the smoothing tests: a scripted head motion
- * (ground truth) plus seeded Gaussian measurement noise, sampled at a fixed
- * frame rate. The smoothing composable only consumes the anchor, the Euler
- * rotation, the scale and the tracking/blink flags, so those are what is
- * generated, not the full 468-point mesh.
- *
- * Deterministic: the same seed always gives the same stream, so thresholds
- * on the smoothing output are stable across runs.
- */
-
-/** Seeded PRNG (mulberry32): uniform in [0, 1). */
 export function mulberry32(seed: number): () => number {
   let state = seed >>> 0
   return () => {
@@ -21,7 +9,6 @@ export function mulberry32(seed: number): () => number {
   }
 }
 
-/** Standard normal sample via Box–Muller, from `rand`. */
 export function gaussian(rand: () => number): number {
   const u = Math.max(rand(), Number.MIN_VALUE)
   const v = rand()
@@ -35,9 +22,7 @@ export interface Pose {
 }
 
 export interface StreamFrame {
-  /** Ground-truth pose at this frame. */
   truth: Pose
-  /** What the tracker reports: the truth plus measurement noise. */
   measured: Pose
   tracking: boolean
   holdScale: boolean
@@ -47,21 +32,14 @@ export interface StreamOptions {
   fps?: number
   seconds: number
   seed?: number
-  /** Standard deviation of the anchor noise, normalized coordinates. */
   anchorNoise?: number
-  /** Standard deviation of the rotation noise, radians. */
   rotationNoise?: number
-  /** Standard deviation of the scale noise, relative. */
   scaleNoise?: number
-  /** Ground-truth motion at time `t` (seconds). */
   motion: (t: number) => Pose
-  /** Frames where the face is lost (tracking false), as [from, to) indices. */
   lostFrames?: Array<[number, number]>
-  /** Frames where the scale is held (blink), as [from, to) indices. */
   holdFrames?: Array<[number, number]>
 }
 
-/** A fixed-rate stream of frames from a scripted motion with seeded noise. */
 export function landmarkStream(options: StreamOptions): StreamFrame[] {
   const fps = options.fps ?? 60
   const count = Math.round(options.seconds * fps)
@@ -97,13 +75,11 @@ export function landmarkStream(options: StreamOptions): StreamFrame[] {
   return frames
 }
 
-/** Root-mean-square of `values`. */
 export function rms(values: readonly number[]): number {
   if (values.length === 0) return 0
   return Math.sqrt(values.reduce((sum, v) => sum + v * v, 0) / values.length)
 }
 
-/** Standard deviation of `values`. */
 export function stdDev(values: readonly number[]): number {
   if (values.length === 0) return 0
   const mean = values.reduce((sum, v) => sum + v, 0) / values.length

@@ -8,7 +8,6 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-/** Stubbed rAF (see support/raf) on a visible page. */
 function stubRaf() {
   vi.stubGlobal('document', { hidden: false })
   return stubFrames()
@@ -23,7 +22,6 @@ describe('useCapabilityTier forced tier', () => {
       useCapabilityTier({ forcedTier: () => forced.value, sampling: () => true })
     )!.tier
 
-    // Frames far over budget for well over the sustain window.
     let now = 0
     for (let i = 0; i < 400; i++) {
       now += FRAME_BUDGET_MS * 2
@@ -59,8 +57,6 @@ describe('useCapabilityTier forced tier', () => {
 
     forced.value = undefined
     await nextTick()
-    // No device probe runs outside a mounted component, so the unforced
-    // default applies.
     expect(tier.value).toBe('mid')
     scope.stop()
   })

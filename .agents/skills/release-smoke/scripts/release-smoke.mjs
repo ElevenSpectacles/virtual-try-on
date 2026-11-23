@@ -1,12 +1,4 @@
 #!/usr/bin/env node
-// Install the packed module into a throwaway bare Nuxt host and prove it
-// builds and server-renders the component.
-//   node release-smoke.mjs [--with-tres]
-// --with-tres also lists '@tresjs/nuxt' in the host's modules (hosts that
-// still register it themselves must keep working).
-//
-// Every path is absolute and the host dir must be a fresh child of
-// os.tmpdir() — nothing here may write into the repo or $HOME.
 import { execFileSync, spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'

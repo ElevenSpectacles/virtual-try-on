@@ -7,7 +7,6 @@ import {
 
 const FRAME_MS = 10
 
-/** Feed `count` frames of FRAME_MS, all active, with the given tracking state. */
 function feed(acc: ReturnType<typeof createMetricsAccumulator>, count: number, tracking: boolean) {
   let due = false
   for (let i = 0; i < count; i++) {
@@ -38,9 +37,9 @@ describe('createMetricsAccumulator', () => {
 
   it('counts tracked-to-lost transitions per active minute', () => {
     const acc = createMetricsAccumulator()
-    feed(acc, 5000, true) // 50 s tracked
-    acc.onFrame(FRAME_MS, true, false) // one loss
-    feed(acc, 1000, true) // 10 s more, so 60 s total
+    feed(acc, 5000, true)
+    acc.onFrame(FRAME_MS, true, false)
+    feed(acc, 1000, true)
     expect(acc.snapshot().trackLossPerMin).toBe(1)
   })
 

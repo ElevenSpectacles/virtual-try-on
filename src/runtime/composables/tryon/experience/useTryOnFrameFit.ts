@@ -19,13 +19,9 @@ import type { TryOnTrack } from './useTryOnTrackEvents'
 
 export interface UseTryOnFrameFitOptions {
   props: { models: TryOnModel[]; fitTolerance: number }
-  /** The selected frame (`v-model:model`). */
   model: Ref<string | undefined>
-  /** Calibration of the selected frame (its scale: GLB units → metres). */
   calibration: Ref<TryOnFrameCalibration>
-  /** Calibration of any catalog frame, for its manifest `frameWidthMm`. */
   getCalibration: (file: string) => TryOnFrameCalibration
-  /** The held face and the card calibration (`useTryOnTracking`). */
   tracking: {
     landmarks: Ref<NormalizedLandmark[]>
     pose: Ref<FacePose | null>
@@ -38,9 +34,7 @@ export interface UseTryOnFrameFitOptions {
       cancel: () => void
     }
   }
-  /** Camera frame aspect (`useTryOnStage`). */
   stage: { mediaAspect: Ref<number> }
-  /** The face measures from the placement (`useTryOnPlacement`). */
   placement: {
     earWidth: Ref<number>
     ipd: Ref<number>
@@ -51,21 +45,9 @@ export interface UseTryOnFrameFitOptions {
   track: TryOnTrack
 }
 
-/**
- * The frame advisor's numbers for the tracked face: the selected frame's fit
- * verdict, the on-device measurements (PD, face width, face shape), the card
- * calibration's controls and its TRY_ON_CALIBRATED report, and the fit of
- * any catalog frame (`fitFor`, `fitRanking`). Call `onModelLoaded` with each
- * loaded GLB's width, and `reset()` when the model changes.
- */
 export function useTryOnFrameFit(options: UseTryOnFrameFitOptions) {
   const { props, model, calibration, tracking, placement, track } = options
 
-  // Fit verdict (frame width vs the tracked face's width). The frame width is
-  // the catalog spec when the host passes one, else the GLB's measured width
-  // (reported once per load) times the calibration scale. The face width is a
-  // running average over detections, reset when the face is lost (it may be a
-  // different person when it comes back).
   const glbWidthMeters = ref(0)
   const frameWidthMm = computed(() => {
     const spec = getTryOnModel(props.models, model.value)?.frameWidthMm
@@ -82,16 +64,12 @@ export function useTryOnFrameFit(options: UseTryOnFrameFitOptions) {
     tolerance: () => props.fitTolerance
   })
 
-  // Face shape (frame-advisor styling hint), from frontal detections.
   const { faceShape } = useTryOnFaceShape({
     landmarks: tracking.landmarks,
     pose: tracking.pose,
     mediaAspect: options.stage.mediaAspect
   })
 
-  // On-device face measurements (frame advisor, issue #98): the measured PD
-  // (distance PD, as an optician measures it), the face width the fit verdict
-  // uses, and the face shape. Null while nothing is measured yet.
   const measuredFaceWidthMm = computed(() => {
     const estimate = fitState.faceWidthEstimate.value
     return estimate && estimate.samples >= FIT_MIN_SAMPLES ? estimate.mean : null
@@ -112,14 +90,11 @@ export function useTryOnFrameFit(options: UseTryOnFrameFitOptions) {
 
   const { cardCalibration } = tracking
 
-  /** Start a card calibration (see README); restarts one in progress. */
   async function startCalibration() {
-    // Card crops come from live detections: resume the camera first.
     if (tracking.frozen.value) await tracking.unfreeze()
     cardCalibration.start()
   }
 
-  /** Stop a calibration in progress, or drop a finished one. */
   function cancelCalibration() {
     cardCalibration.cancel()
   }
@@ -141,9 +116,6 @@ export function useTryOnFrameFit(options: UseTryOnFrameFitOptions) {
     }
   )
 
-  // Width of any catalog frame without loading it: the catalog spec, else the
-  // calibration manifest's `frameWidthMm`, else (the active frame only) its
-  // loaded GLB. 0 while unknown.
   function frameWidthFor(file: string): number {
     const spec = getTryOnModel(props.models, file)?.frameWidthMm
     if (spec && spec > 0) return spec
@@ -151,7 +123,6 @@ export function useTryOnFrameFit(options: UseTryOnFrameFitOptions) {
     return options.getCalibration(file).frameWidthMm
   }
 
-  /** Fit of any catalog frame on the measured face; null until measured or when its width is unknown. */
   function fitFor(file: string): TryOnFit | null {
     const face = measuredFaceWidthMm.value
     const frame = frameWidthFor(file)
@@ -160,7 +131,6 @@ export function useTryOnFrameFit(options: UseTryOnFrameFitOptions) {
     return verdict ? { verdict, faceWidthMm: face, frameWidthMm: frame } : null
   }
 
-  /** The catalog ranked by fit on the measured face, best first; empty until measured. */
   const fitRanking = computed<TryOnFitRank[]>(() => {
     const face = measuredFaceWidthMm.value
     if (face === null) return []
@@ -184,11 +154,9 @@ export function useTryOnFrameFit(options: UseTryOnFrameFitOptions) {
     cancelCalibration,
     fitFor,
     fitRanking,
-    /** The scene loaded the selected frame's GLB, `widthMeters` wide. */
     onModelLoaded(widthMeters: number) {
       glbWidthMeters.value = widthMeters
     },
-    /** The model changed. The new frame has its own width: no verdict until its GLB has loaded. */
     reset() {
       glbWidthMeters.value = 0
       fitState.reset()

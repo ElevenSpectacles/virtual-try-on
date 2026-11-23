@@ -1,14 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { missingPrerequisite } from './fixtures'
 
-/**
- * Contact shadow on each recorded face (tests/fixtures/tryon-pose). For every
- * face the frozen frame is rendered with and without the shadow, and the
- * darkening is measured: how much there is, and where it lands relative to
- * the centre of the stage. The shadow sits under the frame, so its weight should
- * split either side of the nose rather than piling up on one cheek.
- */
-
 const FACES = ['iris-moss', 'pteron-azure'] as const
 const CHANGE_TOLERANCE = 2
 const MIN_CHANGED_PIXELS = 100
@@ -25,16 +17,12 @@ async function shoot(page: Page, face: string, shadow: boolean): Promise<Buffer>
 
 interface Darkening {
   changed: number
-  /** Total darkening over changed pixels, in grey levels. */
   weight: number
-  /** Weight-averaged x and y centre, in stage pixels. */
   centreX: number
   centreY: number
-  /** Share of the weight on the left half of the stage. */
   leftShare: number
 }
 
-/** Darkening of the shadow-on frame relative to the shadow-off frame, in the browser. */
 async function measure(page: Page, on: Buffer, off: Buffer): Promise<Darkening> {
   return page.evaluate(
     async ([onB64, offB64, tol]) => {
@@ -58,7 +46,6 @@ async function measure(page: Page, on: Buffer, off: Buffer): Promise<Darkening> 
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           const i = (y * width + x) * 4
-          // Grey levels the shadow removed, from the luma of each pixel.
           const luma = (p: Uint8ClampedArray) => 0.3 * p[i]! + 0.59 * p[i + 1]! + 0.11 * p[i + 2]!
           const drop = luma(a) - luma(b)
           if (drop > tol) {
@@ -100,7 +87,6 @@ test.describe('contact shadow on each recorded face', () => {
       console.log(`  ${face}: ${line}`)
 
       expect(d.changed, 'pixels the shadow darkens').toBeGreaterThanOrEqual(MIN_CHANGED_PIXELS)
-      // Centre of the darkening inside the middle of the stage, not at an edge.
       expect(d.centreX).toBeGreaterThan(448 * 0.25)
       expect(d.centreX).toBeLessThan(448 * 0.75)
       expect(d.centreY).toBeGreaterThan(448 * 0.25)

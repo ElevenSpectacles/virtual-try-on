@@ -1,25 +1,7 @@
-/**
- * Message types shared between the main thread and
- * `workers/face-landmarker.worker.ts`, kept out of the worker because it
- * is built as a classic (non-module) worker: any top-level `export` in the
- * worker's own source — even a type-only one that's erased at runtime —
- * makes the compiler emit a trailing `export {}` marker in the bundled
- * output, which is a syntax error outside a module worker.
- */
-
 export type FaceLandmarkerWorkerRequest =
   | {
       type: 'init'
-      /**
-       * Directory the MediaPipe Wasm fileset is served from. Defaults to
-       * jsDelivr's CDN when omitted — pass a same-origin path (e.g.
-       * `/mediapipe/wasm`) to self-host and drop the CDN dependency.
-       */
       basePath?: string | undefined
-      /**
-       * URL/path to the `face_landmarker.task` model asset. Defaults to
-       * Google's model-zoo CDN when omitted.
-       */
       modelAssetPath?: string | undefined
     }
   | {
@@ -27,15 +9,7 @@ export type FaceLandmarkerWorkerRequest =
       id: number
       bitmap: ImageBitmap
       timestamp: number
-      /**
-       * Also send back a small RGBA downsample of the frame (a `sample`
-       * message after the result), for the room-lighting estimate.
-       */
       sample?: boolean
-      /**
-       * Also send back a grey crop of this region of the frame (a `card`
-       * message after the result), for card calibration. Normalized `[0, 1]`.
-       */
       card?: { x: number; y: number; width: number; height: number } | undefined
     }
   | { type: 'destroy' }
@@ -48,30 +22,22 @@ export type FaceLandmarkerWorkerResponse =
       id: number
       landmarks: { x: number; y: number; z: number }[]
       transformationMatrix: number[] | null
-      /**
-       * max(eyeBlinkLeft, eyeBlinkRight) blendshape score, 0 open … 1
-       * closed; null when the model emits no blendshapes.
-       */
       blink: number | null
     }
   | { type: 'detect_failed'; id: number; message: string }
   | {
       type: 'sample'
       id: number
-      /** RGBA bytes, `width * height * 4`. */
       pixels: Uint8ClampedArray
       width: number
       height: number
-      /** Time the downsample took in the worker, ms. */
       ms: number
     }
   | {
       type: 'card'
       id: number
-      /** Grey bytes (luma), `width * height`, row-major from the top. */
       gray: Uint8ClampedArray
       width: number
       height: number
-      /** The region it was cropped from, as requested. */
       region: { x: number; y: number; width: number; height: number }
     }

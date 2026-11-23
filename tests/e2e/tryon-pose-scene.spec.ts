@@ -1,16 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { missingPrerequisite } from './fixtures'
 
-/**
- * Contact shadow on vs off on one frozen frame (#6 acceptance). The playground's
- * `?view=scene` renders TryOnScene from a recorded pose (tests/fixtures/tryon-pose),
- * with no camera and no tracker, so renders are deterministic: two shadow-on
- * shots must match exactly, and the shadow-off shot must differ only where the
- * shadow is painted.
- */
-
 const CHANGE_TOLERANCE = 2
-/** Changed pixels needed before the shadow counts as visible. */
 const MIN_CHANGED_PIXELS = 100
 
 const skipReason = missingPrerequisite()
@@ -26,7 +17,6 @@ async function shoot(page: Page, shadow: boolean): Promise<Buffer> {
   await page.goto(`/?view=scene&shadow=${shadow ? 'on' : 'off'}`)
   const scene = page.locator('[data-scene]').first()
   await expect(scene.locator('canvas')).toBeVisible({ timeout: 30_000 })
-  // Let the GLB load and the first frames render (SwiftShader is slow).
   await page.waitForTimeout(12_000)
   return scene.screenshot()
 }
@@ -86,21 +76,15 @@ test.describe('contact shadow, frozen frame', () => {
     console.log(`  frozen frame · on vs on: ${describe(determinism)}`)
     console.log(`  frozen frame · on vs off: ${describe(effect)}`)
 
-    // Renders are deterministic, so two identical settings must match.
     expect(determinism.changed, 'shadow-on renders are repeatable').toBe(0)
 
     expect(effect.changed, 'pixels the shadow changes').toBeGreaterThanOrEqual(MIN_CHANGED_PIXELS)
-    // The shadow is painted on the occluder skin, so its box sits inside the
-    // stage, away from the edges.
     const bbox = effect.bbox!
     expect(bbox.minX, 'left edge of the shadow').toBeGreaterThan(effect.width * 0.1)
     expect(bbox.maxX, 'right edge of the shadow').toBeLessThan(effect.width * 0.9)
     expect(bbox.minY, 'top edge of the shadow').toBeGreaterThan(effect.height * 0.1)
     expect(bbox.maxY, 'bottom edge of the shadow').toBeLessThan(effect.height * 0.9)
 
-    // Goldens: the same frozen frame with and without the shadow. Both are
-    // deterministic, so any drift is a real change in the render. The default
-    // colour threshold (0.2) hides a translucent shadow, so it is tightened.
     await page.goto('/?view=scene&shadow=on')
     await expect(page.locator('[data-scene]').first().locator('canvas')).toBeVisible({ timeout: 30_000 })
     await page.waitForTimeout(12_000)

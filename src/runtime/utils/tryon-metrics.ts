@@ -1,68 +1,28 @@
 import { MAX_FRAME_GAP_MS, type TryOnTier } from './tryon-capability'
 
-/**
- * Session metrics for the host's analytics: aggregated numbers only, with no
- * frames, landmarks or other image-derived data.
- *
- * Pure functions only (no Vue, no DOM). The component feeds it frame deltas,
- * detection latencies and events; it returns a snapshot the host can forward.
- */
-
-/** First-load assets timed for `assetTimings`. */
 export type TryOnAsset = 'tracker' | 'model' | 'environment'
 
-/** How often an active session reports, in active milliseconds. */
 export const METRICS_INTERVAL_MS = 30_000
-/** Latency samples kept for the percentiles: about 30 s at 30 detections/s. */
 export const LATENCY_WINDOW = 1000
 
 export interface TryOnMetrics {
-  /** Camera-on time in milliseconds. Stalls longer than MAX_FRAME_GAP_MS are excluded. */
   activeMs: number
-  /** Active time until the first tracked face, or null if none was tracked. */
   timeToFirstTrackMs: number | null
-  /**
-   * Camera granted → first rendered frame on a face (wall clock), or null
-   * until then. The headline first-load number (issue #95).
-   */
   timeToFirstFrameMs: number | null
-  /**
-   * How long each first-load asset took, ms, null until it loaded: the
-   * tracker (MediaPipe Wasm + face model, from `start()`), the first frame
-   * GLB, and the environment map.
-   */
   assetTimings: Record<TryOnAsset, number | null>
-  /** Share of active time with a tracked face, 0…100. */
   trackUptimePct: number
-  /** Tracked-to-lost transitions per active minute. */
   trackLossPerMin: number
-  /** Mean camera-to-result detection latency, or null before any detection. */
   detectLatencyMeanMs: number | null
-  /** 95th-percentile detection latency, or null before any detection. */
   detectLatencyP95Ms: number | null
-  /** Mean render frame rate over the active time, or null before any frame. */
   renderFpsMean: number | null
-  /** Frame-model switches in the session. */
   modelSwitches: number
-  /**
-   * Mean time from a frame switch to the new frame on screen (a cached or
-   * prefetched GLB shows at once), or null before any switch.
-   */
   modelSwitchMeanMs: number | null
-  /** 95th-percentile frame-switch time, or null before any switch. */
   modelSwitchP95Ms: number | null
-  /** Step-downs of the device capability tier. */
   tierChanges: number
-  /** Current device capability tier, or null before classification. */
   tier: TryOnTier | null
-  /**
-   * The session never tracked a face and the user never switched frames: the
-   * "looked broken" proxy.
-   */
   endedWithoutTrack: boolean
 }
 
-/** Nearest-rank percentile of `values`, q in [0, 1]. Null for an empty list. */
 export function percentile(values: readonly number[], q: number): number | null {
   if (values.length === 0) return null
   const sorted = [...values].sort((a, b) => a - b)
@@ -75,24 +35,14 @@ function round1(value: number): number {
 }
 
 export interface MetricsAccumulator {
-  /**
-   * Feed one rendered frame. `active` is the camera state, `tracking` whether
-   * a face is tracked. Returns true when a periodic report is due.
-   */
   onFrame(deltaMs: number, active: boolean, tracking: boolean): boolean
-  /** One camera-to-result detection latency sample, in ms. */
   onLatency(ms: number): void
-  /** Camera granted → first frame on a face, ms. Only the first call counts. */
   onFirstFrame(ms: number): void
-  /** Load time of a first-load asset, ms. Only the first call per asset counts. */
   onAssetTiming(asset: TryOnAsset, ms: number): void
   onModelSwitch(): void
-  /** Time a frame switch took until the new frame was shown, in ms. */
   onModelSwitchLatency(ms: number): void
   onTierChange(tier: TryOnTier, isStepDown: boolean): void
-  /** Snapshot of the session so far. */
   snapshot(): TryOnMetrics
-  /** Clear everything, for the next session. */
   reset(): void
 }
 
@@ -122,8 +72,6 @@ export function createMetricsAccumulator(): MetricsAccumulator {
         wasTracking = false
         return false
       }
-      // Frames the browser stalled (hidden tab, debugger) are not frames the
-      // user saw, so they count toward neither the time nor the frame rate.
       if (deltaMs <= 0 || deltaMs > MAX_FRAME_GAP_MS) return false
 
       frames++
@@ -210,25 +158,17 @@ export function createMetricsAccumulator(): MetricsAccumulator {
       wasTracking = false
       modelSwitches = 0
       tierChanges = 0
-      // `tier` is kept: it describes the device, not the session.
       nextReportAtMs = METRICS_INTERVAL_MS
       latencies.length = 0
       switchLatencies.length = 0
-      // First-load timings stay: they describe how this page loaded, and a
-      // restart of the camera reuses the loaded assets. The next session's
-      // time to first frame is measured again.
       timeToFirstFrameMs = null
     }
   }
 }
 
-/** A `metrics` event payload: the session snapshot plus what it was measured on. */
 export interface TryOnSessionMetrics extends TryOnMetrics {
-  /** True on the report sent when the camera stops or the component unmounts. */
   final: boolean
-  /** Active frame file at the time of the report. */
   model: string
-  /** Which opt-in features were running at the time of the report. */
   features: {
     occluder: boolean
     contactShadow: boolean

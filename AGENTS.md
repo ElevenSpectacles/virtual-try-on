@@ -112,8 +112,10 @@ Key facts:
   by relative path. New files for either SFC go here, nowhere else. Each is
   called once from its SFC's setup, **in the order the code ran when it was
   inline**, so watchers, computeds and lifecycle hooks register in the same
-  order; keep that order (the SFC's comments say which calls depend on
-  which), and keep lazy getters lazy.
+  order; keep that order until issue #151 removes the dependency on it
+  (camera match and contact shadow follow the lens materials, temple fit
+  follows the model load, the final metrics report registers last, the
+  lens-shadow light follows the shadow light), and keep lazy getters lazy.
   - `scene/` (TryOnScene): `useSceneModel` (GLB load through the model cache,
     temple rig), `useSceneSnapshot` (`capture()` render), `useSceneEnvironment`
     (HDR / procedural / camera environment), `useLensMaterials` (physical and
@@ -291,6 +293,7 @@ for npm.
 
 ```bash
 npm install            # only needed when working standalone
+npm run lint:comments  # comment ban (ratchet)
 npx vitest run         # unit tests (tests/unit only, per vitest.config.ts)
 npm run playground     # dev playground on :4000
 npm run typecheck      # vue-tsc against the playground's generated tsconfig
@@ -322,6 +325,7 @@ Add or remove third-party skills with `npx skills add|remove … -a
 claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
 
 - Project skills (written here, keep them true when the workflow changes):
+  `delete-comment` (audit and delete comments, tighten the ratchet),
   `fit-check` (measure frame fit on the face fixtures before tuning),
   `release-smoke` (tarball → bare Nuxt host → build + SSR check, required
   for publish-affecting changes), `add-face-fixture`.
@@ -374,9 +378,13 @@ Use the nuxt-virtual-try-on skill as the Nuxt router/entrypoint for tasks in thi
   `defineProps<{…}>` + `withDefaults`, typed composable options/returns.
 - Composables return plain refs/computed; SSR-safe guards via
   `import.meta.client` around browser-only work.
-- Heavy doc comments are the norm: coordinate conventions, MediaPipe quirks,
-  and reasoning behind non-obvious decisions are documented inline. Keep them
-  accurate when changing behavior.
+- **No comments.** `npm run lint:comments` (pre-commit and CI) rejects them in
+  every code and config file, shader strings included; only exact tool
+  directives are allowed. `.comment-baseline.json` can only shrink.
+- Decisions live in `docs/adr/`. Before changing a file, read the ADRs its row
+  in `docs/adr/README.md` lists and search them for the symbol; when a
+  non-obvious decision changes, update its ADR in the same change. Never
+  explain a hack in prose: fix it or file an issue.
 - Pure math lives in `utils/` (no Vue/Nuxt imports) so it stays unit-testable;
   composables and components hold the stateful glue.
 

@@ -25,30 +25,17 @@ import type { NormalizedLandmark } from '../../utils/tryon'
 import type { FacePose } from '../../utils/tryon-pose'
 
 export interface UseTryOnCardCalibrationOptions {
-  /** Raw landmarks (normalized to the camera frame). */
   landmarks: Ref<NormalizedLandmark[]>
   pose: Ref<FacePose | null>
-  /** Camera frame aspect (width / height); 0 while unknown. */
   mediaAspect: Ref<number>
 }
 
-/** Card-calibration state for the host's UI (slot / ref `calibration`). */
 export interface TryOnCardCalibration {
   status: TryOnCardCalibrationStatus
-  /** 0 … 1 while detecting. */
   progress: number
-  /** The calibrated distance PD, mm, once `done`. */
   pdMm: number | null
 }
 
-/**
- * Card calibration glue (issue #96). While detecting, every detection asks
- * the worker for a grey crop of the forehead band (`wantCardRegion`, at
- * full camera resolution) and each crop is measured (`onCardCrop`); see
- * utils/tryon-card for the maths. Only frontal frames count. Fails after
- * CARD_TIMEOUT_MS without a stable reading, also when no face (so no crop)
- * arrives at all. Nothing runs, and nothing is cropped, while idle.
- */
 export function useTryOnCardCalibration(options: UseTryOnCardCalibrationOptions) {
   const state = shallowRef<CardCalibrationState>(IDLE_CARD_CALIBRATION)
   let timeout: ReturnType<typeof setTimeout> | null = null
@@ -81,13 +68,11 @@ export function useTryOnCardCalibration(options: UseTryOnCardCalibrationOptions)
     )
   }
 
-  /** The region to crop with the next detection, or null (not calibrating). */
   function wantCardRegion(): CardRegion | null {
     if (state.value.status !== 'detecting' || !frontal()) return null
     return cardRegion(options.landmarks.value, options.mediaAspect.value || 1)
   }
 
-  /** One grey crop from the worker; the landmarks are its detection's. */
   function onCardCrop(gray: Uint8ClampedArray, width: number, height: number, region: CardRegion) {
     if (state.value.status !== 'detecting') return
     const landmarks = options.landmarks.value
@@ -110,7 +95,6 @@ export function useTryOnCardCalibration(options: UseTryOnCardCalibrationOptions)
     pdMm: state.value.pdMm
   }))
 
-  /** The calibrated near PD (mm) once done: the on-screen ruler. */
   const calibratedNearPdMm = computed(() =>
     state.value.status === 'done' ? state.value.nearPdMm : null
   )

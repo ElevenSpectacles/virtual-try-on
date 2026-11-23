@@ -17,11 +17,6 @@ import {
 } from '../../../utils/tryon-temples'
 import type { TempleState } from './useSceneModel'
 
-/**
- * The rigged temple arms meet the tracked head: they open on their hinges
- * to clear it (`templeFit`) and, opt-in, bend down behind the ear
- * (`templeEarBend`).
- */
 export function useTempleFit(
   model: ShallowRef<GLTF | null>,
   temples: TempleState,
@@ -37,23 +32,11 @@ export function useTempleFit(
     modelOffsetVec: ComputedRef<Vector3>
   }
 ) {
-  // Temple fit (utils/tryon-temples): the face-mesh occluder's oval points at
-  // temple height, the surface the arms pass, are taken into the GLB's frame
-  // through the inverse of the frame group's transform and the recentring
-  // offset, and the arms open or close on their hinges to clear them. The
-  // occluder's shape follows the raw landmarks, so the angle is smoothed;
-  // head width does not change while someone wears a frame, so it is slow.
   const TEMPLE_FILTER = { minCutoff: 0.5, beta: 1 }
   const groupMatrix = new Matrix4()
   const groupQuaternion = new Quaternion()
   const earPoint = new Vector3()
 
-  // Ear bend (opt-in): each arm gets its own clone of the frame material with
-  // a vertex-shader bend past the ear (`EAR_BEND_UNIFORMS`), since the arms
-  // share their material with the frame front. The bend line follows the
-  // head's oval point at temple height, smoothed like the opening angle.
-  // Declared before the temple-fit watcher that drives it; its own watchers
-  // still register after that one.
   const earBendMaterials = new Map<Mesh, { material: Material; uniform: { value: Vector4 } }>()
   let earBendFilter: OneEuroState | null = null
 
@@ -69,7 +52,6 @@ export function useTempleFit(
   function bendMaterial(mesh: Mesh) {
     const existing = earBendMaterials.get(mesh)
     if (existing) {
-      // A lens-material rebuild re-assigns the authored materials: put ours back.
       if (mesh.material !== existing.material) mesh.material = existing.material
       return existing
     }
@@ -77,9 +59,6 @@ export function useTempleFit(
     mesh.userData.tryOnTempleMaterial = authored
     const material = authored.clone()
     const uniform = { value: new Vector4(0, 0, 0, EAR_BEND_RAMP_METERS) }
-    // clone() copies userData but not onBeforeCompile: chain the authored
-    // patches (camera match), or the clone keeps their "patched" flag
-    // without their shader code and the arms lose grain and light wrap.
     const authoredCompile = authored.onBeforeCompile.bind(authored)
     material.onBeforeCompile = (shader, renderer) => {
       authoredCompile(shader, renderer)
@@ -103,8 +82,6 @@ export function useTempleFit(
       return
     }
     const local = templeFramePoints(rig, scenePoints)
-    // One bend line for both arms (the ears are level on a head in a frame);
-    // the further-back oval point, so neither tip drops in front of its ear.
     const ear = Math.max(...local.map((p) => p.x))
     const state = oneEuroFilter(earBendFilter, ear, dt, TEMPLE_FILTER)
     earBendFilter = state
@@ -161,7 +138,6 @@ export function useTempleFit(
     { immediate: true }
   )
 
-  // A new GLB has its own arms; turning the bend off restores the authored material.
   watch(model, clearEarBend)
   watch(
     () => props.templeEarBend,

@@ -20,10 +20,6 @@ import {
 import type { NormalizedLandmark } from '../../../src/runtime/utils/tryon'
 import { gaussian, mulberry32 } from '../support/landmark-stream'
 
-/**
- * A frontal face with the given proportions, `width` wide (width units) in
- * an image of `aspect`, plus seeded landmark noise of `noise` (normalized).
- */
 function face(
   p: FaceProportions,
   { width = 0.3, aspect = 1, noise = 0, rand = mulberry32(1) } = {}
@@ -37,7 +33,6 @@ function face(
   pair(FACE_EAR_RIGHT, FACE_EAR_LEFT, width, 0.45)
   pair(FACE_FOREHEAD_RIGHT, FACE_FOREHEAD_LEFT, width * p.forehead, 0.32)
   pair(FACE_JAW_RIGHT, FACE_JAW_LEFT, width * p.jaw, 0.58)
-  // Lengths are in width units: y is a fraction of the height.
   const half = (width * p.length * aspect) / 2
   points[FACE_TOP] = { x: 0.5 + jitter(), y: 0.45 - half + jitter(), z: 0 }
   points[FACE_CHIN] = { x: 0.5 + jitter(), y: 0.45 + half + jitter(), z: 0 }
@@ -92,7 +87,6 @@ describe('classifyFaceShape', () => {
 
   it('holds the previous class near a boundary (hysteresis)', () => {
     const { oval, oblong } = FACE_SHAPE_PROTOTYPES
-    // Slightly closer to oblong than to oval.
     const nearBoundary = {
       length: oval.length + (oblong.length - oval.length) * 0.53,
       forehead: oval.forehead + (oblong.forehead - oval.forehead) * 0.53,
@@ -100,7 +94,6 @@ describe('classifyFaceShape', () => {
     }
     expect(classifyFaceShape(nearBoundary).shape).toBe('oblong')
     expect(classifyFaceShape(nearBoundary, 'oval').shape).toBe('oval')
-    // Clearly oblong: the class changes.
     expect(classifyFaceShape(oblong, 'oval').shape).toBe('oblong')
   })
 })
@@ -108,7 +101,6 @@ describe('classifyFaceShape', () => {
 describe('a still clip', () => {
   it('gives one class for 5 s of noisy detections, no flicker', () => {
     const rand = mulberry32(11)
-    // A face near the oval/round boundary, 0.5 px landmark noise at 480 px.
     const truth = { length: 1.13, forehead: 0.8, jaw: 0.745 }
     let estimate: FaceProportionsEstimate | null = null
     let shape: TryOnFaceShape | null = null

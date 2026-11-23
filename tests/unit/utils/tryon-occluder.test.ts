@@ -17,7 +17,6 @@ import {
 const ASPECT = 3 / 4
 const SCALE = 6
 
-/** 468 landmarks, all at the same point unless overridden. */
 function makeLandmarks(
   center: NormalizedLandmark,
   overrides: Record<number, Partial<NormalizedLandmark>> = {}
@@ -79,10 +78,6 @@ describe('face-mesh occluder', () => {
   })
 
   it('maps MediaPipe z (negative toward camera) to world z (positive toward camera)', () => {
-    // The nose tip (landmark 4) is the foremost point of a real face — in
-    // MediaPipe coordinates that is a NEGATIVE z. It must land closer to the
-    // camera than a neutral-depth vertex or the whole occluder is inside-out
-    // and depth-hides the frame front.
     const landmarks = makeLandmarks(anchor, { 4: { z: -0.05 } })
     const positions = buildFaceMeshOccluderPositions(
       baseOptions({ landmarks, skinSetbackMeters: 0, inflate: 1 })
@@ -94,7 +89,6 @@ describe('face-mesh occluder', () => {
   })
 
   it('keeps the mesh on the anchor plane relative to the anchor z', () => {
-    // Anchor deeper than a vertex → that vertex sits toward the camera.
     const landmarks = makeLandmarks({ ...anchor, z: -0.02 })
     const positions = buildFaceMeshOccluderPositions(
       baseOptions({ landmarks, skinSetbackMeters: 0, inflate: 1 })
@@ -135,8 +129,6 @@ describe('face-mesh occluder', () => {
   })
 
   it('places the mesh with the smoothed transform, not the raw one', () => {
-    // Raw pose says the head is off-centre and yawed; the smoothed pose has
-    // already settled at centre. The mesh must sit where the glasses are.
     const rawAnchor: NormalizedLandmark = { x: 0.6, y: 0.55, z: 0 }
     const settled = landmarkToWorld(anchor, ASPECT)
     const positions = buildFaceMeshOccluderPositions(
@@ -176,10 +168,6 @@ describe('face-mesh occluder', () => {
   })
 
   it('extrudes the collar behind the matching face-oval boundary point', () => {
-    // Landmark 284 (face-oval slot 4, right temple/cheek arc) is the first
-    // collar point — its back-vertex is appended right after the tracked
-    // mesh. The forehead (landmark 10) and chin are excluded from the collar
-    // entirely, so they have no back-vertex.
     const positions = buildFaceMeshOccluderPositions(
       baseOptions({ skinSetbackMeters: 0, collarDepthMeters: 0.1 })
     )!

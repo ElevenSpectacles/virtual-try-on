@@ -16,12 +16,6 @@ import {
   runTracking
 } from './tracking-harness'
 
-/**
- * Real tracking path — fake camera → worker MediaPipe → playground prototype —
- * asserted through the prototype's `?harness=true` hook (raw detector results
- * with landmarks in stage pixels).
- */
-
 const skipReason = missingPrerequisite()
 
 for (const face of FACE_FIXTURES) {
@@ -40,7 +34,6 @@ for (const face of FACE_FIXTURES) {
         const frameP95 = p95(frameIntervals)
         const pop = maxPopPx(results)
 
-        // Logged, not asserted: headless GPU timing varies by machine.
         testInfo.annotations.push({
           type: 'metrics',
           description:
@@ -58,8 +51,6 @@ for (const face of FACE_FIXTURES) {
             MAX_STILL_JITTER_PX
           )
         }
-        // The subject never moves in these clips: any jump is the tracker
-        // re-acquiring the face somewhere else.
         const maxPop = MAX_POP_PX[kind]
         if (maxPop !== undefined) {
           expect(pop, 'largest landmark jump (px)').toBeLessThanOrEqual(maxPop)

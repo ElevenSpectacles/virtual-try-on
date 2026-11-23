@@ -60,7 +60,6 @@ describe('useTryOnTrackingHold', () => {
     vi.advanceTimersByTime(TRACKING_HOLD_MS - 50)
     await detect(true, 0.12)
     expect(held.holding.value).toBe(false)
-    // The hold never released: no hide, no snap.
     vi.advanceTimersByTime(TRACKING_HOLD_MS)
     expect(held.hasFace.value).toBe(true)
     expect(held.pose.value?.euler.yaw).toBe(0.12)
@@ -74,7 +73,6 @@ describe('useTryOnTrackingHold', () => {
     expect(held.hasFace.value).toBe(false)
     expect(held.pose.value).toBeNull()
     expect(held.anchor.value).toBeNull()
-    // The yaw it was lost at stays, for the turnBack hint.
     expect(held.lastYaw.value).toBe(0.9)
   })
 

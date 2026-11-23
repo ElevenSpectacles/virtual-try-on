@@ -12,10 +12,6 @@ import {
   type WebGLRenderer,
   type WebGLRenderTarget
 } from 'three'
-// three's own loaders instead of @tresjs/cientos: cientos ships as one
-// non-tree-shakeable file, so `useGLTF` + `Environment` pulled the whole
-// library (plus three-stdlib and camera-controls) into the host bundle. The
-// GLTF/Draco loaders live in the model cache.
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { useTres } from '@tresjs/core'
@@ -29,19 +25,8 @@ import {
 import type { RoomSample } from '../useTryOnLighting'
 import { errorMessage } from './useSceneModel'
 
-// Camera reflections (issue #84): the room sample becomes a 128×64 equirect
-// (utils/tryon-room `cameraEnvironment`, blended with the studio map),
-// PMREM-filtered at most every CAMERA_ENV_INTERVAL_MS (the sample is
-// smoothed anyway; ~0.3 ms per update on a laptop GPU). Without a sample
-// the studio map stays.
 const CAMERA_ENV_INTERVAL_MS = 500
 
-/**
- * The scene's image-based lighting, as `scene.environment`: the studio map
- * (an HDR file, the preset's or `environmentUrl`, or three's procedural
- * room), replaced by the camera's own reflections while a room sample is
- * known, and the environment intensity.
- */
 export function useSceneEnvironment(
   props: {
     useEnvironment: boolean
@@ -52,19 +37,13 @@ export function useSceneEnvironment(
     roomSample: RoomSample | null
   },
   options: {
-    /** URL of a preset's HDR file (the component's `ENV_PRESET_FILES`). */
     presetUrl: (preset: EnvPreset) => string
     timing: (ms: number) => void
     error: (message: string) => void
   }
 ) {
-  // Image-based lighting from an equirect HDR, set as scene.environment —
-  // the renderer PMREM-filters equirect environments itself. If the HDR
-  // fails to load only reflections are lost; the ambient/directional lights
-  // still light the frame.
   const { scene, renderer } = useTres()
   let envTexture: Texture | null = null
-  // The studio map downsampled to the camera environment's size, for blending.
   let studioGrid: Float32Array | null = null
   let envLoadId = 0
 
@@ -75,17 +54,11 @@ export function useSceneEnvironment(
     studioGrid = null
   }
 
-  /**
-   * The renderer as a WebGLRenderer, or null: PMREM filtering needs WebGL, and
-   * Tres can also run three's WebGPU `Renderer` (the one with `isRenderer`).
-   */
   function webglRenderer(): WebGLRenderer | null {
     if ('isRenderer' in renderer) return null
     return typeof renderer.getContext === 'function' ? renderer : null
   }
 
-  // Procedural room: three's RoomEnvironment PMREM-filtered once on the GPU.
-  // No download, a few ms of GPU time; neutral soft-box reflections.
   function roomEnvironment(): Texture | null {
     const target = webglRenderer()
     if (!target) return null
@@ -121,8 +94,6 @@ export function useSceneEnvironment(
       const target = webglRenderer()
       if (!target) return
       cameraEnvUpdatedAt = now
-      // Half float: linear filtering of full floats is an extension
-      // (OES_texture_float_linear) some GPUs lack; half floats always filter.
       const radiance = cameraEnvironment(sample.pixels, sample.width, sample.height, {
         studio: studioGrid
       })
@@ -164,7 +135,6 @@ export function useSceneEnvironment(
       if (procedural) {
         envTexture = roomEnvironment()
         if (envTexture) {
-          // Like the HDR branch: an active camera environment stays.
           if (!cameraEnvTarget) scene.value.environment = envTexture
           options.timing(performance.now() - startedAt)
         }
