@@ -54,8 +54,9 @@ face fixtures, not an eyeball verdict on one screenshot.
 
 - Scale and position: `composables/tryon/useTryOnPlacement.ts`, shared by
   the shipped component and the playground prototype, so one change covers
-  both. Scale is `autoMetricScale` (ear width → metric,
-  `FRAME_FIT_SCALE_BOOST`); position is `framePosition` (anchor +
+  both. Scale is `autoMetricScale` (ear width → metric;
+  `FRAME_FIT_SCALE_BOOST` applies to assumed widths only, never to a measured
+  one, and the fixtures are too turned to ever measure); position is `framePosition` (anchor +
   `FRAME_BRIDGE_STANDOFF_METERS` along the head's forward axis). The
   prototype's sliders are its options; at their defaults it renders exactly
   what ships.
