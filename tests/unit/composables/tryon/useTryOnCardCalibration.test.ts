@@ -19,7 +19,6 @@ const POSE: FacePose = {
   scale: 1
 }
 
-// A frontal face 0.3 wide, iris centres 0.12 apart, irises 0.0223 wide.
 function face(): NormalizedLandmark[] {
   const p: NormalizedLandmark[] = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5 }))
   p[234] = { x: 0.35, y: 0.45 }
@@ -39,7 +38,6 @@ function face(): NormalizedLandmark[] {
   return p
 }
 
-/** A crop of `region` with a card `cardWidth` (frame fraction) wide, centred. */
 function cardCrop(regionWidth: number, cardWidth: number) {
   const span = (cardWidth / regionWidth) * CARD_CROP_WIDTH
   const left = (CARD_CROP_WIDTH - span) / 2
@@ -76,14 +74,12 @@ describe('useTryOnCardCalibration', () => {
   it('measures the PD from the card and finishes', () => {
     const { cal } = setup()
     cal.start()
-    // A card 0.18 of the frame wide: 85.6 mm over 0.18, times the 0.12 IPD.
     for (let i = 0; i < CARD_SAMPLES; i++) {
       const region = cal.wantCardRegion()!
       cal.onCardCrop(cardCrop(region.width, 0.18), CARD_CROP_WIDTH, CARD_CROP_HEIGHT, region)
     }
     const state = cal.state.value
     expect(cal.calibration.value.status).toBe('done')
-    // Near PD: card ruler plus the 12 mm card-to-eye correction (a few %).
     const flat = (CARD_WIDTH_MM / 0.18) * 0.12
     expect(state.nearPdMm! / flat).toBeGreaterThan(1.01)
     expect(state.nearPdMm! / flat).toBeLessThan(1.05)

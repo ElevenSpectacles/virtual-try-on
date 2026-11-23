@@ -1,12 +1,3 @@
-/**
- * Colour QA maths (issue #85): sRGB → CIELAB (D65) and the CIEDE2000 colour
- * difference, for comparing rendered frame and lens swatches with product
- * photos (tests/e2e/colour.spec.ts). Tooling only; not shipped.
- *
- * ΔE2000 below ~1 is invisible, ~2–3 is what a trained eye notices side by
- * side; the spec's threshold is 3.
- */
-
 export type Lab = [number, number, number]
 
 const srgbToLinear = (c: number) => {
@@ -14,7 +5,6 @@ const srgbToLinear = (c: number) => {
   return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
 }
 
-/** 8-bit sRGB → CIELAB, D65 white. */
 export function srgbToLab(r: number, g: number, b: number): Lab {
   const R = srgbToLinear(r)
   const G = srgbToLinear(g)
@@ -29,7 +19,6 @@ export function srgbToLab(r: number, g: number, b: number): Lab {
   return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)]
 }
 
-/** `#rrggbb` → CIELAB. */
 export function hexToLab(hex: string): Lab {
   const value = parseInt(hex.replace(/^#/, ''), 16)
   return srgbToLab((value >> 16) & 255, (value >> 8) & 255, value & 255)
@@ -38,7 +27,6 @@ export function hexToLab(hex: string): Lab {
 const rad = (deg: number) => (deg * Math.PI) / 180
 const deg = (r: number) => (r * 180) / Math.PI
 
-/** CIEDE2000 colour difference (Sharma, Wu & Dalal, 2005), kL = kC = kH = 1. */
 export function deltaE2000([L1, a1, b1]: Lab, [L2, a2, b2]: Lab): number {
   const C1 = Math.hypot(a1, b1)
   const C2 = Math.hypot(a2, b2)

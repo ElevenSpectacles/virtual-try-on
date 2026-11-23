@@ -13,7 +13,6 @@ import {
   srgbToLinear
 } from '../../../src/runtime/utils/tryon-room'
 
-/** A 16×16 RGBA sample whose luma is `f(x, y)` (0…255 grey). */
 function sample(f: (x: number, y: number) => number, size = 16) {
   const rgba = new Uint8ClampedArray(size * size * 4)
   for (let y = 0; y < size; y++) {
@@ -46,7 +45,6 @@ describe('estimateLightDirection', () => {
   })
 
   it('only looks inside the face region', () => {
-    // Bright window on the far raw right, face (cols 2–9) evenly lit.
     const rgba = sample((x) => (x >= 12 ? 255 : 120))
     const d = estimateLightDirection(rgba, 16, 16, { xMin: 2 / 16, xMax: 10 / 16, yMin: 0, yMax: 1 })!
     expect(d.strength).toBe(0)
@@ -94,7 +92,6 @@ describe('camera environment', () => {
     expect(v).toBeCloseTo(3.5 / CAMERA_ENV_HEIGHT, 9)
   })
 
-  // Texel facing a direction (front: +z), red channel.
   function redToward(env: Float32Array, x: number, y: number, z: number) {
     let best = 0
     let bestDot = -Infinity
@@ -109,14 +106,11 @@ describe('camera environment', () => {
   }
 
   it('shows the mirrored frame in front and its mean behind', () => {
-    // Raw left half red, right half black.
     const rgba = new Uint8ClampedArray(16 * 16 * 4)
     for (let y = 0; y < 16; y++) for (let x = 0; x < 8; x++) rgba.set([255, 0, 0, 255], (y * 16 + x) * 4)
     const env = cameraEnvironment(rgba, 16, 16)
-    // Raw left = preview right = +x, in front.
     expect(redToward(env, 0.7, 0, 0.7)).toBeCloseTo(1, 6)
     expect(redToward(env, -0.7, 0, 0.7)).toBeCloseTo(0, 6)
-    // Behind: the mean (half the pixels at linear 1).
     expect(redToward(env, 0, 0, -1)).toBeCloseTo(0.5, 6)
   })
 

@@ -3,20 +3,8 @@ import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 import { missingPrerequisite } from './fixtures'
 
-/**
- * Rendering goldens on frozen frames (umbrella #4, issue #14). Each case is one
- * recorded pose (tests/fixtures/tryon-pose) rendered through the playground's
- * `?view=scene` with one flag changed, so every flag gets its own golden and a
- * regression shows up as a changed image, not a changed number.
- *
- * Goldens are re-recorded after an intended visual change:
- *   npx playwright test tests/e2e/rendering-goldens.spec.ts --update-snapshots
- * then review the PNGs in tests/e2e/__screenshots__/rendering-goldens.spec.ts/.
- */
-
 const skipReason = missingPrerequisite()
 
-/** Strict per-pixel colour threshold: the default (0.2) ignores faint changes like a shadow or dim light. */
 const STRICT = { threshold: 0.02, timeout: 30_000 }
 
 interface Case {
@@ -32,29 +20,19 @@ const CASES: Case[] = [
   { name: 'iris-moss-light-bright', face: 'iris-moss', query: { light: 'bright' } },
   { name: 'iris-moss-background-light', face: 'iris-moss', query: { background: 'light' } },
   { name: 'iris-moss-background-dark', face: 'iris-moss', query: { background: 'dark' } },
-  // Lens material (#10): the physical lens is the default; standard is the
-  // low-tier fallback. kairos-crystal is the lightest catalog lens, iris-moss
-  // a dark gradient; the dark backdrop shows reflections adding on top.
   { name: 'iris-moss-lens-standard', face: 'iris-moss', query: { lens: 'standard' } },
   { name: 'kairos-crystal-on-iris-moss', face: 'iris-moss', query: { model: 'kairos-crystal' } },
   { name: 'pteron-azure-background-dark', face: 'pteron-azure', query: { background: 'dark' } },
-  // Hair occluder (#9): a painted hair band over the near temple arm.
   { name: 'iris-moss-hair-band', face: 'iris-moss', query: { hair: 'band', hairBand: '0.66-0.8' } },
   { name: 'synthetic-profile-hair-band', face: 'synthetic-profile', query: { hair: 'band', hairBand: '0.4-0.5' } },
   { name: 'pteron-azure-base', face: 'pteron-azure', query: {} },
   { name: 'kairos-amber-base', face: 'kairos-amber', query: {} },
-  // Synthetic profile (about -76 yaw): the recorded iris-moss frame rotated about
-  // the head axis. Geometry only, not a real face; see synthetic-profile.json.
   { name: 'synthetic-profile-base', face: 'synthetic-profile', query: {} },
-  // Frontal (yaw 0). The fixture is derived from a UPNA clip (non-commercial
-  // licence), so it stays local and is not committed; the case skips without it.
   { name: 'upna-frontal-base', face: 'upna-frontal', query: {} }
 ]
 
 const FIXTURES_DIR = fileURLToPath(new URL('../fixtures/tryon-pose/', import.meta.url))
 
-// A case whose pose fixture is absent is skipped, not failed: some fixtures are
-// local-only (footage-derived, not committed).
 const runnable = CASES.filter((c) => existsSync(`${FIXTURES_DIR}${c.face}.json`))
 
 async function shoot(page: Page, c: Case): Promise<ReturnType<Page['locator']>> {
@@ -62,12 +40,10 @@ async function shoot(page: Page, c: Case): Promise<ReturnType<Page['locator']>> 
   await page.goto(`/?${params.toString()}`)
   const scene = page.locator('[data-scene]').first()
   await expect(scene.locator('canvas')).toBeVisible({ timeout: 30_000 })
-  // The GLB loads and the first frames render before the stage is stable.
   await page.waitForTimeout(12_000)
   return scene
 }
 
-/** Pixel diff of two PNG buffers, decoded in the browser. Returns changed pixels. */
 async function changedPixels(page: Page, a: Buffer, b: Buffer): Promise<number> {
   return page.evaluate(
     async ([aB64, bB64]) => {

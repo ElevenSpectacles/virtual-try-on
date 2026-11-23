@@ -26,14 +26,12 @@ const signals = (overrides: Partial<TierSignals> = {}): TierSignals => ({
   ...overrides
 })
 
-/** A sampler that has already finished warm-up, so frames count at once. */
 function warmed(tier: 'low' | 'mid' | 'high', forced = false): TierSampler {
   const sampler = createTierSampler(tier, forced)
   sampler.warmupLeftMs = 0
   return sampler
 }
 
-/** Feed `count` frames of `frameMs`, returning the first step (or null). */
 function feed(sampler: TierSampler, frameMs: number, count: number) {
   let first = null
   for (let i = 0; i < count; i++) {
@@ -66,7 +64,6 @@ describe('classifyTier', () => {
   })
 
   it('does not drop an iPhone to low when deviceMemory is hidden', () => {
-    // Safari exposes no deviceMemory. The texture limit alone must decide.
     const iphone = signals({ maxTextureSize: 16384, deviceMemoryGb: undefined })
     expect(classifyTier(iphone)).toBe('high')
   })
@@ -103,7 +100,6 @@ describe('percentile95', () => {
 describe('advanceTierSampler', () => {
   it('ignores frames during warm-up, even slow ones', () => {
     const sampler = createTierSampler('high')
-    // WARMUP_MS of sampled time at SLOW_MS per frame: all of it is warm-up.
     expect(feed(sampler, SLOW_MS, WARMUP_MS / SLOW_MS)).toBeNull()
     expect(sampler.frames).toHaveLength(0)
     expect(sampler.warmupLeftMs).toBe(0)
@@ -123,7 +119,6 @@ describe('advanceTierSampler', () => {
 
   it('steps down one tier once the p95 is over budget for SUSTAIN_MS', () => {
     const sampler = warmed('high')
-    // Stays at high while the sustain timer runs.
     const sustainFrames = Math.ceil(SUSTAIN_MS / SLOW_MS)
     expect(feed(sampler, SLOW_MS, MIN_WINDOW_SAMPLES + sustainFrames - 2)).toBeNull()
     expect(sampler.tier).toBe('high')
@@ -143,7 +138,6 @@ describe('advanceTierSampler', () => {
     const sampler = warmed('high')
     feed(sampler, SLOW_MS, MIN_WINDOW_SAMPLES + 50)
     expect(sampler.overBudgetMs).toBeGreaterThan(0)
-    // Fast frames make the p95 fast again, so the timer restarts.
     feed(sampler, FAST_MS, 130)
     expect(sampler.overBudgetMs).toBe(0)
   })
@@ -189,8 +183,6 @@ describe('advanceTierSampler', () => {
     expect(sampler.tier).toBe('mid')
     expect(sampler.frames).toHaveLength(0)
     expect(sampler.overBudgetMs).toBe(0)
-    // Still over budget at mid, so it needs the full window again before a
-    // second step can happen.
     expect(feed(sampler, SLOW_MS, MIN_WINDOW_SAMPLES - 1)).toBeNull()
     expect(sampler.tier).toBe('mid')
   })

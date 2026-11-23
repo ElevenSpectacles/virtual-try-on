@@ -7,13 +7,11 @@ import {
 
 describe('captureLayout', () => {
   it('crops a landscape camera to a portrait stage, centred', () => {
-    // 1280×720 into a 3:4 stage: cover keeps the full height, 540 px wide.
     const layout = captureLayout(1280, 720, 360, 480)!
     expect(layout.source.height).toBe(720)
     expect(layout.source.width).toBeCloseTo(540, 6)
     expect(layout.source.x).toBeCloseTo((1280 - 540) / 2, 6)
     expect(layout.source.y).toBe(0)
-    // Camera resolution across the window, stage aspect.
     expect(layout.width).toBe(540)
     expect(layout.height).toBe(720)
   })

@@ -19,9 +19,6 @@ import {
   type TryOnLens
 } from '../../../utils/tryon-lens'
 
-// A lens mesh's own height, 0 at its bottom … 1 at its top in the GLB's
-// frame (up is +y there), as a vertex attribute for the gradient tint. Baked
-// once per geometry: the node transforms are fixed.
 function bakeLensHeight(mesh: Mesh, root: Object3D) {
   const geometry = mesh.geometry as BufferGeometry
   if (geometry.getAttribute(LENS_HEIGHT_ATTRIBUTE)) return
@@ -44,12 +41,6 @@ function bakeLensHeight(mesh: Mesh, root: Object3D) {
   geometry.setAttribute(LENS_HEIGHT_ATTRIBUTE, new BufferAttribute(heights, 1))
 }
 
-/**
- * Gradient tint (`lens.gradient`): the lens's base opacity follows its
- * height, dark to light top to bottom, fading in optical density like a dyed
- * lens (`gradientDensityAt`). Composes with the Fresnel patch, which reads the
- * opacity after this.
- */
 function applyLensGradient(material: Material, gradient: { top: number; bottom: number }) {
   const previous = material.onBeforeCompile.bind(material)
   const previousKey = material.customProgramCacheKey.bind(material)
@@ -61,34 +52,8 @@ function applyLensGradient(material: Material, gradient: { top: number; bottom: 
   material.customProgramCacheKey = () => `${previousKey()}|tryon-lens-gradient`
 }
 
-// The catalog's lens materials are authored as metalness ≈ 0.7 with
-// alpha-blend transparency — physically wrong for a dielectric: metalness
-// tints and darkens instead of transmitting, and the metallic Fresnel kills
-// the see-through read against the face. Lenses are rebuilt as a true
-// dielectric (metalness 0) that does not write depth, so frame geometry
-// behind the lens is not clipped by the lens surface. Name-scoped — every
-// catalog GLB names its lens material "glass".
-//
-// Further touches sell "real sunglass glass" in the composite:
-// - roughness ≈ 0: lenses are polished; any roughness blurs the reflections
-//   into a plastic-looking haze.
-// - envMapIntensity above 1: a real lens is a curved mirror — it catches
-//   bright, sharp speculars from the room. Boosting the IBL contribution on
-//   lenses only (frame acetate keeps its authored response) gives that glint
-//   that reads as glass over a video feed.
-// - physicalLens (mid tier and up, see utils/tryon-lens.ts): opacity rises
-//   with the Fresnel term toward grazing angles, so the lens rim reads as
-//   glass instead of a flat tinted cut-out; reflections are added on top of
-//   what the lens transmits instead of being scaled down by its opacity (a
-//   light lens still mirrors the room); a clearcoat and a thin-film
-//   iridescence give the faint green/violet sheen of an AR coating.
 export const LENS_MATERIAL_NAME = /glass|lens/i
 
-/**
- * Opacity follows the normalized Schlick term, `lensOpacityAt` in
- * utils/tryon-lens.ts. Output is premultiplied by hand: only the body
- * colour is scaled by coverage, reflections add on top.
- */
 function applyLensFresnel(material: MeshPhysicalMaterial) {
   material.premultipliedAlpha = true
   material.onBeforeCompile = (shader) => {
@@ -105,13 +70,6 @@ function applyLensFresnel(material: MeshPhysicalMaterial) {
   material.customProgramCacheKey = () => 'tryon-lens-fresnel'
 }
 
-/**
- * The lens material for an authored one. A calibration `tint` replaces the
- * authored colour, texture included: three multiplies `color` by `map`, and
- * the catalog's lens textures carry the old colour (often one image shared
- * across colourways), so keeping the map would darken and shift every tint.
- * Exported for the unit test.
- */
 export function buildLens(
   authored: MeshStandardMaterial,
   physical: boolean,
@@ -141,27 +99,17 @@ export function buildLens(
         iridescenceThicknessRange: [260, 420]
       })
     : Object.assign(authored.clone(), base)
-  // `#rrggbb` is sRGB; three's working space is linear.
   if (lens.tint) material.color.setRGB(...lens.tint, SRGBColorSpace)
   if (lens.density !== null) material.opacity = lens.density
   if (material instanceof MeshPhysicalMaterial) applyLensFresnel(material)
-  // After the Fresnel patch, so it wraps it: the gradient sets the base
-  // opacity the Fresnel term then raises toward grazing angles.
   if (lens.gradient) applyLensGradient(material, lens.gradient)
   return material
 }
 
-/**
- * Rebuilds the GLB's lens materials (tint, density, gradient, physical
- * lens) when the model, tier or override changes.
- */
 export function useLensMaterials(
   model: ShallowRef<GLTF | null>,
   props: { physicalLens: boolean; lens: TryOnLens }
 ) {
-  // Lens materials we built, so a rebuild (model, tier or override change)
-  // can free the previous ones. The GLB's authored materials are kept on each
-  // mesh so every rebuild starts from them.
   let builtLenses: Material[] = []
 
   watch(

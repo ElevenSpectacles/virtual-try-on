@@ -1,14 +1,6 @@
 import { expect, test } from './camera-test'
 import { FACE_FIXTURES, faceClip, missingPrerequisite } from './fixtures'
 
-/**
- * `capture()` (issue #93) on the shipped component: the snapshot has the
- * stage's aspect and shows the same composite as the screen (mirrored feed,
- * frame on the face). Its own golden sits next to `render.spec.ts`'s stage
- * golden, so a reviewer can compare the two; both are SwiftShader renders of
- * the same still clip.
- */
-
 const skipReason = missingPrerequisite()
 const face = FACE_FIXTURES[0]!
 

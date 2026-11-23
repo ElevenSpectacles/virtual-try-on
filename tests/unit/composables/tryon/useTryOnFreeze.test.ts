@@ -36,7 +36,6 @@ describe('useTryOnFreeze', () => {
     const pending = freeze()
     expect(video.pause).toHaveBeenCalledOnce()
     expect(detectHeld).toHaveBeenCalledOnce()
-    // The pose isn't the held frame's until its detection is in.
     expect(frozen.value).toBe(false)
     resolveDetect()
     await pending

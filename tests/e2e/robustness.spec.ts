@@ -1,14 +1,6 @@
 import { expect, test } from './camera-test'
 import { faceClip, missingPrerequisite } from './fixtures'
 
-/**
- * Tracking robustness on the shipped component (issue #99):
- * - `dropout`: 200 ms of black frames. The tracker loses the face, but the
- *   hold keeps the frame on its last pose, so the canvas layer is never
- *   hidden (`vto-frame--hidden`) while the clip loops through the dropout.
- * - `dark`: a very dark room. The guide hint reads `tooDark`.
- */
-
 const skipReason = missingPrerequisite()
 const face = 'iris-moss'
 
@@ -28,7 +20,6 @@ test.describe('dropout', () => {
     await startExperience(page)
     const frame = page.locator('.vto-frame')
     await expect(frame).not.toHaveClass(/vto-frame--hidden/, { timeout: 45_000 })
-    // Count hides over two loops of the 6 s clip (two dropouts).
     await frame.evaluate((el) => {
       const w = window as unknown as { __hides: number }
       w.__hides = 0

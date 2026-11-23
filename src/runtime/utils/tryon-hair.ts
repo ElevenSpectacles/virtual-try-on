@@ -1,71 +1,24 @@
-/**
- * Hair occlusion of the temple arms (issue #9). Pure math, no Vue or three.
- *
- * The face-mesh occluder hides the arms behind the face, but not behind hair
- * that hangs over them. A MediaPipe hair segmenter (its own worker, see
- * `useHairSegmenter`) gives a per-pixel hair confidence of the camera frame.
- * Where it says hair, the scene writes depth on a plane in head space
- * HAIR_PLANE_SETBACK_METERS behind the frame's front, so arm parts behind
- * that plane are not drawn and the live camera's hair shows in front of them.
- * Everything in front of the plane (lenses, rims, hinges and the start of
- * the arms) stays, so bangs never cover the frame front, which matches
- * reality: the frame sits in front of the fringe.
- *
- * A 2D mask can't tell hair hanging over an arm from hair the arm rests on.
- * Glasses usually sit on top of hair at the temple, and a vanishing arm looks
- * broken, so the feature is opt-in (`hair-occlusion` prop).
- */
-
-/** Distance behind the frame's front plane (GLB metres) beyond which hair may cover the arms. */
 export const HAIR_PLANE_SETBACK_METERS = 0.035
 
-/** Side of the square head-space plane the hair is redrawn on (GLB metres). Covers both arms with margin. */
 export const HAIR_PLANE_SIZE_METERS = 0.6
 
-/** Minimum time between two segmentations. Hair moves slowly; ~10 Hz is plenty. */
 export const HAIR_SEGMENT_INTERVAL_MS = 100
 
-/**
- * Width of the segmenter's input frame (px). The hair model resizes to 512²
- * internally; the confidence it returns at this size is read back from the
- * GPU, and the mask is cut down to HAIR_MASK_WIDTH anyway.
- */
 export const HAIR_INPUT_WIDTH = 192
 
-/** Size of the mask sent back to the main thread. Bilinear sampling smooths its edges. */
 export const HAIR_MASK_WIDTH = 96
 export const HAIR_MASK_HEIGHT = 128
 
-/**
- * EMA weight of a new mask. Each mask is a whole new estimate, so a single
- * noisy frame shouldn't make hair strands flicker over the arm.
- */
 export const HAIR_MASK_SMOOTHING = 0.5
 
-/**
- * Worker time per segmentation (EMA) above which hair occlusion switches
- * itself off for the session: under half of HAIR_SEGMENT_INTERVAL_MS, so the
- * segmenter keeps the GPU for less than half the time. The capability
- * step-down samples render-thread frames only, so it would never see a slow
- * segmenter in its own worker. Measured on a laptop: ~14 ms alone, ~24 ms
- * while the face tracker shares the GPU.
- */
 export const HAIR_SEGMENT_BUDGET_MS = 40
 
-/** EMA weight of each new segmentation time in the budget check. */
 export const HAIR_TIMING_SMOOTHING = 0.2
 
-/** Segmentations to average before the budget check can switch the feature off. */
 export const HAIR_BUDGET_MIN_SAMPLES = 10
 
-/**
- * First segmentations left out of the timing: the first one compiles shaders
- * and uploads the model to the GPU (~170–260 ms against ~14 ms after, on a
- * laptop), which would keep the average over budget long after.
- */
 export const HAIR_TIMING_WARMUP = 3
 
-/** Visible `object-fit: cover` window of the camera frame, raw-media normalized (see `objectCoverWindow`). */
 export interface MediaWindow {
   xMin: number
   xMax: number
@@ -73,13 +26,6 @@ export interface MediaWindow {
   yMax: number
 }
 
-/**
- * Raw camera-frame coordinates (0…1, top-left origin, unmirrored) of a
- * screen point (0…1, top-left origin) on the mirrored, cover-cropped preview.
- * The leftmost screen column shows the rightmost visible camera column (the
- * `<video>` is mirrored), so x runs backwards. Mirrors the hair-layer shader
- * in TryOnScene.vue.
- */
 export function screenToMedia(
   sx: number,
   sy: number,
@@ -91,10 +37,6 @@ export function screenToMedia(
   }
 }
 
-/**
- * Box-average a single-channel confidence mask (`width * height` floats,
- * 0…1, row-major from the top) down to `outWidth * outHeight` bytes (0…255).
- */
 export function downsampleConfidence(
   confidence: ArrayLike<number>,
   width: number,
@@ -125,11 +67,6 @@ export function downsampleConfidence(
   return out
 }
 
-/**
- * Blend `next` into `previous` in place (`previous += alpha * (next -
- * previous)`), or return a copy of `next` when there is no previous mask or
- * the sizes differ.
- */
 export function blendMask(
   previous: Uint8Array | null,
   next: Uint8Array,
@@ -142,7 +79,6 @@ export function blendMask(
   return previous
 }
 
-/** Share of mask pixels at or above half confidence. */
 export function maskCoverage(mask: ArrayLike<number>): number {
   if (mask.length === 0) return 0
   let hair = 0
@@ -150,13 +86,9 @@ export function maskCoverage(mask: ArrayLike<number>): number {
   return hair / mask.length
 }
 
-/** Running worker time per segmentation, for the budget check. */
 export interface SegmentTiming {
-  /** Mean of the counted segmentations (EMA); null until the first one after warm-up. */
   meanMs: number | null
-  /** Segmentations counted in the mean. */
   samples: number
-  /** Segmentations seen, warm-up included. */
   seen: number
 }
 
@@ -171,7 +103,6 @@ export function updateSegmentTiming(
   return { meanMs, samples: (timing?.samples ?? 0) + 1, seen }
 }
 
-/** True once enough segmentations have run and their mean time is over budget. */
 export function overSegmentBudget(
   timing: SegmentTiming | null,
   budgetMs: number = HAIR_SEGMENT_BUDGET_MS

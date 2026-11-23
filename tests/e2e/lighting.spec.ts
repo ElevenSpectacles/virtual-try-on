@@ -2,25 +2,9 @@ import { expect, test, type Browser, type Page } from '@playwright/test'
 import { faceClip, fakeCameraArgs, missingPrerequisite, type ClipKind } from './fixtures'
 import { LIGHTING_SAMPLE_EVERY } from '../../src/runtime/utils/tryon-lighting'
 
-/**
- * Room lighting from the live frame (#5), end to end on the shipped component:
- * the playground's `?view=experience&lighting=true` shows the estimate read
- * from the component ref as data attributes.
- *
- * - The light gain follows a dim vs a bright version of the same portrait.
- * - On a still clip the smoothed gain holds steady (no flicker).
- * - The estimate costs under 1 ms per detection. The 16×16 downsample runs in
- *   the worker (nothing on the render thread), one every
- *   LIGHTING_SAMPLE_EVERY detections, so its per-detection cost is the
- *   sample time divided by that.
- */
-
 const FACE = 'iris-moss'
-/** Gain gap between the dim and bright clips; the gain range is 0.5 … 1.5. */
 const MIN_GAIN_GAP = 0.25
-/** Largest gain swing allowed on a still clip once settled. */
 const MAX_STILL_GAIN_RANGE = 0.01
-/** Budget per detection for the estimate, ms (#5 acceptance). */
 const MAX_MS_PER_DETECTION = 1
 
 const skipReason = missingPrerequisite()
@@ -42,7 +26,6 @@ async function openOn(browser: Browser, baseURL: string, kind: ClipKind): Promis
   await expect(page.locator('[data-lighting]'), `${kind}: lighting estimate`).toBeVisible({
     timeout: 60_000
   })
-  // The estimate is an EMA (weight 0.1 per detection): ~1.5 s to settle at 30 fps.
   await page.waitForTimeout(3_000)
   return page
 }

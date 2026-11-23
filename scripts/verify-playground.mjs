@@ -1,16 +1,3 @@
-/**
- * Playground smoke test: builds the playground, boots the production server,
- * and asserts the page, calibration manifest, and GLB assets actually serve.
- *
- * Run via `npm run verify:playground` or directly:
- *   node scripts/verify-playground.mjs
- *
- * Requires the host models checkout (or TRYON_MODELS_DIR) — see
- * playground/nuxt.config.ts. That checkout isn't available in CI (this repo
- * is consumed by a separate host app), so this script is excluded
- * from `verify:unit` / CI and is local-only. If the models directory isn't
- * found, it exits 0 with a notice rather than failing the run.
- */
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
@@ -39,9 +26,7 @@ async function waitForServer() {
     try {
       const res = await fetch(BASE)
       if (res.ok) return
-    } catch {
-      // Not up yet.
-    }
+    } catch {}
     await new Promise((r) => setTimeout(r, 500))
   }
   throw new Error(`Server did not start within ${STARTUP_TIMEOUT_MS / 1000}s`)
@@ -85,8 +70,6 @@ async function main() {
       html.includes('Virtual Try-On · Playground')
     )
 
-    // The shipped headless component must build and render behind
-    // `?view=experience` (the default view is the tuning prototype).
     const experience = await fetch(`${BASE}/?view=experience`)
     check(
       'headless experience renders',

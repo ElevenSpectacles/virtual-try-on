@@ -39,8 +39,6 @@ describe('try-on pose helpers', () => {
     })
 
     it('extracts yaw rotation around the y-axis', () => {
-      // 30° yaw: cos ≈ 0.866, sin ≈ 0.5
-      // Matrix is column-major because Three.js Matrix4.fromArray expects it.
       const yaw = Math.PI / 6
       const matrix = [
         Math.cos(yaw),

@@ -1,13 +1,3 @@
-/**
- * Frame-removal spike (#100), step 1: landmarks + multiclass segmentation of
- * the committed glasses-wearing fixtures, in headless Chromium.
- *
- *   node docs/research/frame-removal/harness/segment.mjs <models-dir> <out.json>
- *
- * <models-dir> holds face_landmarker.task and selfie_multiclass_256x256.tflite
- * (https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite).
- * Set CHROMIUM_PATH to use a specific browser binary.
- */
 import { createServer } from 'node:http'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'

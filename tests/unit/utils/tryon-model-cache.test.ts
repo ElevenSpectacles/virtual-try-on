@@ -16,7 +16,7 @@ describe('createLruCache', () => {
     const { cache, disposed } = tracked(2)
     cache.set('a', 'A')
     cache.set('b', 'B')
-    cache.get('a') // a is now the most recent
+    cache.get('a')
     cache.set('c', 'C')
     expect(cache.keys()).toEqual(['a', 'c'])
     expect(disposed).toEqual(['B'])
@@ -72,7 +72,6 @@ describe('createLruCache', () => {
     const { cache, disposed } = tracked(4)
     for (let i = 0; i < 50; i++) cache.set(`m${i % 7}`, `M${i}`)
     expect(cache.size).toBe(4)
-    // Every value that left was disposed exactly once.
     expect(disposed.length + cache.size).toBe(50)
     expect(new Set(disposed).size).toBe(disposed.length)
   })

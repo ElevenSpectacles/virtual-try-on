@@ -36,8 +36,6 @@ describe('tintedShadowMultiply', () => {
 })
 
 describe('tintedShadowComposite', () => {
-  // The browser composites the canvas premultiplied over the video:
-  // result = rgb·alpha + video·(1 − alpha).
   const composite = (video: [number, number, number], m: [number, number, number]) => {
     const { rgb, alpha } = tintedShadowComposite(video, m)
     return rgb.map((c, i) => c * alpha + video[i]! * (1 - alpha))
@@ -56,8 +54,6 @@ describe('tintedShadowComposite', () => {
   })
 
   it('keeps a stale video sample to the colour residual', () => {
-    // The texture is a frame behind: off by 10 % everywhere. The error is
-    // only in the residual, a fraction of the 10 %.
     const video: [number, number, number] = [0.8, 0.6, 0.5]
     const stale: [number, number, number] = [0.72, 0.54, 0.45]
     const m: [number, number, number] = [0.6, 0.75, 0.6]

@@ -1,24 +1,3 @@
-/**
- * The room in the lenses (issue #84): reflections built from the camera
- * feed, and the direction the light comes from. Pure functions, no three.js.
- *
- * In the one user study on eyeglass try-on realism we know of (Zhang et al.,
- * IEEE CG&A 2017), reflections were the strongest realism cue. Studio HDRs
- * never mirror the shopper's own room; the 16×16 room sample the
- * face-landmarker worker already returns (utils/tryon-lighting) does. It
- * becomes a tiny equirect environment, the mirrored frame as the front
- * hemisphere and its mean as the back (as Snap's camera reflections do),
- * blended with the studio map so highlights keep their sparkle.
- *
- * The same sample, over the face only, gives the dominant light direction
- * (an order-1 fit, after Knorr & Kurz, ISMAR 2014): the brighter half of the
- * face is toward the light. It aims the key light and the contact shadow,
- * so a window on the left throws the frame's shadow to the right.
- *
- * Everything stays on-device: the sample is 16×16 pixels, used in memory.
- */
-
-/** A region of the raw camera frame, normalized `[0, 1]` (x from the raw left). */
 export interface FrameRegion {
   xMin: number
   xMax: number
@@ -26,31 +5,19 @@ export interface FrameRegion {
   yMax: number
 }
 
-/** Light direction in scene space (x right in the mirrored preview, y up, z toward the camera). */
 export interface LightDirection {
   x: number
   y: number
   z: number
-  /** 0 … 1: how lopsided the lighting is (0: flat, 1: one side dark). */
   strength: number
 }
 
-/**
- * How far a fully lopsided face tips the light from frontal: luma gradient
- * 1 (one half twice as bright as the face mean) → 60°.
- */
 export const LIGHT_DIRECTION_GAIN = Math.tan((60 * Math.PI) / 180)
 
-/** Under this gradient the light reads as frontal (noise, skin tone). */
 export const LIGHT_DIRECTION_DEADBAND = 0.05
 
 const luma = (r: number, g: number, b: number) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
 
-/**
- * Light direction from an RGBA sample over `region` (the face): the luma
- * difference between its halves, left/right and top/bottom, over its mean.
- * Mirrored once, like the preview. Null when the region has no pixels.
- */
 export function estimateLightDirection(
   rgba: ArrayLike<number>,
   width: number,
@@ -84,7 +51,6 @@ export function estimateLightDirection(
   }
   const mean = (left + right) / (nLeft + nRight)
   if (mean <= 0) return { x: 0, y: 0, z: 1, strength: 0 }
-  // Raw left is the preview's right (mirror once).
   let gx = (left / nLeft - right / nRight) / mean
   let gy = (top / nTop - bottom / nBottom) / mean
   const magnitude = Math.hypot(gx, gy)
@@ -95,7 +61,6 @@ export function estimateLightDirection(
   return { x: x / length, y: y / length, z: 1 / length, strength: Math.min(magnitude, 1) }
 }
 
-/** EMA of two directions (renormalized); `alpha` is the weight of `next`. */
 export function smoothLightDirection(
   previous: LightDirection | null,
   next: LightDirection,
@@ -114,11 +79,6 @@ export function smoothLightDirection(
   }
 }
 
-/**
- * Where a light that defaults to `fallback` (unnormalized) should shine from,
- * leaning toward the estimated direction by its strength. Returns a unit
- * vector. Flat light keeps the fallback.
- */
 export function aimLight(
   fallback: { x: number; y: number; z: number },
   estimate: LightDirection | null
@@ -134,28 +94,16 @@ export function aimLight(
   return { x: x / length, y: y / length, z: z / length }
 }
 
-/**
- * Size of the camera environment map (equirect). Small: it is PMREM-blurred
- * anyway, but not smaller, since PMREMGenerator sizes its cube at width / 4
- * and needs at least 16 (2^LOD_MIN) texels a face; below that the
- * reflections come out black.
- */
 export const CAMERA_ENV_WIDTH = 128
 export const CAMERA_ENV_HEIGHT = 64
 
-/** Share of the camera in the blended environment; the studio map keeps the rest. */
 export const CAMERA_ENV_WEIGHT = 0.6
 
-/** sRGB byte → linear. */
 export function srgbToLinear(byte: number): number {
   const c = byte / 255
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
 }
 
-/**
- * Direction of an equirect texel in three.js's convention (`equirectUv`):
- * u = atan2(z, x) / 2π + 0.5, v = asin(y) / π + 0.5, rows from the bottom.
- */
 export function equirectDirection(
   column: number,
   row: number,
@@ -167,14 +115,6 @@ export function equirectDirection(
   return { x: Math.cos(theta) * Math.cos(phi), y: Math.sin(theta), z: Math.cos(theta) * Math.sin(phi) }
 }
 
-/**
- * Linear RGBA (Float32, `width × height × 4`, rows from the bottom) of an
- * equirect environment made from a room sample. The front hemisphere (+z,
- * toward the camera, what the lenses face) shows the mirrored frame as an
- * orthographic projection; the back is the frame's mean; they blend over
- * the horizon. With `studio` (same layout, linear), the result is
- * `studio·(1 − weight) + camera·weight`.
- */
 export function cameraEnvironment(
   rgba: ArrayLike<number>,
   sampleWidth: number,
@@ -195,7 +135,6 @@ export function cameraEnvironment(
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
       const d = equirectDirection(column, row, width, height)
-      // Front: preview x (mirrored raw) ↔ +x, y up ↔ image top.
       const sx = Math.min(sampleWidth - 1, Math.max(0, Math.floor((0.5 - d.x * 0.5) * sampleWidth)))
       const sy = Math.min(sampleHeight - 1, Math.max(0, Math.floor((0.5 - d.y * 0.5) * sampleHeight)))
       const front = Math.min(Math.max((d.z + 0.2) / 0.4, 0), 1)
@@ -212,11 +151,6 @@ export function cameraEnvironment(
   return out
 }
 
-/**
- * Box-downsample an equirect (rows from the bottom, `channels` per texel,
- * values via `decode`) to `width × height` linear RGBA, for blending a
- * studio HDR with the camera environment.
- */
 export function downsampleEquirect(
   data: ArrayLike<number>,
   sourceWidth: number,
@@ -233,7 +167,6 @@ export function downsampleEquirect(
     for (let column = 0; column < width; column++) {
       const sums = [0, 0, 0]
       let n = 0
-      // At least one source texel, so a source smaller than the grid still fills it.
       const y0 = Math.floor(row * bh)
       const x0 = Math.floor(column * bw)
       for (let y = y0; y < Math.max(y0 + 1, Math.floor((row + 1) * bh)); y++) {
@@ -251,7 +184,6 @@ export function downsampleEquirect(
   return out
 }
 
-/** Face region of the raw camera frame from landmarks (their bounding box), or null. */
 export function faceRegion(landmarks: readonly { x: number; y: number }[]): FrameRegion | null {
   if (!landmarks.length) return null
   let xMin = 1

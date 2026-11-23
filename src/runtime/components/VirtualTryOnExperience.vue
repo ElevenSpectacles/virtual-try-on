@@ -1,16 +1,4 @@
 <script setup lang="ts">
-/**
- * Headless virtual try-on view: renders only the mirrored camera feed and the
- * tracked 3D frame, sized to fill its container. It ships no UI copy, icons
- * or utility classes — consent, error states, positioning guidance and any
- * tuning controls are the host's job, built from the state and actions the
- * default slot (and the component ref) exposes. Slot content is rendered on
- * top of the feed inside the stage.
- *
- * The stateful glue lives in `composables/tryon/experience/` (internal, not
- * auto-imported). Watchers and lifecycle hooks run in the order they register:
- * keep the calls below in order.
- */
 import { NeutralToneMapping, VSMShadowMap } from 'three'
 import { useWebcamStream } from '../composables/tryon/useWebcamStream'
 import { useFrameCalibration } from '../composables/tryon/useFrameCalibration'
@@ -58,8 +46,6 @@ const props = withDefaults(defineProps<VirtualTryOnExperienceProps>(), {
   exposure: 1,
   frameScale: 1,
   draco: true,
-  // Explicit undefined, not Vue's absent-boolean `false`, so an omitted
-  // prop falls through to the module option.
   occluder: undefined,
   tier: undefined
 })
@@ -93,7 +79,6 @@ const useFaceTracking = ref(true)
 const runtimeConfig = useRuntimeConfig()
 const trackTryOn = createTryOnTrack(emit, () => model.value)
 
-// The face tracker and what its worker feeds (see useTryOnTracking).
 const tracking = useTryOnTracking(videoRef, {
   props,
   isActive,
@@ -105,7 +90,6 @@ const tracking = useTryOnTracking(videoRef, {
 const { lightGain, lightTint, lighting, roomLuma, roomSample, lightDirection } = tracking
 const { faceError, hasFace, frozen, freeze, unfreeze } = tracking
 
-// Session metrics (opt-in, see useTryOnSessionMetrics).
 const { metrics, watchSessionEnd } = useTryOnSessionMetrics({
   enabled: props.reportMetrics,
   isActive,
@@ -115,15 +99,12 @@ const { metrics, watchSessionEnd } = useTryOnSessionMetrics({
   emit
 })
 
-// Frames count toward the step-down only while a face is tracked, so idle
-// camera time never looks like a slow device.
 const capability = useCapabilityTier({
   forcedTier: () => props.tier,
   sampling: () => isActive.value && hasFace.value,
   onChange: (change) => reportTierChange(trackTryOn, metrics, change)
 })
 
-// GLB cache, neighbour prefetch and switch latency (see useTryOnModelSwitch).
 const modelSwitch = useTryOnModelSwitch({
   props,
   model,
@@ -135,7 +116,6 @@ const modelSwitch = useTryOnModelSwitch({
 })
 const { modelSrc, modelCache, preloadModel, onModelLoaded } = modelSwitch
 
-// Opt-in features the tier allows, and the hair segmenter (see useTryOnFeatures).
 const features = useTryOnFeatures({
   props,
   capability,
@@ -145,12 +125,9 @@ const features = useTryOnFeatures({
 })
 const { occluderEnabled, contactShadowEnabled, cameraMatchEnabled, physicalLensEnabled } = features
 const { tintedLensShadowEnabled } = features
-// While frozen the camera image is a still photo: hold the grain still too,
-// instead of re-seeding it every render (which would shimmer over the photo).
 const FROZEN_GRAIN_SEED = 0.5
 const { hairSegmenter, hairActive, hair, contactShadowStrength } = features
 
-// Whether and where the frame shows, and the guide hint (see useTryOnFrame).
 const frame = useTryOnFrame({
   props,
   camera,
@@ -162,7 +139,6 @@ const frame = useTryOnFrame({
 const { frameVisible, frameFading, guideHint, framePosition, smoothedScale, smoothedEuler } = frame
 const { occluderGeometry, occluderPosition, occluderPositions } = frame
 
-// Fit, measurements, card calibration and fit advisor (see useTryOnFrameFit).
 const frameFit = useTryOnFrameFit({
   props,
   model,
@@ -175,7 +151,6 @@ const frameFit = useTryOnFrameFit({
 })
 const { fit, measurements, calibrationState, startCalibration, cancelCalibration } = frameFit
 
-// Consent, start, status and the time to first frame (see useTryOnSession).
 const session = useTryOnSession({
   props,
   camera,
@@ -216,7 +191,6 @@ defineExpose({
 
 defineSlots<{ default?: (props: VirtualTryOnExperienceSlotProps) => unknown }>()
 
-// Failures, the first face, fit and face shape on `track` (see useTryOnTrackEvents).
 const { onSceneError } = useTryOnTrackEvents({
   track: trackTryOn,
   camera,
@@ -230,14 +204,11 @@ const { onSceneError } = useTryOnTrackEvents({
   fit: frameFit
 })
 
-// The session's final `metrics` report: registered after the track events.
 watchSessionEnd()
 
 watch(model, (value) => {
   modelSwitch.onModelSwitch()
-  // A new GLB compiles its shaders on the next frames: warm up again.
   capability.resetWarmup()
-  // The new frame has its own width: no verdict until its GLB has loaded.
   frameFit.reset()
   if (hasConsented.value) trackTryOn('TRY_ON_FRAME_CHANGED', { model: value })
 })
@@ -245,9 +216,6 @@ watch(model, (value) => {
 
 <template>
   <div ref="stageRef" class="vto-stage">
-    <!-- Always mounted so the webcam stream has an element to attach to;
-         hidden until the stream is active. Mirrored here and only here
-         (see landmarkToNdc). -->
     <video
       ref="videoRef"
       class="vto-video"
@@ -268,11 +236,6 @@ watch(model, (value) => {
         }"
         :style="cameraMatchEnabled ? { '--vto-camera-blur': `${CAMERA_BLUR_PX}px` } : undefined"
       >
-        <!-- Neutral tone mapping (Khronos PBR Neutral), not ACES: the
-             camera feed behind the canvas is untone-mapped sRGB, and
-             ACES' filmic curve would desaturate frame colors against it.
-             Neutral is near-identity in the SDR range — exactly what
-             e-commerce frame colors need. -->
         <TresCanvas
           :alpha="true"
           :clear-alpha="0"
@@ -348,8 +311,6 @@ watch(model, (value) => {
   </div>
 </template>
 
-<!-- Structural styles only (stacking, mirroring, fill) — no visual design.
-     The host sizes the component; the stage fills it. -->
 <style scoped>
 .vto-stage {
   position: relative;
@@ -380,7 +341,6 @@ watch(model, (value) => {
   height: 100%;
 }
 
-/* Keep in step with FRAME_FADE_MS. */
 .vto-frame {
   transition: opacity 150ms ease-out;
 }
@@ -389,7 +349,6 @@ watch(model, (value) => {
   opacity: 0;
 }
 
-/* A webcam is a touch soft; only the rendered frame layer is blurred. */
 .vto-layer--camera-match {
   filter: blur(var(--vto-camera-blur));
 }

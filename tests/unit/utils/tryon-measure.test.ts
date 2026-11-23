@@ -28,11 +28,6 @@ import {
 } from '../../../src/runtime/utils/tryon'
 import { gaussian, mulberry32 } from '../support/landmark-stream'
 
-/**
- * A frontal face in a `aspect`-wide image: iris centres `ipd` apart (in
- * width units), each ring a circle of `diameter` (width units), ring points
- * listed in the given order.
- */
 function face({
   ipd = 0.12,
   diameter = 0.0223,
@@ -50,7 +45,6 @@ function face({
       const angle = (ringOrder[i]! * Math.PI) / 2
       points[index] = {
         x: x + (diameter / 2) * Math.cos(angle),
-        // y is a fraction of the height: a circle is `aspect` times taller in y units.
         y: 0.44 + (diameter / 2) * Math.sin(angle) * aspect,
         z: 0
       }
@@ -83,7 +77,6 @@ describe('pdFromIris', () => {
   })
 
   it('does not depend on the distance to the camera', () => {
-    // Twice as close: everything twice as big on screen.
     const far = face({ ipd: 0.1, diameter: 0.019 })
     const near = face({ ipd: 0.2, diameter: 0.038 })
     expect(pdFromIris(pupillaryWidth(near), irisDiameter(near))).toBeCloseTo(
@@ -219,7 +212,6 @@ describe('confidence and the ruler', () => {
     expect(rulerPdMm(null)).toBe(assumed)
     const few = feed([70])!
     const ruler = rulerPdMm(few)
-    // One sample moves it by one step of the ramp: no visible jump.
     expect(ruler - assumed).toBeCloseTo((70 - assumed) / PD_STABLE_SAMPLES, 6)
     const stable = feed(Array.from({ length: PD_STABLE_SAMPLES }, () => 70))!
     expect(rulerPdMm(stable)).toBe(70)

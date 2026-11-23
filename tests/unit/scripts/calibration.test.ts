@@ -7,7 +7,6 @@ import {
 } from '../../../scripts/lib/calibration'
 import type { TryOnCalibrationFile } from '../../../src/runtime/types/tryon-calibration'
 
-// Box from (cx ± w/2, cy ± h/2) and a lens plane at frontZ, temples behind it.
 function model(name: string, w: number, h: number, cx = 0, cy = 0, frontZ = 0.004): MeasuredModel {
   return {
     name,
@@ -29,7 +28,6 @@ describe('modelCalibration', () => {
   })
 
   it('scales to the reference from the mean of the width and height ratios', () => {
-    // Same width, 2% shorter: scale = (1 + 1/0.98) / 2.
     const entry = modelCalibration(model('a', 0.1397, 0.0493 * 0.98), reference)
     expect(entry.scale).toBeCloseTo((1 + 1 / 0.98) / 2, 4)
   })
@@ -62,7 +60,6 @@ describe('modelCalibration', () => {
     })
     expect(entry.rotation).toEqual({ x: 0.1, y: 0, z: 0 })
     expect(entry.lens).toEqual({ tint: '#3a4a5c', density: 0.6 })
-    // Measured fields are recomputed, not carried over.
     expect(entry.scale).not.toBe(9)
     expect(entry.translation.x).not.toBe(9)
   })
@@ -131,7 +128,6 @@ describe('parseCalibrationFile', () => {
         }
       }
     })
-    // templeWidthBoost (removed in 5.0) is dropped from an old manifest.
     expect(file.models.a).toEqual({
       model: 'a',
       translation: { x: 0, y: -0.02, z: -0.004 },

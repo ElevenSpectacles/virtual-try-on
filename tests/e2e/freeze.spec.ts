@@ -1,13 +1,6 @@
 import { expect, test } from './camera-test'
 import { faceClip, missingPrerequisite } from './fixtures'
 
-/**
- * `freeze()` / `unfreeze()` (issue #97) on the shipped component: freeze a
- * fixture's pose, switch to another catalog frame, and the new frame renders
- * where the old one sat, on the held camera frame. Golden: the switched
- * frame on the frozen pose (SwiftShader, like the other goldens).
- */
-
 const skipReason = missingPrerequisite()
 const face = 'iris-moss'
 
@@ -30,12 +23,10 @@ test.describe('freeze', () => {
 
     await page.getByRole('button', { name: 'Freeze' }).click()
     await expect(stage.locator('[data-frozen="true"]')).toBeVisible()
-    // The video holds its frame while frozen.
     const paused = await stage.locator('video').evaluate((v: HTMLVideoElement) => v.paused)
     expect(paused).toBe(true)
 
     await page.getByRole('button', { name: 'Next frame' }).click()
-    // GLB load + a few SwiftShader frames for the smoothing to settle.
     await page.waitForTimeout(10_000)
     await expect(stage).toHaveScreenshot(`${face}-frozen-next.png`, {
       threshold: 0.02,

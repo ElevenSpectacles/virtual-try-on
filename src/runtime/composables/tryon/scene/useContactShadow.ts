@@ -26,26 +26,12 @@ import type { TryOnLens } from '../../../utils/tryon-lens'
 import { aimLight, type LightDirection } from '../../../utils/tryon-room'
 import { LENS_MATERIAL_NAME } from './useLensMaterials'
 
-/**
- * A contact-occlusion sphere in the local space of the mesh it was fitted
- * to, so it moves with that mesh: the temple arms turn at their hinges
- * every frame (utils/tryon-temples) and may bend behind the ears.
- */
 export interface MeshOccluderSphere extends OccluderSphere {
   mesh: Mesh
 }
 
-/** The receiver's uniforms, shared with `useContactOcclusion`. */
 export type ContactReceiverUniforms = ReturnType<typeof useContactShadow>['receiverUniforms']
 
-/**
- * The contact shadow's casting side: the shadow-only light framed on the
- * frame (aimed by the room's light direction when known) and, for the
- * tinted lens shadow, a second light the lenses cast into; what casts into
- * their maps; the contact-occlusion spheres fitted to the frame; and the
- * receiver's uniforms and shadow colour, which `useContactOcclusion` draws
- * with.
- */
 export function useContactShadow(
   model: ShallowRef<GLTF | null>,
   props: {
@@ -58,34 +44,11 @@ export function useContactShadow(
     lens: TryOnLens
   }
 ) {
-  // Contact shadow (utils/tryon-contact-shadow): a shadow-only light (no
-  // intensity, so it changes no shading) renders a small
-  // shadow map of the frame, framed tightly on it, and a ShadowMaterial copy
-  // of the face mesh shows that shadow on the skin. Only the opaque parts
-  // (rims, bridge, pads, temples) cast into it. A lens shadow needs the
-  // lens's colour, which a black multiply can't give: a brown lens's light
-  // stays warm, but black turns its shadow into a grey patch on the cheek,
-  // the more visible the paler the skin there. So lenses cast only with the
-  // tinted lens shadow (below), which colours their shadow against the
-  // camera pixels. The host canvas uses VSM:
-  // its blur pass keeps the edge soft, as from a room light rather than a
-  // spotlight, without PCF's speckle at a wide radius.
-  //
-  // The shadow is black, which makes it a multiply: the canvas is transparent
-  // over the DOM <video> and the browser composites it premultiplied, so a
-  // black texel of alpha a leaves `video × (1 − a)`. A shadow removes light in
-  // proportion, so dark skin barely changes and the skin keeps its own hue (the
-  // reddish cast of real skin shadows comes from the skin itself). A coloured
-  // shadow would add `colour × a` on top instead, which shows as a brown stain
-  // on dark skin. A tinted multiply (warm shadow, tinted lens shadow) would
-  // need the video pixels in the shader, a follow-up to issue #88.
   const SHADOW_COLOR = new Color(0, 0, 0)
   const SHADOW_MAP_SIZE = 512
   const SHADOW_RADIUS = 8
-  /** Share of light a lens blocks in the shadow, per unit of lens opacity. */
   const LENS_SHADOW_DENSITY = 0.6
 
-  // Receiver uniforms: contact occlusion and the tinted lens shadow (below).
   const receiverUniforms = {
     uSpheres: {
       value: Array.from({ length: MAX_OCCLUDER_SPHERES }, () => new Vector4())
@@ -108,11 +71,6 @@ export function useContactShadow(
     return light
   }
   const shadowLight = makeShadowLight()
-  // Tinted lens shadow (opt-in): the lenses cast into a second, identical
-  // shadow map of their own (`shadowCasterFilter` keeps each part out of the
-  // other light's map), so the receiver can colour their shadow. Directional
-  // shadows are indexed in scene order, so this light must come after
-  // `shadowLight` (template).
   const lensShadowLight = makeShadowLight()
   const tinted = computed(
     () => props.contactShadow && props.tintedLensShadow && !!props.videoElement
@@ -127,8 +85,6 @@ export function useContactShadow(
     { immediate: true }
   )
 
-  // Frame the shadow camera on the frame. The light is directional and has
-  // no intensity, so moving it changes only what the shadow map covers.
   watch(
     [() => props.position, () => props.scale, () => props.lightDirection],
     ([position, scale, direction]) => {
@@ -150,9 +106,6 @@ export function useContactShadow(
     { immediate: true }
   )
 
-  // Every frame mesh casts; lens meshes only into the tinted lens shadow's
-  // map. The receiver never casts.
-  /** Contact-occlusion spheres of the current frame (see below). */
   let occluderSpheres: MeshOccluderSphere[] = []
 
   watch(
@@ -165,7 +118,6 @@ export function useContactShadow(
         const current = Array.isArray(obj.material) ? obj.material : [obj.material]
         const lens = current.find((m: Material) => LENS_MATERIAL_NAME.test(m.name))
         obj.castShadow = enabled && (!lens || tint)
-        // Tinted: each part casts into its own light's map only.
         const filter = tint
           ? shadowCasterFilter(!!lens, () => lensShadowLight.shadow.camera)
           : null
@@ -184,23 +136,12 @@ export function useContactShadow(
     { immediate: true }
   )
 
-  // Contact occlusion (utils/tryon-contact-occlusion): the soft darkening where
-  // the frame lies on or close to the skin (pads, bridge, temples), which a
-  // one-light shadow map does not produce. Spheres fitted to the frame's own
-  // vertices, in GLB-local metres, are moved into world space every render and
-  // the receiver darkens each skin point by the solid angle they cover. Lenses
-  // count by their density, like their shadow. The spheres are refitted with
-  // the lens depth materials above (`occluderSpheres`).
-
   function frameOccluderSpheres(root: Object3D): MeshOccluderSphere[] {
     root.updateMatrixWorld(true)
     const sceneInverse = new Matrix4().copy(root.matrixWorld).invert()
     const relative = new Matrix4()
     const point = new Vector3()
     const parts: OccluderPart[] = []
-    // Per part: its mesh and the GLB-root → mesh-local transform. The cells are
-    // fitted in root space (one grid for the whole frame), then each sphere is
-    // kept in its own mesh's space.
     const owners: { mesh: Mesh; toLocal: Matrix4; scale: number }[] = []
     root.traverse((obj) => {
       if (!(obj instanceof Mesh) || !obj.geometry) return
@@ -249,7 +190,6 @@ export function useContactShadow(
     shadowLight,
     lensShadowLight,
     tinted,
-    /** Contact-occlusion spheres of the current frame. */
     occluderSpheres: () => occluderSpheres
   }
 }

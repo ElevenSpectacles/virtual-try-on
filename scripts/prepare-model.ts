@@ -1,19 +1,4 @@
 #!/usr/bin/env -S npx tsx
-// One command from a raw catalog GLB to a try-on-ready GLB and its
-// calibration entry (issue #103). Steps, in order, each at most once (they
-// record themselves in the GLB's extras, so a second run changes nothing):
-//
-//   1. trim the curled temple tips and tilt the shafts (never twice)
-//   2. Draco-compress
-//   3. lint (scripts/lib/model-lint)
-//   4. regenerate calibration.json for the output directory, keeping the
-//      hand-tuned fields (calibration is measured on the compressed GLBs)
-//
-//   npx tsx scripts/prepare-model.ts --input <glb or dir> --output <catalog dir> \
-//     [--calibration <catalog dir>/calibration.json] [--reference iris-bronze]
-//
-// The output directory is the catalog: it must hold the reference model for
-// the calibration step.
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { basename, extname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -62,7 +47,6 @@ async function main() {
     const document = await io.read(source)
     const done = preparedSteps(document)
     if (done.includes('trimmed') && done.includes('compressed')) {
-      // Already prepared: keep the bytes as they are.
       if (resolve(source) !== resolve(target)) copyFileSync(source, target)
       console.log(`${basename(source)}: already prepared`)
     } else {

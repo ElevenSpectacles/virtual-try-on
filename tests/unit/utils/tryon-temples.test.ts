@@ -17,11 +17,6 @@ import {
   patchEarBendShader
 } from '../../../src/runtime/utils/tryon-temples'
 
-/**
- * A straight temple arm on one side, like the catalog's `pt2` halves: a thin
- * plate from the hinge (x = 0.018) back to x = 0.105, inner face at
- * |y| = 0.068, outer at 0.070, 4 mm tall.
- */
 function armPoints(side: 1 | -1): number[] {
   const points: number[] = []
   for (let x = 0.018; x <= 0.105 + 1e-9; x += 0.005) {
@@ -32,7 +27,6 @@ function armPoints(side: 1 | -1): number[] {
   return points
 }
 
-/** Both arms as one indexed mesh: one quad strip per side. */
 function templeMesh(): Mesh {
   const positions: number[] = []
   const index: number[] = []
@@ -73,7 +67,6 @@ describe('templeProfile', () => {
   it('reads the inner face along the arm', () => {
     const profile = templeProfile(armPoints(1), 1)!
     expect(templeInnerHalfWidth(profile, 0.06)).toBeCloseTo(0.068)
-    // Held past the ends.
     expect(templeInnerHalfWidth(profile, 0.5)).toBeCloseTo(0.068)
   })
 
@@ -85,7 +78,6 @@ describe('templeProfile', () => {
 describe('templeOpeningAngle', () => {
   const plus = templeProfile(armPoints(1), 1)!
   const minus = templeProfile(armPoints(-1), -1)!
-  // A head point where the arm already clears it by exactly the clearance.
   const fitted = 0.068 - TEMPLE_CLEARANCE_METERS
 
   it('is zero where the arm already meets the head', () => {
@@ -137,7 +129,6 @@ describe('rigTemples', () => {
     expect(meshes).toHaveLength(2)
     expect(meshes.reduce((n, mesh) => n + mesh.geometry.getIndex()!.count / 3, 0)).toBe(triangles)
     for (const mesh of meshes) {
-      // Every triangle on one side only.
       const index = mesh.geometry.getIndex()!
       const position = mesh.geometry.getAttribute('position')
       const signs = new Set<number>()
@@ -176,7 +167,6 @@ describe('rigTemples', () => {
         tip = new Vector3(0.105, 0.07, 0.004).applyMatrix4(obj.matrixWorld)
       }
     })
-    // The +Y arm's tip swings outward (+y) by reach · sin(angle).
     expect(tip!.y).toBeCloseTo(0.07 + (0.105 - 0.018) * Math.sin(0.1), 4)
   })
 
@@ -206,7 +196,6 @@ describe('templeAngles', () => {
     const root = new Group()
     root.add(templeMesh())
     const rig = rigTemples(root)!
-    // The node sits at z = −0.02 in the scene; head points 2 mm wider than fitted.
     const y = 0.068 - TEMPLE_CLEARANCE_METERS + 0.002
     const angles = templeAngles(rig, [
       { x: 0.06, y: -y, z: -0.02 },

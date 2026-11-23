@@ -1,33 +1,14 @@
-/**
- * Real-footage clips for the opt-in e2e specs (`video-clip.spec.ts`,
- * `metrics.spec.ts`): downloads a few stock portrait videos and converts them
- * to the 480×640 Y4M Chromium's fake camera reads.
- *
- *   npm run fetch-footage
- *   TRYON_VIDEO_CLIP=<printed path> npx playwright test tests/e2e/video-clip.spec.ts
- *
- * The clips come from Mixkit (https://mixkit.co, Mixkit Stock Video Free
- * License: free to use, not to redistribute). They are downloaded at run time
- * into the OS temp dir and never committed: footage stays out of git (see
- * AGENTS.md). Downloads land in their own directory and are only read by
- * ffmpeg.
- *
- * Measured 2026-10-12 (real GPU): detection 99.3–100%, still jitter
- * 0.78–1.02 px, latency 18–22 ms.
- */
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-/** Frontal portraits that keep the whole face in a 3:4 centre crop. */
 const CLIPS = [
   { id: 4756, label: 'frontal studio portrait, fair skin, long hair' },
   { id: 4535, label: 'frontal, smiling and talking, dark skin, beard' },
   { id: 4689, label: 'backlit outdoor portrait, red hair over the ears' }
 ]
 
-/** Seconds kept from each clip: long enough for the specs' sampling windows. */
 const SECONDS = 8
 
 const ROOT = join(tmpdir(), 'virtual-try-on-footage')
@@ -56,7 +37,6 @@ async function download(id) {
 function convert(id, source) {
   const clip = join(CLIPS_DIR, `mixkit-${id}.y4m`)
   if (existsSync(clip) && statSync(clip).mtimeMs >= statSync(source).mtimeMs) return clip
-  // Centre 3:4 crop of the 16:9 frame, scaled to the fake camera's 480×640.
   execFileSync('ffmpeg', [
     '-loglevel', 'error', '-y',
     '-i', source,

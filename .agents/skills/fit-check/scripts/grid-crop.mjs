@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// Zoomed crop with a labelled pixel grid, for reading frame edges by eye.
-//   node grid-crop.mjs <image> <out.png> <left> <top> <width> <height> [zoom=3]
-// Grid lines every 10 source px, red + labelled every 50. Coordinates on the
-// grid are the INPUT image's pixels, so readings from two crops of the same
-// image compare directly.
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 

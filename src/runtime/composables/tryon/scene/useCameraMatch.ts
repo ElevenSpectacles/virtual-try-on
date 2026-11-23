@@ -11,11 +11,6 @@ import {
 } from '../../../utils/tryon-camera-match'
 import type { TryOnLens } from '../../../utils/tryon-lens'
 
-/**
- * Grain and light wrap on the frame (utils/tryon-camera-match), so it reads
- * as filmed with the face: the shader patch on the GLB's materials and the
- * per-frame grain seed. The CSS blur is the host canvas's.
- */
 export function useCameraMatch(
   model: ShallowRef<GLTF | null>,
   props: {
@@ -27,10 +22,6 @@ export function useCameraMatch(
     grainSeed?: number | undefined
   }
 ) {
-  // Camera match (issue #86): one shared uniform set, patched into every frame
-  // and lens material (standard/physical only: the patch reads their normal
-  // and view vectors) after the lens materials are built. Off sets the
-  // amounts to 0; patched materials stay patched until the GLB is evicted.
   const cameraMatchUniforms: CameraMatchUniforms = {
     uCameraGrain: { value: 0 },
     uCameraGrainSeed: { value: 0 },
@@ -53,8 +44,6 @@ export function useCameraMatch(
     material.needsUpdate = true
   }
 
-  // Watches the lens inputs too: a lens rebuild (`useLensMaterials`, whose
-  // watcher runs first) leaves fresh, unpatched lens materials.
   watch(
     [model, () => props.physicalLens, () => props.lens, () => props.cameraMatch],
     ([gltf, , , enabled]) => {
@@ -79,8 +68,6 @@ export function useCameraMatch(
     { immediate: true }
   )
 
-  // Re-seed the grain every rendered frame, like sensor noise; a fixed seed
-  // keeps goldens stable.
   useLoop().onBeforeRender(() => {
     cameraMatchUniforms.uCameraGrainSeed.value =
       props.grainSeed ?? (cameraMatchUniforms.uCameraGrainSeed.value + 1.618) % 1000

@@ -23,7 +23,6 @@ describe('screenToMedia', () => {
   })
 
   it('stays inside the cover-cropped window', () => {
-    // A 16:9 camera in a 3:4 stage: left/right cropped.
     const window = objectCoverWindow(16 / 9, 3 / 4)
     const left = screenToMedia(0, 0.5, window)
     const right = screenToMedia(1, 0.5, window)
@@ -34,7 +33,6 @@ describe('screenToMedia', () => {
   it('is the inverse of the landmark mapping (cover remap + mirror)', () => {
     const window = objectCoverWindow(16 / 9, 3 / 4)
     const landmark = { x: 0.55, y: 0.4 }
-    // A landmark lands on screen at x = 1 - coverX (mirror), y = coverY.
     const cover = mapLandmarkToObjectCover(landmark, window)
     const media = screenToMedia(1 - cover.x, cover.y, window)
     expect(media.x).toBeCloseTo(landmark.x)
@@ -44,7 +42,6 @@ describe('screenToMedia', () => {
 
 describe('downsampleConfidence', () => {
   it('box-averages to bytes', () => {
-    // 4×2 → 2×1: left half 0 and 1 (mean 0.5), right half all 1.
     const mask = downsampleConfidence([0, 1, 1, 1, 1, 0, 1, 1], 4, 2, 2, 1)
     expect(Array.from(mask)).toEqual([128, 255])
   })

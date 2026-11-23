@@ -1,9 +1,4 @@
 #!/usr/bin/env -S npx tsx
-// Compresses a directory of GLBs with Draco mesh compression via
-// @gltf-transform/functions' `draco()` transform. Run against the host's
-// model directory before shipping — the module's own GLTFLoader/useGLTF
-// wiring (see components/TryOnScene.vue) already expects to decode Draco
-// meshes when present, and is a no-op passthrough for meshes that aren't.
 import { readdirSync, mkdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { parseArgs } from 'node:util'

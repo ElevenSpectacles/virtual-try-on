@@ -4,20 +4,7 @@ import { expect, test } from './camera-test'
 import { FACE_FIXTURES, faceClip, missingPrerequisite } from './fixtures'
 import type { HarnessResult } from './tracking-harness'
 
-/**
- * Records one settled frame of the prototype's scene inputs for the fixed-pose
- * render (tests/e2e/tryon-pose-scene.spec.ts). Writes
- * tests/fixtures/tryon-pose/<face>.json. Does nothing unless
- * RECORD_TRYON_POSE=1, so it never runs in a normal verify.
- *
- * Re-record after changing the tracker, the occluder or the frame layout:
- * the fixture is a snapshot of how those produce one frame.
- */
-
-// RECORD_FACE picks the fixture (default: the first face fixture).
 const FACE = (process.env.RECORD_FACE ?? FACE_FIXTURES[0]) as (typeof FACE_FIXTURES)[number]
-// RECORD_NAME names the fixture file (default: the face). RECORD_CLIP replaces the
-// portrait clip with a Y4M, e.g. a UPNA video; the fixture keeps the frame model.
 const NAME = process.env.RECORD_NAME ?? FACE
 const CLIP = process.env.RECORD_CLIP ?? ''
 const OUT_DIR = fileURLToPath(new URL('../fixtures/tryon-pose', import.meta.url))
@@ -32,9 +19,6 @@ interface HarnessSnapshotHost {
 
 test.describe('record tryon pose', () => {
   test.skip(!!skipReason, skipReason ?? '')
-  // RECORD_GL=hardware is needed for longer clips: SwiftShader is too slow for
-  // MediaPipe to find the first face in a 10 s UPNA clip. The saved values are
-  // tracker output, so the GL backend does not change the fixture.
   test.use({
     clip: skipReason ? '' : (CLIP || faceClip(FACE, 'still')),
     gl: (process.env.RECORD_GL ?? 'swiftshader') as 'hardware' | 'swiftshader'
@@ -50,7 +34,6 @@ test.describe('record tryon pose', () => {
       null,
       { timeout: 120_000 }
     )
-    // Let the smoothing settle on the still face before taking the frame.
     await page.waitForTimeout(25_000)
 
     const snapshot = await page.evaluate(

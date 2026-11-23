@@ -15,15 +15,6 @@ import {
   faceWidthVerdict
 } from '../../src/runtime/utils/tryon-fit'
 
-/**
- * Fit verdict on real tracking (issue #12): each face fixture is a person
- * wearing that catalog frame, which fits them, so the verdict should be
- * "good". Also the measurement FIT_IDEAL_RATIO was fitted on: the logged
- * frame/face ratio per fixture.
- *
- * Frame widths are the GLBs' bounding-box widths (calibration scale is 1 or
- * within 3% for these models), measured with gltf-transform.
- */
 const FRAME_WIDTH_MM: Record<string, number> = {
   'iris-moss': 139.7,
   'pteron-azure': 139.7,
@@ -89,7 +80,6 @@ test.describe('fit · shipped component', () => {
     const badge = page.locator('[data-fit]')
     await expect(badge).toBeVisible({ timeout: 60_000 })
     await expect(badge).toHaveAttribute('data-fit', 'good')
-    // GLB width 139.7 mm times pteron-azure's calibration scale (1.012).
     await expect(badge).toContainText('frame 141 mm')
   })
 })

@@ -11,32 +11,10 @@ import {
 } from '../../utils/tryon'
 import { useTryOnFrameLoop } from './useTryOnFrameLoop'
 
-// MediaPipe's per-frame landmarks jitter by a pixel or two even on a still
-// face, and the video's own frame rate is not the render frame rate. Both
-// alone are enough to make a rigidly-parented 3D model visibly tremble in a
-// way raw video never does. `oneEuroFilter` adapts its cutoff to the signal's
-// own speed, so it smooths hard while the user holds still and loosens
-// automatically during real motion instead of lagging behind it.
-//
-// `beta` is tuned higher for scale than for position/rotation: distance
-// changes (the user visibly walking toward or away from the camera) should
-// read as immediate, while position/rotation jitter at rest is the more
-// distracting artifact to suppress.
-//
-// beta on position/rotation is deliberately aggressive: it only raises the
-// cutoff *in proportion to measured signal speed*, so a still head keeps the
-// heavy minCutoff smoothing (no jitter) while any real motion — turning to
-// show a friend, leaning in — is tracked with almost no lag. This is the
-// "feels glued to the face" knob; too low and the frame swims behind the
-// head during motion, which reads as fake.
 const POSE_FILTER = { minCutoff: 1.2, beta: 2.4 }
 const ROTATION_FILTER = { minCutoff: 1.0, beta: 2.0, dCutoff: 1 }
 const SCALE_FILTER = { minCutoff: 0.9, beta: 1.8 }
 
-// Prediction deadbands (see `predictOneEuro`): below these speeds the
-// velocity estimate is mostly landmark noise, so a still head predicts
-// nothing. Anchor in normalized frame widths per second, scale as a fraction
-// of the current scale per second, rotation in radians per second.
 const ANCHOR_PREDICTION_DEADBAND = 0.06
 const SCALE_PREDICTION_DEADBAND = 0.3
 const ROTATION_PREDICTION_DEADBAND = 0.25
@@ -46,22 +24,7 @@ export function useTryOnSmoothing(options: {
   targetEuler: ComputedRef<{ x: number; y: number; z: number }>
   targetScale: ComputedRef<number>
   isTracking: ComputedRef<boolean>
-  /**
-   * While true (e.g. mid-blink, when iris landmarks are unreliable), the
-   * scale filter is not fed new measurements — the frame keeps its last
-   * smoothed size instead of jumping with the garbage signal.
-   */
   holdScale?: ComputedRef<boolean>
-  /**
-   * Measured camera→landmarks pipeline latency in milliseconds (EMA from
-   * `useFaceLandmarker`). While tracking, the filtered pose is extrapolated
-   * forward by this much along its own velocity estimates, so the rendered
-   * frame matches where the head is *now* instead of where it was when the
-   * camera frame was captured. Prediction is velocity-proportional — a still
-   * head predicts ~zero, keeping the heavy at-rest smoothing — and is applied
-   * display-only: the filter state is never advanced by it, so extrapolation
-   * error cannot feed back into the filter. Omit/0 disables prediction.
-   */
   latencyMs?: Ref<number> | ComputedRef<number>
 }) {
   const smoothedAnchor = ref<NormalizedLandmark>({
@@ -75,27 +38,13 @@ export function useTryOnSmoothing(options: {
   let scaleState: OneEuroState | null = null
   let wasTracking = options.isTracking.value
 
-  // Rotation is smoothed as a single quaternion slerp rather than three
-  // independent per-axis low-pass filters. Filtering yaw/pitch/roll
-  // separately can produce non-physical intermediate rotations ("wobble")
-  // during combined multi-axis motion (e.g. a quick head tilt while turning)
-  // — slerping the whole rotation as one rigid unit avoids that. The slerp
-  // factor itself is adapted with the same One Euro Filter formula used for
-  // the scalar signals below.
   let smoothedQuaternion: Quaternion | null = null
   let angularSpeedState = 0
-  // Speed of the smoothed rotation itself (rad/s), for latency prediction.
-  // `angularSpeedState` measures the residual to the raw target, which on a
-  // still head is pure landmark noise; the smoothed rotation barely moves at
-  // rest, so extrapolating along its speed adds no jitter.
   let smoothedSpeedState = 0
   const previousQuat = new Quaternion()
   const targetEulerObj = new Euler()
   const targetQuat = new Quaternion()
-  // Display-only rotation: filter state quaternion + latency prediction.
-  // Kept separate so the prediction never feeds back into the slerp state.
   const displayQuat = new Quaternion()
-  // Reused per-frame instead of allocating in the rAF loop (60-120Hz).
   const outEulerObj = new Euler()
 
   useTryOnFrameLoop((delta) => {
@@ -104,9 +53,6 @@ export function useTryOnSmoothing(options: {
     const targetScale = options.targetScale.value
     const dtSeconds = delta / 1000
 
-    // Reset (snap) whenever the face is (re)acquired — filtering a jump
-    // from "no face" to a freshly-detected position would drag the frame
-    // across the screen instead of appearing where the face is.
     if (options.isTracking.value && !wasTracking) {
       anchorXState = null
       anchorYState = null
@@ -129,8 +75,6 @@ export function useTryOnSmoothing(options: {
       dtSeconds,
       POSE_FILTER
     )
-    // Blinks corrupt the iris-driven scale signal for a few frames; hold
-    // the last smoothed value rather than filtering the garbage in.
     if (!options.holdScale?.value) {
       scaleState = oneEuroFilter(
         scaleState,
@@ -162,11 +106,6 @@ export function useTryOnSmoothing(options: {
         dAlpha * smoothedSpeed + (1 - dAlpha) * smoothedSpeedState
     }
 
-    // Latency compensation: the pose targets describe where the head was
-    // when the camera frame was captured (~latencyMs ago). Extrapolate the
-    // filtered signals forward along their own velocity estimates so the
-    // rendered frame matches where the head is *now*. Applied to the
-    // outputs only — filter state is never advanced by the prediction.
     const predSeconds = options.isTracking.value
       ? Math.min(
           Math.max((options.latencyMs?.value ?? 0) / 1000, 0),
@@ -191,13 +130,6 @@ export function useTryOnSmoothing(options: {
       )
     }
 
-    // Rotation prediction: advance from the filtered quaternion toward the
-    // latest measurement by the angle the smoothed rotation covers in
-    // `predSeconds` at its own speed (less a deadband), overshooting the
-    // measurement by at most a fifth of the remaining angle (t ≤ 1.2) — the
-    // same clamp as `predictOneEuro`, so a decelerating head turn can't
-    // swing the frame visibly past the face. Zero speed leaves the filtered
-    // rotation untouched (t = 0), so a still head keeps its smoothing.
     displayQuat.copy(smoothedQuaternion)
     if (predSeconds > 0) {
       const remaining = displayQuat.angleTo(targetQuat)
@@ -212,8 +144,6 @@ export function useTryOnSmoothing(options: {
     }
     const outEuler = outEulerObj.setFromQuaternion(displayQuat)
     smoothedEuler.value = { x: outEuler.x, y: outEuler.y, z: outEuler.z }
-    // scaleState stays null until the first non-held frame — keep the
-    // initial value in that window instead of crashing on the read.
     if (scaleState) {
       smoothedScale.value = predictOneEuro(
         scaleState,

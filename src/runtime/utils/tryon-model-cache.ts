@@ -1,31 +1,14 @@
-/**
- * Instant frame switching (issue #94): an LRU of parsed GLBs and the order in
- * which to prefetch a model's neighbours. Pure (no three.js, no Vue), so the
- * eviction and the neighbour order are unit-tested.
- */
-
 export interface LruCache<K, V> {
-  /** The value, marked most recently used; undefined when absent. */
   get(key: K): V | undefined
   has(key: K): boolean
-  /** Insert (or replace) as most recently used, then evict over capacity. */
   set(key: K, value: V): void
   delete(key: K): boolean
-  /** Change the capacity, evicting at once if it shrank. */
   resize(capacity: number): void
-  /** Keys, least recently used first. */
   keys(): K[]
-  /** Dispose and remove everything. */
   clear(): void
   readonly size: number
 }
 
-/**
- * Least-recently-used cache with a capacity in entries. `dispose` runs on
- * every value that leaves (evicted, replaced, deleted, cleared). `pinned`
- * keys are never evicted (the frame on screen): the cache may then run over
- * capacity until they are unpinned.
- */
 export function createLruCache<K, V>(
   capacity: number,
   dispose: (value: V, key: K) => void = () => {},
@@ -83,11 +66,6 @@ export function createLruCache<K, V>(
   }
 }
 
-/**
- * Files to prefetch around `active` in catalog order: the next and previous
- * models first (usually the neighbouring colourways), then one further out
- * each side, up to `perSide` each way. No wrap-around.
- */
 export function neighbourFiles(
   files: readonly string[],
   active: string | undefined,
@@ -105,9 +83,7 @@ export function neighbourFiles(
   return [...new Set(out)]
 }
 
-/** Cache capacity per tier: low-tier devices keep the current frame and one more. */
 export function modelCacheCapacity(lowTier: boolean, preload: number): number {
   if (lowTier) return 2
-  // The frame on screen, its neighbours, and room for the one just left.
   return Math.min(Math.max(2 + 2 * preload, 4), 6)
 }

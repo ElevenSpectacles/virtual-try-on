@@ -47,8 +47,6 @@ describe('useTryOnLighting', () => {
 })
 
 describe('useTryOnFit', () => {
-  // The fit composable only reads the widths through its getters; the
-  // landmarks ref is the per-detection trigger.
   function setup(frameWidthMm = 140) {
     const landmarks = ref<NormalizedLandmark[]>([])
     const hasFace = ref(true)
@@ -58,7 +56,6 @@ describe('useTryOnFit', () => {
       useTryOnFit({
         landmarks,
         hasFace,
-        // Face 140 mm at ear level: ear width / IPD × 63 mm.
         earWidth: () => (0.1 * 140) / 63,
         ipd: () => 0.1,
         frameWidthMm: () => frameWidth.value,

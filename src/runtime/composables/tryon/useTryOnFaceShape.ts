@@ -12,23 +12,13 @@ import type { NormalizedLandmark } from '../../utils/tryon'
 import type { FacePose } from '../../utils/tryon-pose'
 
 export interface UseTryOnFaceShapeOptions {
-  /** Raw landmarks (normalized to the camera frame). */
   landmarks: Ref<NormalizedLandmark[]>
   pose: Ref<FacePose | null>
-  /** Camera frame aspect (width / height); 0 while unknown. */
   mediaAspect: Ref<number>
-  /** Measure at all. Default on. */
   enabled?: () => boolean
-  /** Lost time after which the estimate starts over (another person). */
   resetAfterLossMs?: number
 }
 
-/**
- * Face-shape glue (issue #98): averages the face proportions over frontal
- * detections (same yaw/pitch gate as the PD measurement, since a turned head
- * foreshortens the widths) and classifies them with hysteresis. Null until
- * FACE_SHAPE_MIN_SAMPLES frames are in.
- */
 export function useTryOnFaceShape(options: UseTryOnFaceShapeOptions) {
   const enabled = options.enabled ?? (() => true)
   const resetAfterLossMs = options.resetAfterLossMs ?? 2000
@@ -45,7 +35,6 @@ export function useTryOnFaceShape(options: UseTryOnFaceShapeOptions) {
       }
       return
     }
-    // A held face goes empty only once per loss: also check on its return.
     if (lostAt !== null && performance.now() - lostAt >= resetAfterLossMs) {
       estimate.value = null
       result.value = null

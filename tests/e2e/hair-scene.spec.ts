@@ -1,15 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { missingPrerequisite } from './fixtures'
 
-/**
- * Hair occlusion (#9), positive case on frozen frames: the playground's
- * `?view=scene&hair=band` paints a hair band over the near temple arm
- * (`hairBand`, stage-width fractions). The arm behind the temple roots must
- * vanish inside the band, and nothing else may change: the frame front,
- * hinges and the far side stay. The live face fixtures have no hair over an
- * arm (see hair.spec.ts), so this is where the hiding itself is proven.
- */
-
 const skipReason = missingPrerequisite()
 
 test.describe('hair occlusion, frozen frame', () => {
@@ -17,7 +8,6 @@ test.describe('hair occlusion, frozen frame', () => {
   test.use({ gl: 'swiftshader' })
   test.setTimeout(240_000)
 
-  /** Stage x range (px) of the band, from the playground's `hairBand` fractions. */
   const STAGE_WIDTH = 448
   const CASES = [
     { face: 'iris-moss', band: [0.66, 0.8] as const },
@@ -68,8 +58,6 @@ test.describe('hair occlusion, frozen frame', () => {
       console.log(`  ${line}`)
 
       expect(diff.changed, 'arm pixels hidden').toBeGreaterThan(50)
-      // Only inside the band, give or take the bilinear mask edge and the
-      // antialiased arm pixel at it (3 px).
       expect(diff.minX).toBeGreaterThanOrEqual(band[0] * STAGE_WIDTH - 3)
       expect(diff.maxX).toBeLessThanOrEqual(band[1] * STAGE_WIDTH + 3)
     })

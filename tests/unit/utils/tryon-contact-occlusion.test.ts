@@ -14,7 +14,6 @@ import {
   sphereOcclusion
 } from '../../../src/runtime/utils/tryon-contact-occlusion'
 
-/** Points on a straight rod along x, like a temple arm. */
 function rod(length: number, step = 0.001): number[] {
   const points: number[] = []
   for (let i = 0; i * step <= length; i++) points.push(i * step, 0.002, 0.004, i * step, 0.004, 0.002)
@@ -26,7 +25,6 @@ const up = { x: 0, y: 0, z: 1 }
 describe('fitOccluderSpheres', () => {
   it('turns a thin rod into a chain of small spheres', () => {
     const spheres = fitOccluderSpheres(rod(0.08), FRAME_SPHERE_CELL_METERS)
-    // 0…80 mm in 8 mm cells: 10 full cells and the end point's.
     expect(spheres.length).toBeGreaterThanOrEqual(10)
     expect(spheres.length).toBeLessThanOrEqual(11)
     for (const s of spheres) {
@@ -62,7 +60,6 @@ describe('fitFrameOccluders', () => {
     expect(byPart[0]!.length).toBeGreaterThan(0)
     expect(byPart[1]!.length).toBeGreaterThan(0)
     expect(byPart[0]!.length + byPart[1]!.length).toBeLessThanOrEqual(20)
-    // Same spheres as the flat fit, part by part.
     expect(byPart.flat()).toEqual(fitFrameOccluders([front, arm], 20))
   })
 })
@@ -87,7 +84,6 @@ describe('sphereOcclusion', () => {
   })
 
   it('is continuous across the sphere surface', () => {
-    // A sphere mostly below the skin, like a temple tip entering the head.
     const sphere = { x: 0, y: 0, z: -0.0015, r: 0.002 }
     const at = (x: number) => sphereOcclusion({ x, y: 0, z: 0 }, up, sphere)
     const edge = Math.sqrt(0.002 ** 2 - 0.0015 ** 2)

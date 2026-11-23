@@ -1,14 +1,6 @@
 import { getCurrentScope, onScopeDispose, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 
-/**
- * Reactive content-box size of an element, tracked with a ResizeObserver.
- * Stays `0 × 0` until the element mounts, and where ResizeObserver doesn't
- * exist (SSR).
- *
- * The module's own replacement for VueUse's `useElementSize` (see
- * `useTryOnFrameLoop`).
- */
 export function useTryOnElementSize(target: Ref<HTMLElement | null>): {
   width: Ref<number>
   height: Ref<number>

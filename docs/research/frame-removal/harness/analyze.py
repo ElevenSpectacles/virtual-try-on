@@ -1,9 +1,3 @@
-# Frame-removal spike (#100), step 2: for each fixture, the segmenter's classes
-# inside a landmark-built lens region, the landmark glasses mask, classic
-# inpainting (Telea, Navier-Stokes) of it, and a thin-rim removal test with
-# ground truth (a 4 px bar drawn over skin and hair, then inpainted).
-#
-#   python3 analyze.py <seg.json> <faces-dir> <out-dir>   (needs numpy, opencv-python-headless)
 import json, sys, time
 import numpy as np, cv2
 SEG, FACES, OUT = sys.argv[1:4]
@@ -27,10 +21,8 @@ def glasses_mask(lm, w, h):
         cv2.ellipse(lens, (int(c[0]), int(c[1])), (int(0.95*ew), int(0.72*ew)), ang, 0, 360, 255, -1)
         lenses.append(lens)
         m |= lens
-        # temple: from the lens's outer edge to the ear landmark
         edge = c + (b - a) / ew * 0.95 * ew
         cv2.line(m, tuple(int(v) for v in edge), tuple(int(v) for v in px(lm, ear, w, h)), 255, max(3, int(0.14*ew)))
-    # bridge between the inner corners, at the top of the nose
     cv2.line(m, tuple(int(v) for v in px(lm, 133, w, h)), tuple(int(v) for v in px(lm, 362, w, h)), 255, max(3, int(0.12*np.linalg.norm(px(lm,133,w,h)-px(lm,362,w,h)))))
     return m, lenses[0] | lenses[1]
 
@@ -56,8 +48,6 @@ for name in ['iris-moss', 'pteron-azure', 'kairos-amber']:
         for _ in range(5):
             t0 = time.perf_counter(); out = cv2.inpaint(img, mask, 5, flag); t.append((time.perf_counter()-t0)*1000)
         res[label] = (out, min(t))
-    # Thin-rim test: a 4 px frame-coloured bar across the forehead and one
-    # across the temple hair, removed again; scored against the original.
     rim = np.zeros((h, w), np.uint8)
     brow = [px(lm, i, w, h) - np.array([0, 0.35*np.linalg.norm(px(lm,33,w,h)-px(lm,133,w,h))]) for i in (70, 105, 107, 9, 336, 334, 300)]
     cv2.polylines(rim, [np.array(brow, np.int32)], False, 255, 4)
