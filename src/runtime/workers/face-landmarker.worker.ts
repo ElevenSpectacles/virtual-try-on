@@ -150,6 +150,7 @@ async function init(basePath?: string, modelAssetPath?: string) {
 
     const landmarkerOptions = (delegate: 'GPU' | 'CPU') => ({
       baseOptions: { ...baseOptions, delegate },
+      canvas: new OffscreenCanvas(1, 1),
       runningMode: 'VIDEO' as const,
       numFaces: 1,
       outputFaceBlendshapes: true,
