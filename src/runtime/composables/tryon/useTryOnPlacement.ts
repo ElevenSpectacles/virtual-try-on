@@ -298,24 +298,28 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
     if (scaleSource.value === 'manual') {
       return computeMetricBaseScale(options.aspect.value, referenceFaceWidth())
     }
-    // Each measure's real length: the population average, eased toward the
-    // shopper's own once measured (cheek width has no measurement).
     const measured = measurement.value
     const measure =
       scaleSource.value === 'ear'
         ? ([
             earWidth.value,
-            blendedMeters(measured, measured?.earWidthMm ?? 0, ASSUMED_EAR_WIDTH_METERS)
+            blendedMeters(
+              measured,
+              measured?.earWidthMm ?? 0,
+              ASSUMED_EAR_WIDTH_METERS / FRAME_FIT_SCALE_BOOST
+            )
           ] as const)
         : scaleSource.value === 'width'
-          ? ([faceWidth.value, ASSUMED_FACE_WIDTH_METERS] as const)
-          : ([ipd.value, blendedMeters(measured, measured?.nearPdMm ?? 0, ASSUMED_IPD_METERS)] as const)
-    // Tracked sources get the fit boost on top — a real frame is worn
-    // slightly wider than the skull (see FRAME_FIT_SCALE_BOOST).
-    return (
-      computeMetricScaleFromMeasure(options.aspect.value, poseCompensated(measure[0]), measure[1]) *
-      FRAME_FIT_SCALE_BOOST
-    )
+          ? ([faceWidth.value, ASSUMED_FACE_WIDTH_METERS / FRAME_FIT_SCALE_BOOST] as const)
+          : ([
+              ipd.value,
+              blendedMeters(
+                measured,
+                measured?.nearPdMm ?? 0,
+                ASSUMED_IPD_METERS / FRAME_FIT_SCALE_BOOST
+              )
+            ] as const)
+    return computeMetricScaleFromMeasure(options.aspect.value, poseCompensated(measure[0]), measure[1])
   })
 
   const calibratedScale = computed(
