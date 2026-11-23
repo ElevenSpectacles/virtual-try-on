@@ -6,6 +6,8 @@ import {
 } from '../../../../src/runtime/composables/tryon/useTryOnPlacement'
 import {
   ASSUMED_EAR_WIDTH_METERS,
+  ASSUMED_FACE_WIDTH_METERS,
+  ASSUMED_IPD_METERS,
   FRAME_BRIDGE_STANDOFF_METERS,
   FRAME_FIT_SCALE_BOOST,
   computeMetricScaleFromMeasure,
@@ -120,6 +122,18 @@ describe('useTryOnPlacement', () => {
     expect(out.scaleSource).toBe('ear')
     const expected =
       computeMetricScaleFromMeasure(1, 0.28, ASSUMED_EAR_WIDTH_METERS) * FRAME_FIT_SCALE_BOOST
+    expect(out.scale).toBeCloseTo(expected, 4)
+  })
+
+  it.each([
+    ['width', [234, 454], 0.26, ASSUMED_FACE_WIDTH_METERS],
+    ['ipd', [234, 454, 127, 356], 0.12, ASSUMED_IPD_METERS]
+  ] as const)('keeps the boost on the assumed %s fallback', (source, hidden, measure, meters) => {
+    const points = face()
+    for (const index of hidden) points[index] = { x: 0.5, y: 0.45, z: 0 }
+    const out = settled({ ...inputs(), landmarks: ref(points) })
+    expect(out.scaleSource).toBe(source)
+    const expected = computeMetricScaleFromMeasure(1, measure, meters) * FRAME_FIT_SCALE_BOOST
     expect(out.scale).toBeCloseTo(expected, 4)
   })
 
@@ -278,9 +292,33 @@ describe('useTryOnPlacement', () => {
       expect(wide.scale).toBeLessThan(narrow.scale)
       expect(narrow.scale / wide.scale).toBeCloseTo(70 / 56, 3)
       const earWidthMeters = (0.28 / 0.12) * 0.063
-      const expected =
-        computeMetricScaleFromMeasure(1, 0.28, earWidthMeters) * FRAME_FIT_SCALE_BOOST
+      const expected = computeMetricScaleFromMeasure(1, 0.28, earWidthMeters)
       expect((await measured(63, PD_STABLE_SAMPLES)).scale).toBeCloseTo(expected, 4)
+    })
+
+    it('does not boost a card-calibrated size', () => {
+      const out = settled({ ...inputs(), calibratedPd: () => ({ nearPdMm: 63, pdMm: 64.5 }) })
+      const earWidthMeters = (0.28 / 0.12) * 0.063
+      expect(out.scale).toBeCloseTo(computeMetricScaleFromMeasure(1, 0.28, earWidthMeters), 4)
+    })
+
+    it('does not boost a measured PD on the IPD fallback', () => {
+      const points = face()
+      for (const index of [234, 454, 127, 356]) points[index] = { x: 0.5, y: 0.45, z: 0 }
+      const out = settled({
+        ...inputs(),
+        landmarks: ref(points),
+        calibratedPd: () => ({ nearPdMm: 58, pdMm: 59.5 })
+      })
+      expect(out.scaleSource).toBe('ipd')
+      expect(out.scale).toBeCloseTo(computeMetricScaleFromMeasure(1, 0.12, 0.058), 4)
+    })
+
+    it('does not grow a face that measures exactly as assumed', async () => {
+      const assumedEarMm = (ASSUMED_EAR_WIDTH_METERS * 1000) / FRAME_FIT_SCALE_BOOST
+      const out = await measured(assumedEarMm * (0.12 / 0.28), PD_STABLE_SAMPLES)
+      expect(out.measurement?.stable).toBe(true)
+      expect(out.scale).toBeCloseTo(settled(inputs()).scale, 4)
     })
 
     it('eases in from the assumed size with no visible jump', async () => {

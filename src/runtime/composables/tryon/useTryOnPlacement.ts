@@ -217,15 +217,23 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
       scaleSource.value === 'ear'
         ? ([
             earWidth.value,
-            blendedMeters(measured, measured?.earWidthMm ?? 0, ASSUMED_EAR_WIDTH_METERS)
+            blendedMeters(
+              measured,
+              measured?.earWidthMm ?? 0,
+              ASSUMED_EAR_WIDTH_METERS / FRAME_FIT_SCALE_BOOST
+            )
           ] as const)
         : scaleSource.value === 'width'
-          ? ([faceWidth.value, ASSUMED_FACE_WIDTH_METERS] as const)
-          : ([ipd.value, blendedMeters(measured, measured?.nearPdMm ?? 0, ASSUMED_IPD_METERS)] as const)
-    return (
-      computeMetricScaleFromMeasure(options.aspect.value, poseCompensated(measure[0]), measure[1]) *
-      FRAME_FIT_SCALE_BOOST
-    )
+          ? ([faceWidth.value, ASSUMED_FACE_WIDTH_METERS / FRAME_FIT_SCALE_BOOST] as const)
+          : ([
+              ipd.value,
+              blendedMeters(
+                measured,
+                measured?.nearPdMm ?? 0,
+                ASSUMED_IPD_METERS / FRAME_FIT_SCALE_BOOST
+              )
+            ] as const)
+    return computeMetricScaleFromMeasure(options.aspect.value, poseCompensated(measure[0]), measure[1])
   })
 
   const calibratedScale = computed(
