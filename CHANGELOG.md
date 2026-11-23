@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.0.3](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.2...v5.0.3) (2026-11-23)
+
+
+### Bug Fixes
+
+* stop inflating measured frame size by 12% ([cd9f8a1](https://github.com/ElevenSpectacles/virtual-try-on/commit/cd9f8a1cb4b83db4950b64afde58439fdcf87235))
+* stop inflating measured frame size by 12% ([1dafa96](https://github.com/ElevenSpectacles/virtual-try-on/commit/1dafa96266be7aa3808f199a8aa0c3dbd8618131)), closes [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145)
+
 ## [5.0.2](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.1...v5.0.2) (2026-11-20)
 
 
