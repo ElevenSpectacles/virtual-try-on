@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from './camera-test'
 import { FACE_FIXTURES, faceClip, missingPrerequisite } from './fixtures'
-import type { HarnessResult } from './tracking-harness'
+import { waitForSettledPose, type HarnessResult } from './tracking-harness'
 
 const FACE = (process.env.RECORD_FACE ?? FACE_FIXTURES[0]) as (typeof FACE_FIXTURES)[number]
 const NAME = process.env.RECORD_NAME ?? FACE
@@ -34,7 +34,7 @@ test.describe('record tryon pose', () => {
       null,
       { timeout: 120_000 }
     )
-    await page.waitForTimeout(25_000)
+    await waitForSettledPose(page)
 
     const snapshot = await page.evaluate(
       () => (window as unknown as HarnessSnapshotHost).__tryOnHarness.snapshot()

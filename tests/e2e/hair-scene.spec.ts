@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { missingPrerequisite } from './fixtures'
+import { waitForScene } from './readiness'
 
 const skipReason = missingPrerequisite()
 
@@ -18,9 +19,7 @@ test.describe('hair occlusion, frozen frame', () => {
     test(`${face}: a hair band hides the arm under it and nothing else`, async ({ page }, testInfo) => {
       const shoot = async (hair: 'off' | 'band') => {
         await page.goto(`/?view=scene&face=${face}&hair=${hair}&hairBand=${band[0]}-${band[1]}`)
-        const scene = page.locator('[data-scene]').first()
-        await expect(scene.locator('canvas')).toBeVisible({ timeout: 30_000 })
-        await page.waitForTimeout(12_000)
+        const scene = await waitForScene(page)
         return scene.screenshot()
       }
       const off = await shoot('off')

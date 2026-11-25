@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { missingPrerequisite } from './fixtures'
+import { waitForScene } from './readiness'
 
 const CHANGE_TOLERANCE = 2
 const MIN_CHANGED_PIXELS = 100
@@ -15,9 +16,7 @@ interface Diff {
 
 async function shoot(page: Page, shadow: boolean): Promise<Buffer> {
   await page.goto(`/?view=scene&shadow=${shadow ? 'on' : 'off'}`)
-  const scene = page.locator('[data-scene]').first()
-  await expect(scene.locator('canvas')).toBeVisible({ timeout: 30_000 })
-  await page.waitForTimeout(12_000)
+  const scene = await waitForScene(page)
   return scene.screenshot()
 }
 
@@ -86,13 +85,11 @@ test.describe('contact shadow, frozen frame', () => {
     expect(bbox.maxY, 'bottom edge of the shadow').toBeLessThan(effect.height * 0.9)
 
     await page.goto('/?view=scene&shadow=on')
-    await expect(page.locator('[data-scene]').first().locator('canvas')).toBeVisible({ timeout: 30_000 })
-    await page.waitForTimeout(12_000)
+    await waitForScene(page)
     await expect(page.locator('[data-scene]').first()).toHaveScreenshot('frozen-shadow-on.png', { timeout: 30_000, threshold: 0.02 })
 
     await page.goto('/?view=scene&shadow=off')
-    await expect(page.locator('[data-scene]').first().locator('canvas')).toBeVisible({ timeout: 30_000 })
-    await page.waitForTimeout(12_000)
+    await waitForScene(page)
     await expect(page.locator('[data-scene]').first()).toHaveScreenshot('frozen-shadow-off.png', { timeout: 30_000, threshold: 0.02 })
   })
 })

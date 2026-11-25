@@ -18,7 +18,6 @@ These checks are not in CI. Intended visual changes require reviewing re-recorde
 ## Known problems in these files
 
 - [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
-- [#154](https://github.com/ElevenSpectacles/virtual-try-on/issues/154): Testing: replace fixed e2e sleeps with readiness signals
 - [#155](https://github.com/ElevenSpectacles/virtual-try-on/issues/155): Testing: UPNA pose spec cannot catch mirrored axes or scale errors
 
 ## Detailed records
@@ -409,6 +408,36 @@ when fewer than `minPairs` frames overlap at every lag.
 
 Parse a UPNA 3D ground-truth file: rows of `Tx Ty Tz Roll Yaw Pitch`.
 
+### `tests/e2e/readiness.ts`
+
+#### File overview
+
+Readiness signals instead of fixed sleeps (issue #154). A spec waits for
+what it needs, so it is as fast as the machine allows and never shoots too
+early on a slow one:
+
+- Scene view (`?view=scene`): `[data-scene][data-ready="true"]` once the
+  GLB, the environment map and the calibration manifest have loaded.
+- Experience view: `[data-experience]` carries `data-has-face` and
+  `data-model-loaded` (the component's read-only `modelLoaded`).
+- Then `waitForStill`: screenshots 500 ms apart until they stop changing,
+  so the smoothed pose, the occluder and SwiftShader's slow frames have
+  settled. Scene view: two in a row within 0.1 % of the pixels (channel
+  tolerance 2). Live view (`waitForLiveStill`): three in a row within
+  0.3 %, channel tolerance 12.
+
+Fixed waits that remain are measurement windows, not readiness: the
+tracking sample (`SAMPLE_MS`), the lighting sampler, the dropout window in
+robustness, and the metrics and hair session lengths.
+
+#### `LIVE_STILL_MAX_CHANGED_RATIO`
+
+A live still clip never renders two identical frames: the camera-match
+grain is reseeded every frame (up to 0.04, about 10 of 255 levels, hence
+tolerance 12), and landmark jitter keeps moving frame edges by fractions of
+a pixel, about 0.16–0.2 % of the stage per 500 ms once settled (measured
+2026-11-25, SwiftShader). Hence 0.3 %, still under the goldens' 0.5 %.
+
 ### `tests/e2e/record-tryon-pose.spec.ts`
 
 #### `FACE`
@@ -416,7 +445,10 @@ Parse a UPNA 3D ground-truth file: rows of `Tx Ty Tz Roll Yaw Pitch`.
 Records one settled frame of the prototype's scene inputs for the fixed-pose
 render (tests/e2e/tryon-pose-scene.spec.ts). Writes
 tests/fixtures/tryon-pose/&lt;face>.json. Does nothing unless
-RECORD_TRYON_POSE=1, so it never runs in a normal verify.
+RECORD_TRYON_POSE=1, so it never runs in a normal verify. It records once
+the harness snapshot stops moving (`waitForSettledPose` in
+tracking-harness.ts: three reads in a row within 1e-3 rad and 0.1 % of
+scale and face width).
 
 Re-record after changing the tracker, the occluder or the frame layout:
 the fixture is a snapshot of how those produce one frame.

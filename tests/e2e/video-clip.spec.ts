@@ -56,7 +56,9 @@ test.describe('real video clip', () => {
     )
     await page.getByRole('button', { name: 'Start camera' }).click()
     await expect.poll(() => faceDetected, { timeout: 60_000 }).toBe(true)
-    await page.waitForTimeout(3_000)
+    await expect(page.locator('[data-experience]')).toHaveAttribute('data-model-loaded', 'true', {
+      timeout: 30_000
+    })
     const stage = page.locator('.vto-stage')
     await expect(stage.getByText('Position your face in view'), 'face tracked').toBeHidden()
     const path = testInfo.outputPath('experience.png')

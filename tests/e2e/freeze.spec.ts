@@ -1,5 +1,6 @@
 import { expect, test } from './camera-test'
 import { faceClip, missingPrerequisite } from './fixtures'
+import { waitForLiveStill, waitForTryOn } from './readiness'
 
 const skipReason = missingPrerequisite()
 const face = 'iris-moss'
@@ -17,9 +18,7 @@ test.describe('freeze', () => {
       () => !!(document.querySelector('#__nuxt') as { __vue_app__?: unknown } | null)?.__vue_app__
     )
     await page.getByRole('button', { name: 'Start camera' }).click()
-    const stage = page.locator('.vto-stage')
-    await expect(stage.getByText('Position your face in view')).toBeHidden({ timeout: 75_000 })
-    await page.waitForTimeout(20_000)
+    const stage = await waitForTryOn(page)
 
     await page.getByRole('button', { name: 'Freeze' }).click()
     await expect(stage.locator('[data-frozen="true"]')).toBeVisible()
@@ -27,7 +26,10 @@ test.describe('freeze', () => {
     expect(paused).toBe(true)
 
     await page.getByRole('button', { name: 'Next frame' }).click()
-    await page.waitForTimeout(10_000)
+    await expect(page.locator('[data-experience]')).toHaveAttribute('data-model-loaded', 'true', {
+      timeout: 30_000
+    })
+    await waitForLiveStill(page, stage)
     await expect(stage).toHaveScreenshot(`${face}-frozen-next.png`, {
       threshold: 0.02,
       timeout: 20_000

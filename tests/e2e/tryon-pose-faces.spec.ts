@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { missingPrerequisite } from './fixtures'
+import { waitForScene } from './readiness'
 
 const FACES = ['iris-moss', 'pteron-azure'] as const
 const CHANGE_TOLERANCE = 2
@@ -9,9 +10,7 @@ const skipReason = missingPrerequisite()
 
 async function shoot(page: Page, face: string, shadow: boolean): Promise<Buffer> {
   await page.goto(`/?view=scene&face=${face}&shadow=${shadow ? 'on' : 'off'}`)
-  const scene = page.locator('[data-scene]').first()
-  await expect(scene.locator('canvas')).toBeVisible({ timeout: 30_000 })
-  await page.waitForTimeout(12_000)
+  const scene = await waitForScene(page)
   return scene.screenshot()
 }
 

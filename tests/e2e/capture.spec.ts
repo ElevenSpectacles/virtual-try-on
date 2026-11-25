@@ -1,5 +1,6 @@
 import { expect, test } from './camera-test'
 import { FACE_FIXTURES, faceClip, missingPrerequisite } from './fixtures'
+import { waitForTryOn } from './readiness'
 
 const skipReason = missingPrerequisite()
 const face = FACE_FIXTURES[0]!
@@ -17,9 +18,7 @@ test.describe('capture', () => {
       () => !!(document.querySelector('#__nuxt') as { __vue_app__?: unknown } | null)?.__vue_app__
     )
     await page.getByRole('button', { name: 'Start camera' }).click()
-    const stage = page.locator('.vto-stage')
-    await expect(stage.getByText('Position your face in view')).toBeHidden({ timeout: 75_000 })
-    await page.waitForTimeout(20_000)
+    const stage = await waitForTryOn(page)
 
     await page.getByRole('button', { name: 'Capture' }).click()
     const image = page.locator('img[data-capture]')

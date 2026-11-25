@@ -55,6 +55,8 @@ const GUIDE_LABELS = {
 } as const
 const showLighting = computed(() => route.query.lighting === 'true')
 const experienceRef = ref<{
+  modelLoaded: boolean
+  hasFace: boolean
   lighting: { luma: number | null; gain: number; sampleMs: number | null }
   hair: {
     active: boolean
@@ -102,6 +104,9 @@ function onMetrics(payload: TryOnSessionMetrics) {
       <div
         v-if="showExperience"
         class="relative mx-auto aspect-3/4 w-full max-w-md bg-neutral-900"
+        data-experience
+        :data-model-loaded="experienceRef?.modelLoaded ?? false"
+        :data-has-face="experienceRef?.hasFace ?? false"
       >
         <VirtualTryOnExperience
           ref="experienceRef"
