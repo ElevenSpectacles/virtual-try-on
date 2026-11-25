@@ -1,4 +1,4 @@
-import { computed, watch, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { getTryOnModel, type TryOnModel } from '../useTryOnModels'
 import { useTryOnModelCache } from '../useTryOnModelCache'
 import { modelCacheCapacity, neighbourFiles } from '../../../utils/tryon-model-cache'
@@ -28,6 +28,8 @@ export function useTryOnModelSwitch(options: UseTryOnModelSwitchOptions) {
     return `${props.modelBaseUrl}/${file}.glb`
   }
   const modelSrc = computed(() => srcFor(model.value ?? options.initialModel))
+  const loadedSrc = ref<string | null>(null)
+  const modelLoaded = computed(() => loadedSrc.value === modelSrc.value)
 
   const preloadPerSide = computed(() =>
     props.preload === false ? 0 : Math.max(0, Math.floor(props.preload))
@@ -64,6 +66,7 @@ export function useTryOnModelSwitch(options: UseTryOnModelSwitchOptions) {
   }
 
   function onModelLoaded(widthMeters: number) {
+    loadedSrc.value = modelSrc.value
     options.onLoaded(widthMeters)
     if (switchStartedAt !== null) {
       options.metrics?.onModelSwitchLatency(performance.now() - switchStartedAt)
@@ -71,5 +74,5 @@ export function useTryOnModelSwitch(options: UseTryOnModelSwitchOptions) {
     }
   }
 
-  return { modelSrc, modelCache, preloadModel, onModelSwitch, onModelLoaded }
+  return { modelSrc, modelLoaded, modelCache, preloadModel, onModelSwitch, onModelLoaded }
 }

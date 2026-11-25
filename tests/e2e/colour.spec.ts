@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from './camera-test'
 import { missingPrerequisite } from './fixtures'
+import { waitForScene } from './readiness'
 import { deltaE2000, hexToLab, srgbToLab } from '../../scripts/lib/colour'
 
 interface Swatch {
@@ -34,9 +35,7 @@ test.describe('colour QA', () => {
     test(`${model} matches its product photo`, async ({ cameraPage: page }, testInfo) => {
       const params = new URLSearchParams({ view: 'scene', face: swatches.face, model, light: 'neutral' })
       await page.goto(`/?${params.toString()}`)
-      const scene = page.locator('[data-scene]').first()
-      await expect(scene.locator('canvas')).toBeVisible({ timeout: 30_000 })
-      await page.waitForTimeout(12_000)
+      const scene = await waitForScene(page)
       const png = await scene.screenshot()
 
       for (const [part, swatch] of Object.entries(parts)) {

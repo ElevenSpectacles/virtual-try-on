@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { NeutralToneMapping, VSMShadowMap } from 'three'
 import TryOnScene from '../../src/runtime/components/TryOnScene.vue'
 import { useFrameCalibration } from '../../src/runtime/composables/tryon/useFrameCalibration'
@@ -68,7 +68,18 @@ const fixture = computed<PoseFixture>(() => {
 const STAGE_WIDTH = 448
 const stageHeight = computed(() => STAGE_WIDTH / fixture.value.aspect)
 
-const { getCalibration } = useFrameCalibration('/models/virtual-try-on/calibration.json')
+const { manifest, loadError, getCalibration } = useFrameCalibration('/models/virtual-try-on/calibration.json')
+const modelLoaded = ref(false)
+const environmentDone = ref(false)
+const ready = computed(
+  () => modelLoaded.value && environmentDone.value && (manifest.value !== null || loadError.value !== null)
+)
+function onTiming(asset: 'model' | 'environment') {
+  if (asset === 'environment') environmentDone.value = true
+}
+function onError(source: 'model' | 'environment') {
+  if (source === 'environment') environmentDone.value = true
+}
 const lensOverride = computed(() => getCalibration(props.model ?? fixture.value.face).lens)
 
 const occluderPositions = computed(() =>
@@ -80,6 +91,7 @@ const occluderPositions = computed(() =>
 <template>
   <div
     data-scene
+    :data-ready="ready"
     :style="{ width: `${STAGE_WIDTH}px`, height: `${stageHeight}px`, background: BACKDROP[props.background] }"
     class="relative"
   >
@@ -112,6 +124,9 @@ const occluderPositions = computed(() =>
           :physical-lens="lens === 'physical'"
           :lens="lensOverride"
           :hair-mask="hairMask"
+          @loaded="modelLoaded = true"
+          @timing="onTiming"
+          @error="onError"
         />
       </TresCanvas>
     </ClientOnly>

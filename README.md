@@ -362,6 +362,10 @@ direction }`, the smoothed room luma (`null` while lighting is off), the
 light multiplier it drives, the time of the last room sample, and (with
 `roomReflections`) the estimated light direction `{ x, y, z, strength }`.
 
+It also exposes a read-only `modelLoaded`: `true` once the selected frame's
+GLB is on screen, `false` from a frame switch until the new one has loaded
+(for a loading indicator on slow connections).
+
 ### True to size
 
 Landmarks are measured on screen, so turning them into millimetres needs a

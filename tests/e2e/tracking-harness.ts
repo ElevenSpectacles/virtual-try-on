@@ -99,3 +99,41 @@ export function p95(values: number[]): number {
   const sorted = [...values].sort((x, y) => x - y)
   return sorted[Math.floor(sorted.length * 0.95)] ?? 0
 }
+
+interface PoseSnapshot {
+  faceWorldHalfWidth: number
+  framePosition: { x: number; y: number; z: number }
+  scale: number
+  rotation: { x: number; y: number; z: number }
+}
+
+export const SETTLED_ROTATION_RAD = 1e-3
+export const SETTLED_RELATIVE = 1e-3
+
+export function poseMoved(a: PoseSnapshot, b: PoseSnapshot): boolean {
+  const reach = Math.max(a.faceWorldHalfWidth, 1e-6)
+  const axes = ['x', 'y', 'z'] as const
+  return (
+    Math.abs(b.scale - a.scale) > SETTLED_RELATIVE * Math.abs(a.scale) ||
+    axes.some((k) => Math.abs(b.rotation[k] - a.rotation[k]) > SETTLED_ROTATION_RAD) ||
+    axes.some((k) => Math.abs(b.framePosition[k] - a.framePosition[k]) > SETTLED_RELATIVE * reach)
+  )
+}
+
+export async function waitForSettledPose(page: Page, timeout = 120_000, intervalMs = 500): Promise<void> {
+  const read = () =>
+    page.evaluate(
+      () => (window as unknown as { __tryOnHarness: { snapshot: () => PoseSnapshot } }).__tryOnHarness.snapshot()
+    )
+  const deadline = Date.now() + timeout
+  let previous = await read()
+  let still = 0
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(intervalMs)
+    const next = await read()
+    still = poseMoved(previous, next) ? 0 : still + 1
+    if (still >= 3) return
+    previous = next
+  }
+  throw new Error(`pose did not settle within ${timeout} ms`)
+}

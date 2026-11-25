@@ -26,8 +26,27 @@ async function openOn(browser: Browser, baseURL: string, kind: ClipKind): Promis
   await expect(page.locator('[data-lighting]'), `${kind}: lighting estimate`).toBeVisible({
     timeout: 60_000
   })
-  await page.waitForTimeout(3_000)
+  await waitForSettledLighting(page)
   return page
+}
+
+const SETTLED_DELTA = 0.005
+
+async function waitForSettledLighting(page: Page, timeout = 30_000): Promise<void> {
+  const deadline = Date.now() + timeout
+  let previous = await read(page)
+  let still = 0
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(250)
+    const next = await read(page)
+    const moved =
+      Math.abs(next.luma - previous.luma) > SETTLED_DELTA ||
+      Math.abs(next.gain - previous.gain) > SETTLED_DELTA
+    still = moved ? 0 : still + 1
+    if (still >= 4) return
+    previous = next
+  }
+  throw new Error(`lighting estimate did not settle within ${timeout} ms`)
 }
 
 async function read(page: Page): Promise<Reading> {

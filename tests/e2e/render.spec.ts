@@ -4,6 +4,7 @@ import {
   faceClip,
   missingPrerequisite
 } from './fixtures'
+import { waitForTryOn } from './readiness'
 
 const skipReason = missingPrerequisite()
 
@@ -22,13 +23,7 @@ for (const face of FACE_FIXTURES) {
       )
       await page.getByRole('button', { name: 'Start camera' }).click()
 
-      const stage = page.locator('.vto-stage')
-      await expect(page.getByRole('button', { name: 'Start camera' })).toBeHidden()
-      await page.waitForTimeout(1_000)
-      await expect(stage.getByText('Position your face in view')).toBeHidden({
-        timeout: 75_000
-      })
-      await page.waitForTimeout(20_000)
+      const stage = await waitForTryOn(page)
 
       await expect(stage).toHaveScreenshot(`${face}.png`, { timeout: 20_000 })
     })

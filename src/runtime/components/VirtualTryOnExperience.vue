@@ -116,7 +116,7 @@ const modelSwitch = useTryOnModelSwitch({
   metrics,
   onLoaded: (widthMeters) => frameFit.onModelLoaded(widthMeters)
 })
-const { modelSrc, modelCache, preloadModel, onModelLoaded } = modelSwitch
+const { modelSrc, modelLoaded, modelCache, preloadModel, onModelLoaded } = modelSwitch
 
 const features = useTryOnFeatures({
   props,
@@ -175,6 +175,7 @@ defineExpose({
   unfreeze,
   frozen,
   prefetch,
+  modelLoaded,
   status,
   error,
   faceError,

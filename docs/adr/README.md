@@ -143,6 +143,7 @@ Source files carry no comments, so the reasons for non-obvious code live here. B
 | `tests/e2e/lighting.spec.ts` | [0020](0020-verification.md) |
 | `tests/e2e/metrics.spec.ts` | [0020](0020-verification.md) |
 | `tests/e2e/pose-metrics.ts` | [0020](0020-verification.md) |
+| `tests/e2e/readiness.ts` | [0020](0020-verification.md) |
 | `tests/e2e/record-tryon-pose.spec.ts` | [0020](0020-verification.md) |
 | `tests/e2e/render.spec.ts` | [0020](0020-verification.md) |
 | `tests/e2e/rendering-goldens.spec.ts` | [0020](0020-verification.md) |

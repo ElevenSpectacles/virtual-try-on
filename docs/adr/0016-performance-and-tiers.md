@@ -51,6 +51,12 @@ prefetched neighbour, mounts it at once. Prefetch runs only while a face is
 tracked, so it never competes with the first frame or loads anything
 before the camera starts; the low tier keeps two GLBs and never prefetches.
 
+#### `modelLoaded`
+
+True once the shown frame's GLB is mounted; false from a switch until the
+new one is. Read-only on the component ref, for a host's loading state and
+for the e2e readiness waits.
+
 #### `preloadModel`
 
 Fetch and parse a frame ahead of a likely switch (e.g. hover on a swatch),
