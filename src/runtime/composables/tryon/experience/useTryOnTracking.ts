@@ -14,6 +14,7 @@ export interface UseTryOnTrackingOptions {
     roomReflections: boolean
   }
   isActive: Ref<boolean>
+  onPlayError: (err: unknown) => void
   mediaAspect: Ref<number>
   lightingEnabled: () => boolean
   onLatency: (ms: number) => void
@@ -65,7 +66,11 @@ export function useTryOnTracking(
     frozen,
     freeze: freezeTryOn,
     unfreeze: unfreezeTryOn
-  } = useTryOnFreeze(videoRef, { active: isActive, detectHeld: tracker.detectHeld })
+  } = useTryOnFreeze(videoRef, {
+    active: isActive,
+    detectHeld: tracker.detectHeld,
+    onPlayError: options.onPlayError
+  })
 
   async function freeze() {
     if (cardCalibration.calibration.value.status === 'detecting') cardCalibration.cancel()

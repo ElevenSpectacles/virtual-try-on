@@ -82,6 +82,7 @@ const trackTryOn = createTryOnTrack(emit, () => model.value)
 const tracking = useTryOnTracking(videoRef, {
   props,
   isActive,
+  onPlayError: camera.failPlay,
   mediaAspect: stage.mediaAspect,
   lightingEnabled: () => features.lightingEnabled.value,
   onLatency: (ms) => metrics?.onLatency(ms),

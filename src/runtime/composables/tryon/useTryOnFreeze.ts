@@ -9,6 +9,7 @@ export interface FreezableVideo {
 export interface UseTryOnFreezeOptions {
   active: Ref<boolean>
   detectHeld: () => Promise<void>
+  onPlayError?: (err: unknown) => void
 }
 
 export function useTryOnFreeze(
@@ -35,7 +36,9 @@ export function useTryOnFreeze(
     if (video?.paused && (wasFrozen || options.active.value)) {
       try {
         await video.play()
-      } catch {}
+      } catch (err) {
+        options.onPlayError?.(err)
+      }
     }
   }
 

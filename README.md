@@ -343,7 +343,7 @@ on the component ref.
 | --- | --- | --- |
 | `status` | `TryOnStatus` | `'idle'` \| `'starting'` \| `'active'` \| `'error'` |
 | `isStarting` | `boolean` | Camera permission prompt / stream start in progress. |
-| `error` | `WebcamError \| null` | `'denied'` \| `'unsupported'` \| `'unavailable'` |
+| `error` | `WebcamError \| null` | `'denied'` \| `'unsupported'` \| `'unavailable'` \| `'play_failed'` (the browser refused to play the feed; `start()` from a tap retries it) |
 | `faceError` | `FaceLandmarkerError \| null` | `'unsupported'` \| `'load_failed'` \| `'runtime_failed'` |
 | `hasFace` | `boolean` | A face is currently tracked. |
 | `guideHint` | `TryOnGuideHint \| null` | `'noFace'` \| `'aligned'` \| `'turnBack'` \| `'tooDark'`; `null` while the camera is off (see [Guide hints](#guide-hints)). |
@@ -647,7 +647,7 @@ function onTrack(event: string, payload: Record<string, unknown>) {
 
 | `source` | `errorType` | Effect |
 | --- | --- | --- |
-| `camera` | `'unsupported'` \| `'unavailable'` | No feed; slot `error` is set. `message` is the `DOMException` name. |
+| `camera` | `'unsupported'` \| `'unavailable'` \| `'play_failed'` | No feed; slot `error` is set. `message` is the `DOMException` name. For `'play_failed'` the camera stream is kept, and `start()` retries playback without a new permission prompt. |
 | `face_landmarker` | `'unsupported'` \| `'load_failed'` \| `'runtime_failed'` | Feed shows, no tracking; slot `faceError` is set. |
 | `model` | `'load_failed'` | The GLB failed to load; `message` starts with its URL. |
 | `environment` | `'load_failed'` | Reflections lost; the frame still renders. |

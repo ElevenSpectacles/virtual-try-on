@@ -9,6 +9,9 @@ export default defineConfig({
       )
     }
   },
+  define: {
+    'import.meta.client': 'true'
+  },
   test: {
     include: ['tests/unit/**/*.test.ts']
   }

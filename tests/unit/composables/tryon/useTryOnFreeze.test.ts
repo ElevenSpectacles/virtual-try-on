@@ -18,12 +18,15 @@ function fakeVideo() {
   return video
 }
 
-function setup(detectHeld: () => Promise<void> = async () => {}) {
+function setup(
+  detectHeld: () => Promise<void> = async () => {},
+  onPlayError: (err: unknown) => void = () => {}
+) {
   const video = fakeVideo()
   const active = ref(true)
   const scope = effectScope()
   const freeze = scope.run(() =>
-    useTryOnFreeze(ref<FreezableVideo | null>(video), { active, detectHeld })
+    useTryOnFreeze(ref<FreezableVideo | null>(video), { active, detectHeld, onPlayError })
   )!
   return { video, active, ...freeze, scope }
 }
@@ -86,5 +89,16 @@ describe('useTryOnFreeze', () => {
     await freeze()
     await freeze()
     expect(detectHeld).toHaveBeenCalledOnce()
+  })
+
+  it('hands a rejected play on unfreeze to onPlayError', async () => {
+    const onPlayError = vi.fn()
+    const { video, frozen, freeze, unfreeze } = setup(undefined, onPlayError)
+    await freeze()
+    const err = new DOMException('blocked', 'NotAllowedError')
+    video.play.mockRejectedValueOnce(err)
+    await unfreeze()
+    expect(onPlayError).toHaveBeenCalledWith(err)
+    expect(frozen.value).toBe(false)
   })
 })

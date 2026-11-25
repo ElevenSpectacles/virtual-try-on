@@ -17,7 +17,6 @@ A slow device lowers the detection rate instead of growing a queue. Smoothing ha
 
 ## Known problems in these files
 
-- [#148](https://github.com/ElevenSpectacles/virtual-try-on/issues/148): Bug: a rejected video.play() leaves the camera active with no recovery
 - [#149](https://github.com/ElevenSpectacles/virtual-try-on/issues/149): Bug: worker, observer and calibration-load failures are silent
 
 ## Detailed records
@@ -145,7 +144,9 @@ detected once, so the pose the frame renders with belongs to the frame
 on screen, not to the one before it. While frozen the landmarks don't
 change, so a model switch renders the new frame exactly where the old one
 sat (the occluder and shadow keep the held face too). Unfreezing plays the
-video; detection resumes on its next frame.
+video; detection resumes on its next frame. If that play is refused
+(autoplay policy), `onPlayError` hands it to the webcam's `failPlay`, so the
+camera leaves `active` instead of sitting on a paused frame.
 
 #### `if (id === generation && video.paused) frozen.value = true`
 
@@ -164,6 +165,14 @@ camera light is never left on.
 
 Mirroring is a *display* concern handled in CSS on the video element; this
 composable deals only with acquiring the raw stream.
+
+#### `play()` and `failPlay`
+
+`isActive` means the video is playing, not that a stream exists: it is set
+only after `play()` resolves. A refused `play()` (autoplay policy) sets
+`error` to `'play_failed'` and keeps the stream, so the next `start()` —
+usually from a tap, which autoplay allows — retries `play()` on it without
+another `getUserMedia` call. `stop()` releases the stream.
 
 #### `frameRate`
 
