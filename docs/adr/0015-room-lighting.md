@@ -21,7 +21,6 @@ All effects must degrade to neutral studio lighting without a sample.
 - [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
 - [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 - [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
-- [#159](https://github.com/ElevenSpectacles/virtual-try-on/issues/159): Performance: default HDR loads from a mutable GitHub main branch
 
 ## Detailed records
 

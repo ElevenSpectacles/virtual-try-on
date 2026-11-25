@@ -19,7 +19,6 @@ Public props and types are contracts. Their documentation lives here and in the 
 
 - [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
 - [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
-- [#159](https://github.com/ElevenSpectacles/virtual-try-on/issues/159): Performance: default HDR loads from a mutable GitHub main branch
 
 ## Detailed records
 
