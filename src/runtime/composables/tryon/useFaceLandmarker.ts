@@ -10,7 +10,8 @@ import { scheduleOnCameraFrame } from '../../utils/tryon-frame-schedule'
 import type { CardRegion } from '../../utils/tryon-card'
 import type {
   FaceLandmarkerWorkerRequest,
-  FaceLandmarkerWorkerResponse
+  FaceLandmarkerWorkerResponse,
+  TryOnObserver
 } from '../../types/face-landmarker-worker'
 import type { FaceLandmarkerError } from '../../types/tryon-experience'
 
@@ -38,6 +39,7 @@ export interface UseFaceLandmarkerOptions {
   onCardCrop?:
     | ((gray: Uint8ClampedArray, width: number, height: number, region: CardRegion) => void)
     | undefined
+  onObserverError?: ((observer: TryOnObserver, message: string) => void) | undefined
 }
 
 function supportsMediaPipe(): boolean {
@@ -166,7 +168,9 @@ export function useFaceLandmarker(
       case 'card':
         try {
           options.onCardCrop?.(message.gray, message.width, message.height, message.region)
-        } catch {}
+        } catch (err) {
+          options.onObserverError?.('card', errorMessage(err))
+        }
         break
 
       case 'sample':
@@ -177,7 +181,13 @@ export function useFaceLandmarker(
             message.height,
             message.ms
           )
-        } catch {}
+        } catch (err) {
+          options.onObserverError?.('sample', errorMessage(err))
+        }
+        break
+
+      case 'observer_failed':
+        options.onObserverError?.(message.observer, message.message)
         break
     }
   }

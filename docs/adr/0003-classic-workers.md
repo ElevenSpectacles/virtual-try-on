@@ -17,7 +17,6 @@ Worker message types are duplicated. The WASM version must equal the pinned pack
 
 ## Known problems in these files
 
-- [#149](https://github.com/ElevenSpectacles/virtual-try-on/issues/149): Bug: worker, observer and calibration-load failures are silent
 - [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 
 ## Detailed records
@@ -111,8 +110,17 @@ luma and colour cast (see utils/tryon-lighting).
 
 #### `sampleContext`
 
-undefined until first use; null when OffscreenCanvas 2D is unavailable,
-in which case samples are silently skipped (lighting stays neutral).
+undefined until first use; null when OffscreenCanvas 2D is unavailable.
+A sample or card crop that can't be taken (no context, a throwing
+readback) posts `observer_failed` instead of being dropped: detection
+carries on, and the main thread reports each observer once
+(`TRY_ON_ERROR`, source `room_lighting` or `card_calibration`).
+
+#### `destroy`
+
+A throwing `close()` on destroy is not reported: the main thread terminates
+the worker right after posting `destroy`, so a reply could never arrive,
+and terminating frees the WASM heap either way.
 
 #### `postSample`
 

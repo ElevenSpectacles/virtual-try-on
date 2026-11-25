@@ -17,7 +17,6 @@ Run the single preparation command on the final catalog and review lint and tilt
 
 ## Known problems in these files
 
-- [#149](https://github.com/ElevenSpectacles/virtual-try-on/issues/149): Bug: worker, observer and calibration-load failures are silent
 - [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 - [#157](https://github.com/ElevenSpectacles/virtual-try-on/issues/157): Tooling: temple trim can double-tilt legacy GLBs and leaves open cuts
 
@@ -277,6 +276,13 @@ Calibration of `model` from a manifest, plus what is wrong with its entry
 invalid field falls back to its default and is listed in `problems`, for
 the component to report (`TRY_ON_ERROR`, source `calibration`). A model
 without an entry is not a problem: it gets the identity calibration.
+
+#### `loadError`
+
+A manifest that fails to load still falls back to identity calibration for
+every frame, so the try-on keeps working, but `useFetch`'s error is now read
+and reported once as `TRY_ON_ERROR` (source `calibration`, `errorType`
+`load_failed`, `message` starting with the URL).
 
 #### `translation`
 

@@ -5,7 +5,7 @@ import { useTryOnTrackingHold } from '../useTryOnTrackingHold'
 import { useTryOnCardCalibration } from '../useTryOnCardCalibration'
 import { useTryOnFreeze } from '../useTryOnFreeze'
 import { faceRegion } from '../../../utils/tryon-room'
-import type { TryOnTrack } from './useTryOnTrackEvents'
+import { createObserverErrorReporter, type TryOnTrack } from './useTryOnTrackEvents'
 
 export interface UseTryOnTrackingOptions {
   props: {
@@ -26,6 +26,7 @@ export function useTryOnTracking(
   options: UseTryOnTrackingOptions
 ) {
   const { props, isActive, track } = options
+  const reportObserverError = createObserverErrorReporter(track)
 
   const light = useTryOnLighting({
     enabled: options.lightingEnabled,
@@ -46,7 +47,11 @@ export function useTryOnTracking(
     onFrameSample: light.onFrameSample,
     wantCardRegion: () => cardCalibration.wantCardRegion(),
     onCardCrop: (gray, width, height, region) =>
-      cardCalibration.onCardCrop(gray, width, height, region)
+      cardCalibration.onCardCrop(gray, width, height, region),
+    onObserverError: (observer, message) => {
+      if (observer === 'card') cardCalibration.fail()
+      reportObserverError(observer, message)
+    }
   })
 
   const held = useTryOnTrackingHold({

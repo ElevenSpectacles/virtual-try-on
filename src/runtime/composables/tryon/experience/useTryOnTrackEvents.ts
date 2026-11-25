@@ -5,6 +5,7 @@ import type { FaceShapeResult } from '../../../utils/tryon-face-shape'
 import type { FaceWidthEstimate, TryOnFitVerdict } from '../../../utils/tryon-fit'
 import type { MetricsAccumulator } from '../../../utils/tryon-metrics'
 import type { FaceLandmarkerError, WebcamError } from '../../../types/tryon-experience'
+import type { TryOnObserver } from '../../../types/face-landmarker-worker'
 
 export type TryOnTrackEvent =
   | 'TRY_ON_OPENED'
@@ -38,6 +39,24 @@ export function createTryOnTrack(
   }
 }
 
+const OBSERVER_SOURCE: Record<TryOnObserver, string> = {
+  sample: 'room_lighting',
+  card: 'card_calibration'
+}
+
+export function createObserverErrorReporter(track: TryOnTrack) {
+  const reported = new Set<TryOnObserver>()
+  return (observer: TryOnObserver, message: string) => {
+    if (reported.has(observer)) return
+    reported.add(observer)
+    track('TRY_ON_ERROR', {
+      errorType: 'runtime_failed',
+      source: OBSERVER_SOURCE[observer],
+      message
+    })
+  }
+}
+
 export function reportTierChange(
   track: TryOnTrack,
   metrics: MetricsAccumulator | null,
@@ -66,6 +85,7 @@ export interface UseTryOnTrackEventsOptions {
   hairError: () => string | null
   hairOcclusion: () => boolean
   calibrationFile: () => string
+  calibrationLoadError: () => string | null
   getCalibrationProblems: (file: string) => string[]
   hasReportedFaceDetected: Ref<boolean>
   tier: () => TryOnTier
@@ -109,6 +129,15 @@ export function useTryOnTrackEvents(options: UseTryOnTrackEventsOptions) {
         message: tracking.faceErrorDetail.value
       })
     }
+  })
+
+  watch(options.calibrationLoadError, (message) => {
+    if (!message) return
+    track('TRY_ON_ERROR', {
+      errorType: 'load_failed',
+      source: 'calibration',
+      message
+    })
   })
 
   const reportedCalibration = new Set<string>()

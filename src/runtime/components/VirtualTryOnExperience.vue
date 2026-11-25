@@ -56,7 +56,8 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const { getCalibration, getCalibrationProblems } = useFrameCalibration(props.calibrationUrl)
+const { getCalibration, getCalibrationProblems, loadError: calibrationLoadError } =
+  useFrameCalibration(props.calibrationUrl)
 
 const queryModel = route.query.model as string | undefined
 const initialModel =
@@ -199,6 +200,7 @@ const { onSceneError } = useTryOnTrackEvents({
   hairError: () => hairSegmenter.error.value,
   hairOcclusion: () => props.hairOcclusion,
   calibrationFile: () => model.value ?? initialModel,
+  calibrationLoadError: () => calibrationLoadError.value,
   getCalibrationProblems,
   hasReportedFaceDetected,
   tier: () => capability.tier.value,

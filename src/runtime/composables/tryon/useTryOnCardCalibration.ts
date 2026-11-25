@@ -54,6 +54,12 @@ export function useTryOnCardCalibration(options: UseTryOnCardCalibrationOptions)
     }, CARD_TIMEOUT_MS)
   }
 
+  function fail() {
+    if (state.value.status !== 'detecting') return
+    clearTimer()
+    state.value = { ...state.value, status: 'failed' }
+  }
+
   function cancel() {
     clearTimer()
     state.value = IDLE_CARD_CALIBRATION
@@ -99,5 +105,5 @@ export function useTryOnCardCalibration(options: UseTryOnCardCalibrationOptions)
     state.value.status === 'done' ? state.value.nearPdMm : null
   )
 
-  return { calibration, calibratedNearPdMm, start, cancel, wantCardRegion, onCardCrop, state }
+  return { calibration, calibratedNearPdMm, start, cancel, fail, wantCardRegion, onCardCrop, state }
 }

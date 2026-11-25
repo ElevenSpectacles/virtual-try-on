@@ -1,3 +1,4 @@
+import { computed } from 'vue'
 import type {
   TryOnCalibrationFile,
   TryOnFrameCalibration,
@@ -110,7 +111,7 @@ export function getCalibrationFromManifest(
 }
 
 export function useFrameCalibration(calibrationUrl: string) {
-  const { data: manifest } = useFetch<TryOnCalibrationFile | null>(
+  const { data: manifest, error } = useFetch<TryOnCalibrationFile | null>(
     calibrationUrl,
     {
       key: `tryon-frame-calibration-${calibrationUrl}`,
@@ -127,8 +128,13 @@ export function useFrameCalibration(calibrationUrl: string) {
     return validateCalibration(manifest.value, model).problems
   }
 
+  const loadError = computed(() =>
+    error.value ? `${calibrationUrl}: ${error.value.message}` : null
+  )
+
   return {
     manifest,
+    loadError,
     getCalibration,
     getCalibrationProblems
   }

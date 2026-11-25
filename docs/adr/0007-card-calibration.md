@@ -57,7 +57,11 @@ the worker for a grey crop of the forehead band (`wantCardRegion`, at
 full camera resolution) and each crop is measured (`onCardCrop`); see
 utils/tryon-card for the maths. Only frontal frames count. Fails after
 CARD_TIMEOUT_MS without a stable reading, also when no face (so no crop)
-arrives at all. Nothing runs, and nothing is cropped, while idle.
+arrives at all. A crop the worker can't take (`observer_failed`) or a
+throwing `onCardCrop` fails it at once (`fail()`), and is reported as
+`TRY_ON_ERROR` (source `card_calibration`), so a broken crop never looks
+like a shopper who timed out. Nothing runs, and nothing is cropped, while
+idle.
 
 #### `onCardCrop`
 

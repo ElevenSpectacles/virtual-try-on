@@ -15,10 +15,6 @@ Detection follows `requestVideoFrameCallback`, sends downscaled bitmaps, allows 
 
 A slow device lowers the detection rate instead of growing a queue. Smoothing has to bridge detections.
 
-## Known problems in these files
-
-- [#149](https://github.com/ElevenSpectacles/virtual-try-on/issues/149): Bug: worker, observer and calibration-load failures are silent
-
 ## Detailed records
 
 ### `src/runtime/composables/tryon/useFaceLandmarker.ts`

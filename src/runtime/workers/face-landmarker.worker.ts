@@ -37,6 +37,7 @@ type FaceLandmarkerWorkerResponse =
       height: number
       region: CardRegion
     }
+  | { type: 'observer_failed'; id: number; observer: 'sample' | 'card'; message: string }
 
 interface CardRegion {
   x: number
@@ -67,6 +68,15 @@ function post(message: FaceLandmarkerWorkerResponse, transfer: Transferable[] = 
   self.postMessage(message, transfer)
 }
 
+function postObserverFailure(id: number, observer: 'sample' | 'card', err: unknown) {
+  post({
+    type: 'observer_failed',
+    id,
+    observer,
+    message: err instanceof Error ? err.message : String(err)
+  })
+}
+
 const SAMPLE_SIZE = 16
 let sampleContext: OffscreenCanvasRenderingContext2D | null | undefined
 
@@ -80,7 +90,7 @@ function postSample(id: number, bitmap: ImageBitmap) {
             })
           : null
     }
-    if (!sampleContext) return
+    if (!sampleContext) throw new Error('OffscreenCanvas 2d context unavailable')
     const startedAt = performance.now()
     sampleContext.drawImage(bitmap, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE)
     const { data } = sampleContext.getImageData(0, 0, SAMPLE_SIZE, SAMPLE_SIZE)
@@ -89,7 +99,9 @@ function postSample(id: number, bitmap: ImageBitmap) {
       { type: 'sample', id, pixels: data, width: SAMPLE_SIZE, height: SAMPLE_SIZE, ms },
       [data.buffer]
     )
-  } catch {}
+  } catch (err) {
+    postObserverFailure(id, 'sample', err)
+  }
 }
 
 const CARD_CROP_WIDTH = 320
@@ -106,7 +118,7 @@ function postCard(id: number, bitmap: ImageBitmap, region: CardRegion) {
             })
           : null
     }
-    if (!cardContext) return
+    if (!cardContext) throw new Error('OffscreenCanvas 2d context unavailable')
     cardContext.drawImage(
       bitmap,
       region.x * bitmap.width,
@@ -127,7 +139,9 @@ function postCard(id: number, bitmap: ImageBitmap, region: CardRegion) {
       { type: 'card', id, gray, width: CARD_CROP_WIDTH, height: CARD_CROP_HEIGHT, region },
       [gray.buffer]
     )
-  } catch {}
+  } catch (err) {
+    postObserverFailure(id, 'card', err)
+  }
 }
 
 const DEFAULT_WASM_BASE_PATH =
