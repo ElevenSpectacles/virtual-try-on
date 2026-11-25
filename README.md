@@ -658,10 +658,10 @@ error.
 
 ### Self-hosting third-party assets
 
-By default the first load fetches from four public CDNs: the MediaPipe Wasm
+By default the first load fetches from three public CDNs: the MediaPipe Wasm
 (jsDelivr), the face model (Google Storage), the Draco decoder (gstatic) and
-the environment map (GitHub raw). The component adds `<link rel="preconnect">`
-hints for the ones it will use, and starts loading the tracker on `start()`,
+the environment map (jsDelivr, pinned to a Tresjs/assets commit). The
+component adds `<link rel="preconnect">` hints for the ones it will use, and starts loading the tracker on `start()`,
 in parallel with the camera prompt. Serving them yourself removes the
 foreign origins (for a strict CSP, offline use, or a faster cold start):
 
@@ -670,7 +670,7 @@ foreign origins (for a strict CSP, offline use, or a faster cold start):
 | MediaPipe Wasm fileset | `node_modules/@mediapipe/tasks-vision/wasm/` | `mediapipeBasePath` |
 | Face model | [`face_landmarker.task`](https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task) | `mediapipeModelAssetPath` |
 | Draco decoder | `node_modules/three/examples/jsm/libs/draco/` (`draco_wasm_wrapper.js`, `draco_decoder.wasm`) | `dracoDecoderPath` |
-| Environment map | [`canary_wharf_1k.hdr`](https://raw.githubusercontent.com/Tresjs/assets/main/textures/hdr/city/canary_wharf_1k.hdr) (CC0, Poly Haven) | `environmentUrl` |
+| Environment map | [`canary_wharf_1k.hdr`](https://cdn.jsdelivr.net/gh/Tresjs/assets@2e771aed0124c3af8fb2449a4c59b4ad08d0cc5f/textures/hdr/city/canary_wharf_1k.hdr) (CC0, Poly Haven) | `environmentUrl` |
 | Hair model (only with `hairOcclusion`) | [`hair_segmenter.tflite`](https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite) | `mediapipeHairModelAssetPath` |
 
 Serve the Wasm fileset from the same `@mediapipe/tasks-vision` version the

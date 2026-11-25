@@ -16,9 +16,15 @@ describe('preconnectOrigins', () => {
     expect(preconnectOrigins({})).toEqual([
       MEDIAPIPE_WASM_ORIGIN,
       MEDIAPIPE_MODEL_ORIGIN,
-      DRACO_DECODER_ORIGIN,
-      ENVIRONMENT_ORIGIN
+      DRACO_DECODER_ORIGIN
     ])
+    expect(preconnectOrigins({})).toContain(ENVIRONMENT_ORIGIN)
+  })
+
+  it('keeps the environment origin when the Wasm is self-hosted', () => {
+    expect(preconnectOrigins({ mediapipeBasePath: '/mediapipe/wasm' })).toContain(
+      ENVIRONMENT_ORIGIN
+    )
   })
 
   it('leaves out what the host self-hosts', () => {
@@ -55,5 +61,11 @@ describe('preconnectOrigins', () => {
     expect(hair).toContain(`'${MEDIAPIPE_MODEL_ORIGIN}/`)
     expect(modelCache).toContain(`'${DRACO_DECODER_ORIGIN}/`)
     expect(scene).toContain(`'${ENVIRONMENT_ORIGIN}/`)
+  })
+
+  it('pins the preset environment to an immutable commit', () => {
+    expect(source('components/TryOnScene.vue')).toMatch(
+      /'https:\/\/cdn\.jsdelivr\.net\/gh\/Tresjs\/assets@[0-9a-f]{40}\/textures\/hdr\/'/
+    )
   })
 })

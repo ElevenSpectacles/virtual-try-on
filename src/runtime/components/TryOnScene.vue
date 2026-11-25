@@ -72,7 +72,7 @@ const { model, temples } = useSceneModel(props, {
 })
 
 const ENV_PRESET_ROOT =
-  'https://raw.githubusercontent.com/Tresjs/assets/main/textures/hdr/'
+  'https://cdn.jsdelivr.net/gh/Tresjs/assets@2e771aed0124c3af8fb2449a4c59b4ad08d0cc5f/textures/hdr/'
 const ENV_PRESET_FILES: Record<EnvPreset, string> = {
   studio: 'studio/poly_haven_studio_1k.hdr',
   city: 'city/canary_wharf_1k.hdr',

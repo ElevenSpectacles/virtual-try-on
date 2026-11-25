@@ -1,7 +1,7 @@
 export const MEDIAPIPE_WASM_ORIGIN = 'https://cdn.jsdelivr.net'
 export const MEDIAPIPE_MODEL_ORIGIN = 'https://storage.googleapis.com'
 export const DRACO_DECODER_ORIGIN = 'https://www.gstatic.com'
-export const ENVIRONMENT_ORIGIN = 'https://raw.githubusercontent.com'
+export const ENVIRONMENT_ORIGIN = 'https://cdn.jsdelivr.net'
 
 export interface PreconnectOptions {
   mediapipeBasePath?: string | undefined

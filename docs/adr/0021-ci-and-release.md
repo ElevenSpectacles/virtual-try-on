@@ -15,10 +15,6 @@ CI runs unit, type, lint and build checks. A merged release PR publishes through
 
 Conventional commits define releases. Local browser checks remain a pre-release responsibility.
 
-## Known problems in these files
-
-- [#158](https://github.com/ElevenSpectacles/virtual-try-on/issues/158): CI: pin npm in the publish job instead of installing npm@latest
-
 ## Detailed records
 
 ### `.github/workflows/ci.yml`

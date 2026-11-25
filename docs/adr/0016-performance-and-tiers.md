@@ -473,7 +473,8 @@ fetch from, so the component can open their connections early with
 `<link rel="preconnect">`. Pure, no Nuxt.
 
 First load pulls the MediaPipe Wasm (jsDelivr), the face model (Google
-Storage), the Draco decoder (gstatic) and the environment HDR (GitHub raw).
+Storage), the Draco decoder (gstatic) and the environment HDR (jsDelivr,
+pinned to a Tresjs/assets commit so the bytes never change under a release).
 A cold TLS handshake to each costs one to three round trips; preconnecting
 while the shopper reads the consent screen takes that off the critical
 path. An origin a host self-hosts (its path option is set) is left out.
