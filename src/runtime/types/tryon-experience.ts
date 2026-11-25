@@ -2,7 +2,7 @@ import type { TryOnCardCalibration } from '../composables/tryon/useTryOnCardCali
 import type { TryOnCaptureOptions } from '../utils/tryon-capture'
 import type { TryOnFit } from '../utils/tryon-fit'
 
-export type WebcamError = 'unsupported' | 'denied' | 'unavailable'
+export type WebcamError = 'unsupported' | 'denied' | 'unavailable' | 'play_failed'
 
 export type FaceLandmarkerError =
   | 'unsupported'

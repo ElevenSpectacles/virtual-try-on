@@ -385,6 +385,8 @@ const errorMessage = computed(() => {
       return NO_CAMERA_MESSAGE
     case 'unavailable':
       return NO_CAMERA_MESSAGE
+    case 'play_failed':
+      return 'Tap to start the camera.'
     default:
       return null
   }

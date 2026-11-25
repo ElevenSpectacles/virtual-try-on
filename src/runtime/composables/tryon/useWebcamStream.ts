@@ -11,10 +11,38 @@ export function useWebcamStream() {
   const error: Ref<WebcamError | null> = ref(null)
   const errorDetail = ref<string | null>(null)
 
+  function failPlay(err: unknown) {
+    isActive.value = false
+    error.value = 'play_failed'
+    errorDetail.value = err instanceof DOMException ? err.name : String(err)
+  }
+
+  async function play(): Promise<boolean> {
+    const video = videoRef.value
+    if (!video) return true
+    try {
+      await video.play()
+      return true
+    } catch (err) {
+      failPlay(err)
+      return false
+    }
+  }
+
   async function start() {
     if (!import.meta.client || isActive.value || isStarting.value) return
     error.value = null
     errorDetail.value = null
+
+    if (stream.value) {
+      isStarting.value = true
+      try {
+        if (await play()) isActive.value = true
+      } finally {
+        isStarting.value = false
+      }
+      return
+    }
 
     if (!navigator.mediaDevices?.getUserMedia) {
       error.value = 'unsupported'
@@ -33,12 +61,8 @@ export function useWebcamStream() {
         audio: false
       })
       stream.value = media
-      isActive.value = true
-
-      if (videoRef.value) {
-        videoRef.value.srcObject = media
-        await videoRef.value.play().catch(() => {})
-      }
+      if (videoRef.value) videoRef.value.srcObject = media
+      if (await play()) isActive.value = true
     } catch (err) {
       const name = err instanceof DOMException ? err.name : ''
       error.value =
@@ -68,6 +92,7 @@ export function useWebcamStream() {
     error,
     errorDetail,
     start,
-    stop
+    stop,
+    failPlay
   }
 }
