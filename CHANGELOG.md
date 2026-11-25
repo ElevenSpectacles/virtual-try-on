@@ -1,5 +1,23 @@
 # Changelog
 
+## [5.1.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.4...v5.1.0) (2026-11-25)
+
+
+### Features
+
+* expose modelLoaded and wait on readiness signals in e2e ([d5cbb95](https://github.com/ElevenSpectacles/virtual-try-on/commit/d5cbb95d3696c00b1f87d07dce92f3a53e02a363))
+* expose modelLoaded and wait on readiness signals in e2e ([c7be22f](https://github.com/ElevenSpectacles/virtual-try-on/commit/c7be22f6a49e9071c17f9571a0efbf039e4221e7)), closes [#154](https://github.com/ElevenSpectacles/virtual-try-on/issues/154)
+
+
+### Bug Fixes
+
+* pin the default HDR to a jsDelivr commit and npm in the publish job ([7ea022a](https://github.com/ElevenSpectacles/virtual-try-on/commit/7ea022ac11e302a56934aadfdd53b410220c1c7b))
+* pin the default HDR to a jsDelivr commit and npm in the publish job ([84d79f4](https://github.com/ElevenSpectacles/virtual-try-on/commit/84d79f492b3b88d27082e1db9f7103ca9de5815c)), closes [#158](https://github.com/ElevenSpectacles/virtual-try-on/issues/158) [#159](https://github.com/ElevenSpectacles/virtual-try-on/issues/159)
+* report observer and calibration-load failures ([50127aa](https://github.com/ElevenSpectacles/virtual-try-on/commit/50127aaea1d2d0fa6b2f296332ac0e2af4e1269a))
+* report observer and calibration-load failures ([3234648](https://github.com/ElevenSpectacles/virtual-try-on/commit/3234648fedacb1c025ceb686a4b64a36c3ec61b9)), closes [#149](https://github.com/ElevenSpectacles/virtual-try-on/issues/149)
+* surface a refused video.play() and let start() retry it ([479cdd7](https://github.com/ElevenSpectacles/virtual-try-on/commit/479cdd7421d3829d2647092031e3f2ea0bfc9536))
+* surface a refused video.play() and let start() retry it ([7629c6f](https://github.com/ElevenSpectacles/virtual-try-on/commit/7629c6fbdc4bb7e1817bf2c65b670d6d21d144f8)), closes [#148](https://github.com/ElevenSpectacles/virtual-try-on/issues/148)
+
 ## [5.0.4](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.3...v5.0.4) (2026-11-23)
 
 
