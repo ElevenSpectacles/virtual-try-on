@@ -652,6 +652,9 @@ function onTrack(event: string, payload: Record<string, unknown>) {
 | `model` | `'load_failed'` | The GLB failed to load; `message` starts with its URL. |
 | `environment` | `'load_failed'` | Reflections lost; the frame still renders. |
 | `hair_segmenter` | `'unsupported'` \| `'load_failed'` | Only with `hairOcclusion`: hair occlusion is off; the face-mesh occluder still works. |
+| `calibration` | `'invalid_calibration'` \| `'load_failed'` | A bad entry falls back field by field; a manifest that failed to load gives every frame the identity calibration. `message` starts with the file or URL. |
+| `room_lighting` | `'runtime_failed'` | The room sample can't be read; lighting stays neutral. Reported once. |
+| `card_calibration` | `'runtime_failed'` | The forehead crop can't be taken; the running card calibration ends as `'failed'`. Reported once. |
 
 A denied camera permission is reported as `TRY_ON_CAMERA_DENIED`, not as an
 error.

@@ -109,4 +109,19 @@ describe('useTryOnCardCalibration', () => {
     vi.advanceTimersByTime(CARD_TIMEOUT_MS)
     expect(cal.calibration.value.status).toBe('idle')
   })
+
+  it('fails at once when the crop itself fails, without waiting for the timeout', () => {
+    const { cal } = setup()
+    cal.start()
+    cal.fail()
+    expect(cal.calibration.value.status).toBe('failed')
+    vi.advanceTimersByTime(CARD_TIMEOUT_MS)
+    expect(cal.calibration.value.status).toBe('failed')
+  })
+
+  it('ignores a crop failure while not detecting', () => {
+    const { cal } = setup()
+    cal.fail()
+    expect(cal.calibration.value.status).toBe('idle')
+  })
 })

@@ -41,3 +41,6 @@ export type FaceLandmarkerWorkerResponse =
       height: number
       region: { x: number; y: number; width: number; height: number }
     }
+  | { type: 'observer_failed'; id: number; observer: TryOnObserver; message: string }
+
+export type TryOnObserver = 'sample' | 'card'

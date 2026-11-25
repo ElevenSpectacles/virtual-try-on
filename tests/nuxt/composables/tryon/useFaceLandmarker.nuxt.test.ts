@@ -97,6 +97,48 @@ describe('useFaceLandmarker', () => {
     { x: 0.3, y: 0.4, z: 0.5 }
   ]
 
+  async function initWithObserver(onObserverError: (observer: string, message: string) => void) {
+    const landmarker = useFaceLandmarker(ref<HTMLVideoElement | null>(null), {
+      onFrameSample: () => {
+        throw new Error('lighting broke')
+      },
+      onObserverError
+    })
+    const initPromise = landmarker.init()
+    await Promise.resolve()
+    latestWorker().emit({ type: 'ready' })
+    await initPromise
+    return landmarker
+  }
+
+  it('hands a worker-side observer failure to onObserverError', async () => {
+    const onObserverError = vi.fn()
+    const { error } = await initWithObserver(onObserverError)
+    latestWorker().emit({
+      type: 'observer_failed',
+      id: 1,
+      observer: 'card',
+      message: 'OffscreenCanvas 2d context unavailable'
+    })
+    expect(onObserverError).toHaveBeenCalledWith('card', 'OffscreenCanvas 2d context unavailable')
+    expect(error.value).toBeNull()
+  })
+
+  it('hands a throwing frame-sample callback to onObserverError', async () => {
+    const onObserverError = vi.fn()
+    const { error } = await initWithObserver(onObserverError)
+    latestWorker().emit({
+      type: 'sample',
+      id: 1,
+      pixels: new Uint8ClampedArray(16 * 16 * 4),
+      width: 16,
+      height: 16,
+      ms: 1
+    })
+    expect(onObserverError).toHaveBeenCalledWith('sample', 'lighting broke')
+    expect(error.value).toBeNull()
+  })
+
   it('starts in an idle state', () => {
     const videoRef = ref<HTMLVideoElement | null>(null)
     const { isLoading, isReady, hasFace, anchor } = useFaceLandmarker(videoRef)
