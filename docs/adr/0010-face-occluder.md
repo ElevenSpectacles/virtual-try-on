@@ -18,7 +18,6 @@ Setback, inflation and collar tuning trade z-fighting against leaking temples.
 ## Known problems in these files
 
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST
-- [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
 
 ## Detailed records
 

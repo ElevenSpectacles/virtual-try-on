@@ -141,7 +141,7 @@ const occluderPositionVec = computed(
 )
 
 const occluderMeshGeometry = useFaceMeshOccluder(props)
-const shadow = useContactShadow(model, props)
+const shadow = useContactShadow(model, props, materials)
 const { shadowLight, lensShadowLight } = shadow
 const shadowReceiverMaterial = useContactOcclusion(model, props, shadow, materials.earBendMaterials)
 
@@ -178,7 +178,6 @@ const occluderRotationVec = computed(() => headEuler(props.occluderRotation))
   />
   <primitive :object="shadowLight" />
   <primitive :object="shadowLight.target" />
-  <primitive :object="lensShadowLight" />
   <primitive :object="lensShadowLight.target" />
   <TresDirectionalLight
     :position="fillLightPosition"

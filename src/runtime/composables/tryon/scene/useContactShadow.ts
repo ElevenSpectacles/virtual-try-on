@@ -1,4 +1,4 @@
-import { computed, onUnmounted, watch, type ShallowRef } from 'vue'
+import { computed, onUnmounted, watch, type Ref, type ShallowRef } from 'vue'
 import {
   Color,
   DirectionalLight,
@@ -22,7 +22,6 @@ import {
   type OccluderSphere
 } from '../../../utils/tryon-contact-occlusion'
 import { lensTransmission, shadowCasterFilter } from '../../../utils/tryon-lens-shadow'
-import type { TryOnLens } from '../../../utils/tryon-lens'
 import { aimLight, type LightDirection } from '../../../utils/tryon-room'
 import { LENS_MATERIAL_NAME } from '../../../utils/tryon-lens'
 
@@ -41,8 +40,8 @@ export function useContactShadow(
     position: { x: number; y: number; z?: number }
     scale: number
     lightDirection: LightDirection | null
-    lens: TryOnLens
-  }
+  },
+  materials: { dressed: Readonly<Ref<number>> }
 ) {
   const SHADOW_COLOR = new Color(0, 0, 0)
   const SHADOW_MAP_SIZE = 512
@@ -72,6 +71,7 @@ export function useContactShadow(
   }
   const shadowLight = makeShadowLight()
   const lensShadowLight = makeShadowLight()
+  shadowLight.add(lensShadowLight)
   const tinted = computed(
     () => props.contactShadow && props.tintedLensShadow && !!props.videoElement
   )
@@ -89,8 +89,8 @@ export function useContactShadow(
     [() => props.position, () => props.scale, () => props.lightDirection],
     ([position, scale, direction]) => {
       const light = contactShadowLight(position, scale, aimLight(SHADOW_LIGHT_DIRECTION, direction))
+      shadowLight.position.set(light.position.x, light.position.y, light.position.z)
       for (const target of [shadowLight, lensShadowLight]) {
-        target.position.set(light.position.x, light.position.y, light.position.z)
         target.target.position.set(light.target.x, light.target.y, light.target.z)
         target.target.updateMatrixWorld()
         const camera = target.shadow.camera
@@ -109,8 +109,9 @@ export function useContactShadow(
   let occluderSpheres: MeshOccluderSphere[] = []
 
   watch(
-    [model, () => props.contactShadow, () => props.lens, tinted],
-    ([gltf, enabled, , tint]) => {
+    [materials.dressed, () => props.contactShadow, tinted],
+    ([, enabled, tint]) => {
+      const gltf = model.value
       let lensDensity = 0
       let lensColor: [number, number, number] | null = null
       gltf?.scene.traverse((obj) => {

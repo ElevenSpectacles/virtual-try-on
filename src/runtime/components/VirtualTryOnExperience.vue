@@ -93,7 +93,7 @@ const tracking = useTryOnTracking(videoRef, {
 const { lightGain, lightTint, lighting, roomLuma, roomSample, lightDirection } = tracking
 const { faceError, hasFace, frozen, freeze, unfreeze } = tracking
 
-const { metrics, watchSessionEnd } = useTryOnSessionMetrics({
+const { metrics } = useTryOnSessionMetrics({
   enabled: props.reportMetrics,
   isActive,
   tracking: tracking.trackerHasFace,
@@ -208,8 +208,6 @@ const { onSceneError } = useTryOnTrackEvents({
   tier: () => capability.tier.value,
   fit: frameFit
 })
-
-watchSessionEnd()
 
 watch(model, (value) => {
   modelSwitch.onModelSwitch()

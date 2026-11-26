@@ -17,7 +17,6 @@ The receiver works in display space. The coloured path costs GPU time and runs o
 
 ## Known problems in these files
 
-- [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
 - [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
 
 ## Detailed records
@@ -86,11 +85,11 @@ on dark skin.
 
 Tinted lens shadow (opt-in): the lenses cast into a second, identical
 shadow map of their own (`shadowCasterFilter` keeps each part out of the
-other light's map), so the receiver can colour their shadow. Directional
-shadows are indexed in scene order, so this light must come after
-`shadowLight` (template).
-
-> Known problem: [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151). This records why the code is as it is; it does not endorse it.
+other light's map), so the receiver can colour their shadow. three.js
+indexes shadow-casting directional lights in scene-graph order and the
+receiver reads the frame's map at 0 and the lenses' at 1, so this light is a
+child of `shadowLight` (at its origin): it always directly follows it,
+wherever the template puts `shadowLight`. A unit test checks the order.
 
 #### `watch(`
 

@@ -18,7 +18,6 @@ New expensive features need a minimum tier. Metrics stay aggregate and opt-in.
 ## Known problems in these files
 
 - [#147](https://github.com/ElevenSpectacles/virtual-try-on/issues/147): Performance: FRAME_BUDGET_MS is still a placeholder
-- [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
 
 ## Detailed records
 
@@ -105,8 +104,12 @@ Session metrics for the `metrics` event (opt-in): every 30 s of camera
 time, and once more when the camera stops. With reportMetrics off there is
 no accumulator and no extra frame loop, so there is no cost to hosts that
 don't use it. Returns the accumulator (null when off) for the component's
-other hooks (latency, tier, asset timings, model switches), and
-`watchSessionEnd`, which registers the final report.
+other hooks (latency, tier, asset timings, model switches). The final
+report runs in a post-flush `isActive` watcher, after every pre-flush
+watcher of that tick has recorded into the accumulator, and on scope
+dispose for an unmount while the camera runs. A session flag, not
+`isActive`, decides whether a report is due: the camera's own unmount hook
+may stop it first.
 
 ### `src/runtime/composables/tryon/scene/useBoundingBoxHelper.ts`
 

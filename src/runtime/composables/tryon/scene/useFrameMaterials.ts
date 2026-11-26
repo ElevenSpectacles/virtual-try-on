@@ -1,4 +1,4 @@
-import { onUnmounted, watch, type ShallowRef } from 'vue'
+import { onUnmounted, readonly, shallowRef, watch, type ShallowRef } from 'vue'
 import {
   BufferAttribute,
   Matrix4,
@@ -175,6 +175,7 @@ export function useFrameMaterials(
   const bendUniforms = new Map<Mesh, { value: Vector4 }>()
   let meshes: Mesh[] = []
   let shared = new Map<Material, Material>()
+  const dressed = shallowRef(0)
 
   function authoredOf(mesh: Mesh): Material | Material[] {
     const authored: Material | Material[] = mesh.userData.tryOnAuthoredMaterial ?? mesh.material
@@ -216,6 +217,7 @@ export function useFrameMaterials(
     })
     for (const mesh of meshes) dress(mesh)
     for (const material of previous) if (!derived.has(material)) material.dispose()
+    dressed.value++
   }
 
   function restore() {
@@ -265,5 +267,5 @@ export function useFrameMaterials(
 
   onUnmounted(restore)
 
-  return { earBend, clearEarBend, earBendMaterials }
+  return { earBend, clearEarBend, earBendMaterials, dressed: readonly(dressed) }
 }

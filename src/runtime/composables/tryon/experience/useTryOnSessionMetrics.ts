@@ -1,4 +1,4 @@
-import { onBeforeUnmount, watch, type Ref } from 'vue'
+import { onScopeDispose, watch, type Ref } from 'vue'
 import { createMetricsAccumulator, type TryOnSessionMetrics } from '../../../utils/tryon-metrics'
 import { useTryOnFrameLoop } from '../useTryOnFrameLoop'
 
@@ -12,10 +12,10 @@ export interface UseTryOnSessionMetricsOptions {
 }
 
 export function useTryOnSessionMetrics(options: UseTryOnSessionMetricsOptions) {
-  const metrics = options.enabled ? createMetricsAccumulator() : null
+  if (!options.enabled) return { metrics: null }
+  const metrics = createMetricsAccumulator()
 
   function emitMetrics(final: boolean) {
-    if (!metrics) return
     options.emit('metrics', {
       ...metrics.snapshot(),
       final,
@@ -24,24 +24,30 @@ export function useTryOnSessionMetrics(options: UseTryOnSessionMetricsOptions) {
     })
   }
 
-  if (metrics) {
-    useTryOnFrameLoop((deltaMs) => {
-      if (metrics.onFrame(deltaMs, options.isActive.value, options.tracking.value)) emitMetrics(false)
-    })
+  let sessionOpen = options.isActive.value
+
+  function endSession() {
+    if (!sessionOpen) return
+    sessionOpen = false
+    emitMetrics(true)
+    metrics.reset()
   }
 
-  function watchSessionEnd() {
-    watch(options.isActive, (active, wasActive) => {
-      if (!active && wasActive && metrics) {
-        emitMetrics(true)
-        metrics.reset()
-      }
-    })
+  useTryOnFrameLoop((deltaMs) => {
+    if (metrics.onFrame(deltaMs, options.isActive.value, options.tracking.value)) emitMetrics(false)
+  })
 
-    onBeforeUnmount(() => {
-      if (metrics && options.isActive.value) emitMetrics(true)
-    })
-  }
+  watch(options.isActive, (active) => {
+    if (active) sessionOpen = true
+  })
+  watch(
+    options.isActive,
+    (active) => {
+      if (!active) endSession()
+    },
+    { flush: 'post' }
+  )
+  onScopeDispose(endSession)
 
-  return { metrics, watchSessionEnd }
+  return { metrics }
 }
