@@ -8,11 +8,16 @@ import { waitForTryOn } from './readiness'
 
 const skipReason = missingPrerequisite()
 
-for (const face of FACE_FIXTURES) {
-  test.describe(face, () => {
+const CASES = FACE_FIXTURES.flatMap((face) => [
+  { face, kind: 'still' as const, golden: face },
+  { face, kind: 'landscape' as const, golden: `${face}-landscape` }
+])
+
+for (const { face, kind, golden } of CASES) {
+  test.describe(`${face} · ${kind}`, () => {
     test.skip(!!skipReason, skipReason ?? '')
     test.use({
-      clip: skipReason ? '' : faceClip(face, 'still'),
+      clip: skipReason ? '' : faceClip(face, kind),
       gl: 'swiftshader'
     })
 
@@ -25,7 +30,7 @@ for (const face of FACE_FIXTURES) {
 
       const stage = await waitForTryOn(page)
 
-      await expect(stage).toHaveScreenshot(`${face}.png`, { timeout: 20_000 })
+      await expect(stage).toHaveScreenshot(`${golden}.png`, { timeout: 20_000 })
     })
   })
 }

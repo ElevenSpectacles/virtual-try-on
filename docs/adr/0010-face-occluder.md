@@ -17,7 +17,6 @@ Setback, inflation and collar tuning trade z-fighting against leaking temples.
 
 ## Known problems in these files
 
-- [#144](https://github.com/ElevenSpectacles/virtual-try-on/issues/144): Bug: occluder depth is flattened by object-fit cover (42% depth on 16:9 webcams)
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST
 - [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
 

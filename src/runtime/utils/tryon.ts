@@ -366,6 +366,7 @@ export function mapLandmarkToObjectCover<T extends NormalizedLandmark>(
   return {
     ...landmark,
     x: width > 0 ? (landmark.x - window.xMin) / width : landmark.x,
-    y: height > 0 ? (landmark.y - window.yMin) / height : landmark.y
+    y: height > 0 ? (landmark.y - window.yMin) / height : landmark.y,
+    ...(landmark.z !== undefined && width > 0 ? { z: landmark.z / width } : {})
   }
 }
