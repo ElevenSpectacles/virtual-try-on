@@ -15,10 +15,6 @@ The component renders only the video and the tracked frame. State and actions ar
 
 Public props and types are contracts. Their documentation lives here and in the package README, not in declarations.
 
-## Known problems in these files
-
-- [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
-
 ## Detailed records
 
 ### `src/runtime/components/TryOnScene.vue`
@@ -40,13 +36,11 @@ composites), so no `preserveDrawingBuffer` is needed.
 
 #### `const { model, temples } = useSceneModel(props, {`
 
-The scene's parts live in composables/tryon/scene/ (not auto-imported),
-called in the order their watchers, hooks and render callback must
-register: the camera-match patch and the contact shadow read the lens
-materials the lens watcher has just rebuilt, and the temple fit reads the
-rig the model load sets.
-
-> Known problem: [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151). This records why the code is as it is; it does not endorse it.
+The scene's parts live in composables/tryon/scene/ (not auto-imported).
+Their order does not matter: each takes what it reads as an argument. The
+contact shadow watches `useFrameMaterials`' `dressed` count, so it reads the
+lens the frame shows whichever watcher registered first; the model load sets
+the temple rig before `model`, so the temple fit's `model` watcher sees it.
 
 #### `cameraPosition`
 
@@ -81,10 +75,9 @@ default slot (and the component ref) exposes. Slot content is rendered on
 top of the feed inside the stage.
 
 The stateful glue lives in `composables/tryon/experience/` (internal, not
-auto-imported). Watchers and lifecycle hooks run in the order they register:
-keep the calls below in order.
-
-> Known problem: [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151). This records why the code is as it is; it does not endorse it.
+auto-imported). No call depends on when its watchers register; the one
+report that must see every other watcher of its tick, the final `metrics`
+report, runs post-flush (see `useTryOnSessionMetrics`).
 
 #### `occluder`
 

@@ -17,7 +17,6 @@ All effects must degrade to neutral studio lighting without a sample.
 
 ## Known problems in these files
 
-- [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
 - [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
 
 ## Detailed records

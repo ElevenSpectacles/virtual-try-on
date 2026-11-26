@@ -110,12 +110,12 @@ Key facts:
   SFCs' internal composables. Not auto-imported (the module registers only
   the top level of `composables/tryon/`) and not public: the SFCs import them
   by relative path. New files for either SFC go here, nowhere else. Each is
-  called once from its SFC's setup, **in the order the code ran when it was
-  inline**, so watchers, computeds and lifecycle hooks register in the same
-  order; keep that order until issue #151 removes the dependency on it
-  (contact shadow follows the frame materials, temple fit follows the
-  model load, the final metrics report registers last, the
-  lens-shadow light follows the shadow light), and keep lazy getters lazy.
+  called once from its SFC's setup. No composable relies on when its
+  watchers register: a dependency is a passed value (the contact shadow
+  watches the frame materials' `dressed` count, the temple fit reads the
+  rig set before `model`), the final metrics report runs post-flush and on
+  scope dispose, and the lens-shadow light is a child of the shadow light.
+  Keep it that way, and keep lazy getters lazy.
   - `scene/` (TryOnScene): `useSceneModel` (GLB load through the model cache,
     temple rig), `useSceneSnapshot` (`capture()` render), `useSceneEnvironment`
     (HDR / procedural / camera environment), `useFrameMaterials` (the one
