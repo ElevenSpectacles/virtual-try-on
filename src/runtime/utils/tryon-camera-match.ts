@@ -1,4 +1,5 @@
 import { NEUTRAL_LUMA } from './tryon-lighting'
+import { patchShader } from './tryon-shader'
 
 export const GRAIN_AT_NEUTRAL = 0.012
 
@@ -21,8 +22,10 @@ export function lightWrapAt(cosTheta: number): number {
   return LIGHT_WRAP_STRENGTH * (1 - c) ** LIGHT_WRAP_POWER
 }
 
+export const GRAIN_HASH = { x: 12.9898, y: 78.233, scale: 43758.5453 } as const
+
 export function grainHash(x: number, y: number, seed: number): number {
-  const v = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453
+  const v = Math.sin(x * GRAIN_HASH.x + y * GRAIN_HASH.y + seed) * GRAIN_HASH.scale
   return v - Math.floor(v)
 }
 
@@ -34,26 +37,27 @@ export interface CameraMatchUniforms {
 }
 
 export function patchCameraMatchShader(fragmentShader: string): string {
-  return fragmentShader
-    .replace(
-      'void main() {',
-      `uniform float uCameraGrain;
+  const withUniforms = patchShader(
+    fragmentShader,
+    'void main() {',
+    `uniform float uCameraGrain;
 uniform float uCameraGrainSeed;
 uniform float uCameraWrap;
 uniform vec3 uCameraWrapColor;
 float cameraGrainHash( vec2 p ) {
-  return fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) + uCameraGrainSeed ) * 43758.5453 );
+  return fract( sin( dot( p, vec2( ${GRAIN_HASH.x}, ${GRAIN_HASH.y} ) ) + uCameraGrainSeed ) * ${GRAIN_HASH.scale} );
 }
 void main() {`
-    )
-    .replace(
-      '#include <dithering_fragment>',
-      `float cameraFacing = abs( dot( normalize( normal ), normalize( vViewPosition ) ) );
+  )
+  return patchShader(
+    withUniforms,
+    '#include <dithering_fragment>',
+    `float cameraFacing = abs( dot( normalize( normal ), normalize( vViewPosition ) ) );
   float cameraRim = pow( 1.0 - saturate( cameraFacing ), ${LIGHT_WRAP_POWER.toFixed(1)} );
   gl_FragColor.rgb = mix( gl_FragColor.rgb, uCameraWrapColor * gl_FragColor.a, uCameraWrap * cameraRim );
   gl_FragColor.rgb += ( cameraGrainHash( gl_FragCoord.xy ) - 0.5 ) * 2.0 * uCameraGrain * gl_FragColor.a;
   #include <dithering_fragment>`
-    )
+  )
 }
 
 export function lightWrapColor(

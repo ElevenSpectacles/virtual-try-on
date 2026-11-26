@@ -15,6 +15,7 @@ import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import {
   LENS_HEIGHT_ATTRIBUTE,
   lensGradientLogTransmittance,
+  patchLensFresnelShader,
   patchLensGradientShader,
   type TryOnLens
 } from '../../../utils/tryon-lens'
@@ -57,15 +58,7 @@ export const LENS_MATERIAL_NAME = /glass|lens/i
 function applyLensFresnel(material: MeshPhysicalMaterial) {
   material.premultipliedAlpha = true
   material.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <opaque_fragment>',
-        `float lensGrazing = pow( 1.0 - saturate( abs( dot( normal, geometryViewDir ) ) ), 5.0 );
-        diffuseColor.a = diffuseColor.a + ( 1.0 - diffuseColor.a ) * lensGrazing;
-        vec3 lensReflected = max( outgoingLight - totalDiffuse, vec3( 0.0 ) );
-        gl_FragColor = vec4( totalDiffuse * diffuseColor.a + lensReflected, diffuseColor.a );`
-      )
-      .replace('#include <premultiplied_alpha_fragment>', '')
+    shader.fragmentShader = patchLensFresnelShader(shader.fragmentShader)
   }
   material.customProgramCacheKey = () => 'tryon-lens-fresnel'
 }

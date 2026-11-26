@@ -668,3 +668,26 @@ The nose tip (landmark 4) is the foremost point of a real face — in
 MediaPipe coordinates that is a NEGATIVE z. It must land closer to the
 camera than a neutral-depth vertex or the whole occluder is inside-out
 and depth-hides the frame front.
+
+### `src/runtime/utils/tryon-shader.ts`
+
+#### `patchShader`
+
+Every material shader patch (camera match, lens gradient and Fresnel, ear
+bend, contact receiver) goes through `patchShader`, which throws when its
+target chunk is missing. `String.replace` was a silent no-op when a three.js
+upgrade renamed or removed a chunk, leaving the material unpatched. The
+replacement is inserted literally, so `$` in GLSL is never a replace pattern.
+
+### `tests/unit/utils/tryon-shader.test.ts`
+
+#### `shader patches against the installed three.js`
+
+Runs each patch on the `ShaderLib` source of the material it patches at
+runtime (standard and physical for frame and lens, shadow for the contact
+receiver), so a three.js upgrade that moves a target fails here, not on a
+shopper's screen. The GLSL math the TS helpers mirror (lens gradient,
+Fresnel, tinted shadow, ear bend, hair mapping, light wrap) is still
+checked only through the rendering goldens; the grain hash shares its
+constants (`GRAIN_HASH`) instead (#153).
+

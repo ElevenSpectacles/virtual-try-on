@@ -177,7 +177,9 @@ Key facts:
   (true-to-size: PD and ear width in mm against the iris diameter, gated to
   frontal open-eyed frames, median + freeze, the confidence ramp that eases
   the scale from the assumed sizes), `tryon-face-shape.ts` (coarse face-shape
-  class from landmark proportions, with hysteresis; a styling hint), `tryon-capture.ts`
+  class from landmark proportions, with hysteresis; a styling hint), `tryon-shader.ts`
+  (`patchShader`: every material shader patch, throws when its three.js chunk
+  is missing), `tryon-capture.ts`
   (`capture()` layout: the cover-cropped camera window and output size), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-model-cache.ts` (the LRU, neighbour prefetch order, cache capacity
