@@ -29,6 +29,7 @@ const sceneFace = computed(() => (typeof route.query.face === 'string' ? route.q
 const sceneOccluder = computed(() => route.query.occluder !== 'off')
 const sceneLight = computed(() => (route.query.light === 'dim' || route.query.light === 'bright' ? route.query.light : 'neutral'))
 const sceneLens = computed(() => (route.query.lens === 'standard' ? 'standard' : 'physical'))
+const sceneCameraMatch = computed(() => route.query.match === 'on')
 const sceneModel = computed(() => (typeof route.query.model === 'string' ? route.query.model : undefined))
 const sceneHair = computed(() => (route.query.hair === 'band' ? 'band' : 'off'))
 const sceneHairBand = computed<[number, number]>(() => {
@@ -234,6 +235,7 @@ function onMetrics(payload: TryOnSessionMetrics) {
           :model="sceneModel"
           :hair="sceneHair"
           :hair-band="sceneHairBand"
+          :camera-match="sceneCameraMatch"
         />
       </div>
       <VirtualTryOnPrototype

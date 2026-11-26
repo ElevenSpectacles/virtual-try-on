@@ -1,5 +1,5 @@
 import { onUnmounted, watch, type ComputedRef, type ShallowRef } from 'vue'
-import { Matrix4, Mesh, Quaternion, Vector3, Vector4, type Euler, type Material } from 'three'
+import { Matrix4, Mesh, Quaternion, Vector3, type Euler, type Vector4 } from 'three'
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import {
   EAR_LEVEL_LEFT,
@@ -10,12 +10,12 @@ import {
 import {
   EAR_BEND_RAMP_METERS,
   earBendFor,
-  patchEarBendShader,
   templeAngles,
   templeFramePoints,
   type TempleRig
 } from '../../../utils/tryon-temples'
 import type { TempleState } from './useSceneModel'
+import type { EarBendMaterials } from './useFrameMaterials'
 
 export function useTempleFit(
   model: ShallowRef<GLTF | null>,
@@ -30,6 +30,11 @@ export function useTempleFit(
     groupRotation: ComputedRef<Euler>
     groupScale: ComputedRef<Vector3>
     modelOffsetVec: ComputedRef<Vector3>
+  },
+  materials: {
+    earBend: (mesh: Mesh) => { value: Vector4 }
+    clearEarBend: () => void
+    earBendMaterials: EarBendMaterials
   }
 ) {
   const TEMPLE_FILTER = { minCutoff: 0.5, beta: 1 }
@@ -37,39 +42,11 @@ export function useTempleFit(
   const groupQuaternion = new Quaternion()
   const earPoint = new Vector3()
 
-  const earBendMaterials = new Map<Mesh, { material: Material; uniform: { value: Vector4 } }>()
   let earBendFilter: OneEuroState | null = null
 
   function clearEarBend() {
-    for (const [mesh, { material }] of earBendMaterials) {
-      mesh.material = mesh.userData.tryOnTempleMaterial ?? mesh.material
-      material.dispose()
-    }
-    earBendMaterials.clear()
+    materials.clearEarBend()
     earBendFilter = null
-  }
-
-  function bendMaterial(mesh: Mesh) {
-    const existing = earBendMaterials.get(mesh)
-    if (existing) {
-      if (mesh.material !== existing.material) mesh.material = existing.material
-      return existing
-    }
-    const authored = mesh.material as Material
-    mesh.userData.tryOnTempleMaterial = authored
-    const material = authored.clone()
-    const uniform = { value: new Vector4(0, 0, 0, EAR_BEND_RAMP_METERS) }
-    const authoredCompile = authored.onBeforeCompile.bind(authored)
-    material.onBeforeCompile = (shader, renderer) => {
-      authoredCompile(shader, renderer)
-      shader.uniforms.uEarBend = uniform
-      shader.vertexShader = patchEarBendShader(shader.vertexShader)
-    }
-    material.customProgramCacheKey = () => `tryon-ear-bend-${authored.customProgramCacheKey()}`
-    mesh.material = material
-    const entry = { material, uniform }
-    earBendMaterials.set(mesh, entry)
-    return entry
   }
 
   function updateEarBend(
@@ -78,7 +55,7 @@ export function useTempleFit(
     dt: number
   ) {
     if (!props.templeEarBend) {
-      if (earBendMaterials.size) clearEarBend()
+      if (materials.earBendMaterials.size) clearEarBend()
       return
     }
     const local = templeFramePoints(rig, scenePoints)
@@ -89,7 +66,7 @@ export function useTempleFit(
       const mesh = temple.pivot.children[0]
       if (!(mesh instanceof Mesh)) continue
       const bend = earBendFor(temple.profile, { x: state.value })
-      bendMaterial(mesh).uniform.value.set(bend.start, bend.z, bend.angle, EAR_BEND_RAMP_METERS)
+      materials.earBend(mesh).value.set(bend.start, bend.z, bend.angle, EAR_BEND_RAMP_METERS)
     }
   }
 
@@ -148,5 +125,4 @@ export function useTempleFit(
 
   onUnmounted(clearEarBend)
 
-  return { earBendMaterials }
 }

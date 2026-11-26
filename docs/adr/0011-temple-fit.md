@@ -17,7 +17,6 @@ The fit depends on the catalog node layout. Other GLBs keep their authored templ
 
 ## Known problems in these files
 
-- [#150](https://github.com/ElevenSpectacles/virtual-try-on/issues/150): Refactor: give material patches a single owner
 - [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
 
 ## Detailed records
@@ -35,22 +34,12 @@ head width does not change while someone wears a frame, so it is slow.
 
 #### `earBendMaterials`
 
-Ear bend (opt-in): each arm gets its own clone of the frame material with
-a vertex-shader bend past the ear (`EAR_BEND_UNIFORMS`), since the arms
-share their material with the frame front. The bend line follows the
-head's oval point at temple height, smoothed like the opening angle.
-Declared before the temple-fit watcher that drives it; its own watchers
-still register after that one.
-
-> Known problem: [#150](https://github.com/ElevenSpectacles/virtual-try-on/issues/150). This records why the code is as it is; it does not endorse it.
-
-#### `authoredCompile`
-
-clone() copies userData but not onBeforeCompile: chain the authored
-patches (camera match), or the clone keeps their "patched" flag
-without their shader code and the arms lose grain and light wrap.
-
-> Known problem: [#150](https://github.com/ElevenSpectacles/virtual-try-on/issues/150). This records why the code is as it is; it does not endorse it.
+Ear bend (opt-in): each arm gets its own material with a vertex-shader
+bend past the ear (`EAR_BEND_UNIFORMS`), since the arms share their
+material with the frame front. `useFrameMaterials` builds it (with every
+other active patch) and hands back the per-arm uniform; this composable
+only sets it. The bend line follows the head's oval point at temple
+height, smoothed like the opening angle.
 
 #### `ear`
 

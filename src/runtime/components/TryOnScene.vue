@@ -11,7 +11,7 @@ import type { TryOnSceneProps } from '../types/tryon-scene-props'
 import { useSceneModel } from '../composables/tryon/scene/useSceneModel'
 import { useSceneSnapshot } from '../composables/tryon/scene/useSceneSnapshot'
 import { useSceneEnvironment } from '../composables/tryon/scene/useSceneEnvironment'
-import { useLensMaterials } from '../composables/tryon/scene/useLensMaterials'
+import { useFrameMaterials } from '../composables/tryon/scene/useFrameMaterials'
 import { useCameraMatch } from '../composables/tryon/scene/useCameraMatch'
 import { useBoundingBoxHelper } from '../composables/tryon/scene/useBoundingBoxHelper'
 import { useHairOccluder } from '../composables/tryon/scene/useHairOccluder'
@@ -90,8 +90,7 @@ useSceneEnvironment(props, {
   timing: (ms) => emit('timing', 'environment', ms),
   error: (message) => emit('error', 'environment', message)
 })
-useLensMaterials(model, props)
-useCameraMatch(model, props)
+const materials = useFrameMaterials(model, props, useCameraMatch(props))
 const boundingBoxHelper = useBoundingBoxHelper(model, props)
 const { hairMaskTexture, hairMaterial, hairPlaneGeometry, hairPlanePosition } =
   useHairOccluder(props)
@@ -124,12 +123,13 @@ const modelOffsetVec = computed(
     new Vector3(props.modelOffset.x, props.modelOffset.y, props.modelOffset.z)
 )
 
-const { earBendMaterials } = useTempleFit(model, temples, props, {
-  groupPosition,
-  groupRotation,
-  groupScale,
-  modelOffsetVec
-})
+useTempleFit(
+  model,
+  temples,
+  props,
+  { groupPosition, groupRotation, groupScale, modelOffsetVec },
+  materials
+)
 
 const occluderPositionVec = computed(
   () =>
@@ -143,7 +143,7 @@ const occluderPositionVec = computed(
 const occluderMeshGeometry = useFaceMeshOccluder(props)
 const shadow = useContactShadow(model, props)
 const { shadowLight, lensShadowLight } = shadow
-const shadowReceiverMaterial = useContactOcclusion(model, props, shadow, earBendMaterials)
+const shadowReceiverMaterial = useContactOcclusion(model, props, shadow, materials.earBendMaterials)
 
 const lightColor = computed(
   () => new Color(...lightingColor(props.lightTint))
