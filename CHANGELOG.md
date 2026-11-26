@@ -1,5 +1,14 @@
 # Changelog
 
+## [5.1.3](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.1.2...v5.1.3) (2026-11-26)
+
+
+### Refactoring
+
+* enforce values that were synchronised by hand ([5bfa603](https://github.com/ElevenSpectacles/virtual-try-on/commit/5bfa603ae05d1f280ec42c3a6dbc165b9460c0d5)), closes [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152)
+* give frame material patches a single owner ([f297477](https://github.com/ElevenSpectacles/virtual-try-on/commit/f2974777e95d663948974d88ee17f6ddc0baaa8e)), closes [#150](https://github.com/ElevenSpectacles/virtual-try-on/issues/150)
+* remove implicit setup, watcher and light ordering ([0c6f67a](https://github.com/ElevenSpectacles/virtual-try-on/commit/0c6f67ad184e0459ea6f52ba87373c41ee893cac)), closes [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151)
+
 ## [5.1.2](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.1.1...v5.1.2) (2026-11-26)
 
 
