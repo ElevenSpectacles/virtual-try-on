@@ -18,7 +18,6 @@ Run the single preparation command on the final catalog and review lint and tilt
 ## Known problems in these files
 
 - [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
-- [#157](https://github.com/ElevenSpectacles/virtual-try-on/issues/157): Tooling: temple trim can double-tilt legacy GLBs and leaves open cuts
 
 ## Detailed records
 
@@ -147,6 +146,14 @@ order matters and the trim must never run twice (each run tilts the
 temples again), so every step records itself in the GLB's root
 `extras.tryOnPrepared` and is skipped when already there.
 
+`backfillPrepared` recognises GLBs prepared before the marker existed
+(#157): a temple that reaches no further than the trim threshold (plus
+`TRIM_DETECT_MARGIN`) is already trimmed, and a GLB using
+`KHR_draco_mesh_compression` is already compressed. Measured on the
+catalog: trimmed temples reach 0.1046 in local X, untrimmed ones 0.151.
+`prepare-model` then copies such a file unchanged, and the lint accepts
+Draco without the marker.
+
 trim temple tips → Draco-compress → (measure for calibration)
 
 Calibration is measured on the compressed output, since compression
@@ -246,8 +253,10 @@ along X shows it runs a straight shaft out to ~0.10, then curves down and
 back (the ear-hook) for the remaining ~0.05 — the default threshold cuts
 right where that curve starts, dropping the whole hook, not just its
 rounded end cap. Dropping triangles with any vertex past the threshold
-removes it cleanly — the cut end is never capped, but that's normally
-fine, it sits low against the ear.
+removes it cleanly. The cut leaves each arm's tube open, so every closed
+loop of edges the dropped triangles shared is fanned shut with the
+dropped surface's winding (outward-facing); loops that don't close are
+counted as `open` and reported. The catalog arms cap as 2 loops, 0 open.
 
 Without the hook, though, the leftover shaft is dead flat (local Z is
 near-constant along its whole length) — it runs level into the ear rather
@@ -259,13 +268,11 @@ so tilting the tip toward the top of the ear means rotating the kept
 vertices around the hinge in the local X/Z plane (a pitch around the
 left/right axis), not touching Y.
 
-Run it once per new model. GLBs it trimmed are marked in their extras
-(`tryOnPrepared`) and skipped on a second run, since every run would tilt
-the shaft another --tilt-degrees; GLBs trimmed before the marker existed
-are not recognised, so don't feed them back in. `scripts/prepare-model.ts`
-runs this and the other steps in order.
-
-> Known problem: [#157](https://github.com/ElevenSpectacles/virtual-try-on/issues/157). This records why the code is as it is; it does not endorse it.
+GLBs it trimmed are marked in their extras (`tryOnPrepared`) and skipped
+on a second run, since every run would tilt the shaft another
+--tilt-degrees; GLBs trimmed before the marker existed are recognised by
+their geometry (see `model-prep.ts`). `scripts/prepare-model.ts` runs
+this and the other steps in order.
 
 ### `src/runtime/composables/tryon/useFrameCalibration.ts`
 
