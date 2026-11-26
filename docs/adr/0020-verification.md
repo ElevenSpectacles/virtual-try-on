@@ -510,6 +510,14 @@ the head axis. Geometry only, not a real face; see synthetic-profile.json.
 Frontal (yaw 0). The fixture is derived from a UPNA clip (non-commercial
 licence), so it stays local and is not committed; the case skips without it.
 
+#### `{ name: 'iris-moss-camera-match', face: 'iris-moss', query: { match: 'on' } }`
+
+Camera match (grain and light wrap) on a frozen frame, grain seed fixed at
+7 by the fixture scene: the only golden through the frame-material patches
+(#150). Ear bend has no golden: on the recorded poses its angle is 0, so it
+renders the same as without; `useFrameMaterials.test.ts` covers the patch
+chain.
+
 #### `runnable`
 
 A case whose pose fixture is absent is skipped, not failed: some fixtures are

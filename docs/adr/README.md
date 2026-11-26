@@ -78,7 +78,7 @@ Source files carry no comments, so the reasons for non-obvious code live here. B
 | `src/runtime/composables/tryon/scene/useContactShadow.ts` | [0014](0014-contact-shadows.md) |
 | `src/runtime/composables/tryon/scene/useFaceMeshOccluder.ts` | [0010](0010-face-occluder.md) |
 | `src/runtime/composables/tryon/scene/useHairOccluder.ts` | [0012](0012-hair-occlusion.md) |
-| `src/runtime/composables/tryon/scene/useLensMaterials.ts` | [0013](0013-lens-materials.md) |
+| `src/runtime/composables/tryon/scene/useFrameMaterials.ts` | [0011](0011-temple-fit.md), [0013](0013-lens-materials.md), [0015](0015-room-lighting.md) |
 | `src/runtime/composables/tryon/scene/useSceneEnvironment.ts` | [0015](0015-room-lighting.md) |
 | `src/runtime/composables/tryon/scene/useSceneModel.ts` | [0016](0016-performance-and-tiers.md) |
 | `src/runtime/composables/tryon/scene/useSceneSnapshot.ts` | [0005](0005-coordinate-conventions.md) |

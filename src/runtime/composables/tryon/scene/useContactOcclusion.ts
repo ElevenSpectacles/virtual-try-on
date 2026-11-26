@@ -2,14 +2,11 @@ import { onUnmounted, watch, type ComputedRef, type ShallowRef } from 'vue'
 import {
   DoubleSide,
   LinearFilter,
-  Mesh,
   NoColorSpace,
   ShadowMaterial,
   Vector3,
   VideoTexture,
-  type Color,
-  type Material,
-  type Vector4
+  type Color
 } from 'three'
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import {
@@ -19,6 +16,7 @@ import {
 } from '../../../utils/tryon-contact-occlusion'
 import { earBendPoint } from '../../../utils/tryon-temples'
 import type { ContactReceiverUniforms, MeshOccluderSphere } from './useContactShadow'
+import type { EarBendMaterials } from './useFrameMaterials'
 
 export function useContactOcclusion(
   model: ShallowRef<GLTF | null>,
@@ -33,7 +31,7 @@ export function useContactOcclusion(
     tinted: ComputedRef<boolean>
     occluderSpheres: () => MeshOccluderSphere[]
   },
-  earBendMaterials: Map<Mesh, { material: Material; uniform: { value: Vector4 } }>
+  earBendMaterials: EarBendMaterials
 ) {
   const { shadowColor: SHADOW_COLOR, receiverUniforms, tinted } = shadow
 

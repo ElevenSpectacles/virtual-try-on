@@ -29,7 +29,8 @@ const CASES: Case[] = [
   { name: 'pteron-azure-base', face: 'pteron-azure', query: {} },
   { name: 'kairos-amber-base', face: 'kairos-amber', query: {} },
   { name: 'synthetic-profile-base', face: 'synthetic-profile', query: {} },
-  { name: 'upna-frontal-base', face: 'upna-frontal', query: {} }
+  { name: 'upna-frontal-base', face: 'upna-frontal', query: {} },
+  { name: 'iris-moss-camera-match', face: 'iris-moss', query: { match: 'on' } }
 ]
 
 const FIXTURES_DIR = fileURLToPath(new URL('../fixtures/tryon-pose/', import.meta.url))

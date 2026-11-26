@@ -31,6 +31,7 @@ const props = withDefaults(
     model?: string | undefined
     hair?: 'off' | 'band'
     hairBand?: [number, number]
+    cameraMatch?: boolean
   }>(),
   {
     face: 'iris-moss',
@@ -40,9 +41,12 @@ const props = withDefaults(
     lens: 'physical',
     model: undefined,
     hair: 'off',
-    hairBand: () => [0.66, 0.8]
+    hairBand: () => [0.66, 0.8],
+    cameraMatch: false
   }
 )
+
+const GRAIN_SEED = 7
 
 const LIGHT_GAIN = { neutral: 1, dim: LIGHT_GAIN_RANGE.min, bright: LIGHT_GAIN_RANGE.max } as const
 const BACKDROP = { mid: '#c9c9c9', light: '#f2f2f2', dark: '#1e1e1e' } as const
@@ -125,6 +129,8 @@ const occluderPositions = computed(() =>
           :physical-lens="lens === 'physical'"
           :lens="lensOverride"
           :hair-mask="hairMask"
+          :camera-match="cameraMatch"
+          :grain-seed="GRAIN_SEED"
           @loaded="modelLoaded = true"
           @timing="onTiming"
           @error="onError"

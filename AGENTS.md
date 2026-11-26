@@ -113,13 +113,15 @@ Key facts:
   called once from its SFC's setup, **in the order the code ran when it was
   inline**, so watchers, computeds and lifecycle hooks register in the same
   order; keep that order until issue #151 removes the dependency on it
-  (camera match and contact shadow follow the lens materials, temple fit
-  follows the model load, the final metrics report registers last, the
+  (contact shadow follows the frame materials, temple fit follows the
+  model load, the final metrics report registers last, the
   lens-shadow light follows the shadow light), and keep lazy getters lazy.
   - `scene/` (TryOnScene): `useSceneModel` (GLB load through the model cache,
     temple rig), `useSceneSnapshot` (`capture()` render), `useSceneEnvironment`
-    (HDR / procedural / camera environment), `useLensMaterials` (physical and
-    calibrated lenses), `useCameraMatch` (grain + light-wrap patch),
+    (HDR / procedural / camera environment), `useFrameMaterials` (the one
+    owner of the shown materials: physical and calibrated lenses, camera
+    match and ear-bend patches, derived from the never-mutated authored
+    ones), `useCameraMatch` (grain + light-wrap uniforms),
     `useBoundingBoxHelper`, `useHairOccluder`, `useTempleFit` (hinge opening,
     ear bend), `useFaceMeshOccluder` (the per-detection face-mesh geometry),
     `useContactShadow` (shadow and lens-shadow lights, casters, the

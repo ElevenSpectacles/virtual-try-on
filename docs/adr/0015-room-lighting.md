@@ -17,7 +17,6 @@ All effects must degrade to neutral studio lighting without a sample.
 
 ## Known problems in these files
 
-- [#150](https://github.com/ElevenSpectacles/virtual-try-on/issues/150): Refactor: give material patches a single owner
 - [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
 - [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
 
@@ -65,12 +64,12 @@ is tracked.
 
 ### `src/runtime/composables/tryon/scene/useCameraMatch.ts`
 
-#### `watch(`
+#### `cameraMatchUniforms`
 
-Watches the lens inputs too: a lens rebuild (`useLensMaterials`, whose
-watcher runs first) leaves fresh, unpatched lens materials.
-
-> Known problem: [#150](https://github.com/ElevenSpectacles/virtual-try-on/issues/150). This records why the code is as it is; it does not endorse it.
+One shared uniform set, returned to `useFrameMaterials`, which patches it
+into every standard/physical frame and lens material it builds. Toggling
+camera match rebuilds those materials (one recompile); the amounts follow
+room luma and tint through the uniforms.
 
 #### `useLoop().onBeforeRender(() => {`
 

@@ -21,7 +21,19 @@ Material names are part of the asset contract. Lens changes require golden and c
 
 ## Detailed records
 
-### `src/runtime/composables/tryon/scene/useLensMaterials.ts`
+### `src/runtime/composables/tryon/scene/useFrameMaterials.ts`
+
+#### `useFrameMaterials`
+
+The one owner of the materials shown on a loaded GLB (#150). Each mesh's
+material is derived from its authored one (`userData.tryOnAuthoredMaterial`)
+and the current feature set in `deriveMaterial`: the lens rebuild
+(`buildLens`), then the camera-match and ear-bend patches, chained in one
+`onBeforeCompile` with one cache key (`withPatches`). The authored
+materials, shared through the model cache, are never mutated. A feature
+change re-derives every mesh, an ear bend only the arms, and a model change
+or unmount puts the authored materials back and disposes the derived ones,
+so the result never depends on which feature was turned on first.
 
 #### `bakeLensHeight`
 
