@@ -17,7 +17,6 @@ Consumers read the held face. Session metrics read the raw tracker.
 
 ## Known problems in these files
 
-- [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 
 ## Detailed records
 

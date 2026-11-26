@@ -1,8 +1,9 @@
 import type { Document, Primitive } from '@gltf-transform/core'
 import { compactPrimitive, draco, prune, transformPrimitive } from '@gltf-transform/functions'
 import { Matrix4 } from 'three'
+import { TEMPLE_NODE_NAME } from '../../src/runtime/utils/tryon-temples'
 
-export const TEMPLE_NODE_NAME = 'pt2'
+export { TEMPLE_NODE_NAME }
 
 export type PrepStep = 'trimmed' | 'compressed'
 

@@ -35,3 +35,5 @@ export function guideHintFor(inputs: GuideInputs): TryOnGuideHint | null {
 export function isHeld(lastSeenAt: number | null, now: number, holdMs = TRACKING_HOLD_MS): boolean {
   return lastSeenAt !== null && now - lastSeenAt < holdMs
 }
+
+export const FRAME_FADE_MS = 150

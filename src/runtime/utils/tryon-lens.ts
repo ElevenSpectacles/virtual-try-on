@@ -1,5 +1,7 @@
 import { patchShader } from './tryon-shader'
 
+export const LENS_MATERIAL_NAME = /glass|lens/i
+
 export type TryOnLensCategory = 0 | 1 | 2 | 3 | 4
 
 export const LENS_CATEGORY_TRANSMITTANCE: Record<TryOnLensCategory, number> = {

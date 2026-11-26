@@ -1,9 +1,4 @@
-import type { NormalizedLandmark } from './tryon'
-
-function widthUnitDistance(a: NormalizedLandmark, b: NormalizedLandmark, aspect: number): number {
-  const dy = (a.y - b.y) / (aspect > 0 ? aspect : 1)
-  return Math.hypot(a.x - b.x, dy)
-}
+import { landmarkDistance, type NormalizedLandmark } from './tryon'
 
 export const NOSE_SIDE_PAIRS = [
   [188, 412],
@@ -43,7 +38,7 @@ export function noseProfile(
     topY ??= y
     points.push({
       dropMm: (y - topY) * mmPerUnit,
-      widthMm: widthUnitDistance(a, b, aspect) * mmPerUnit
+      widthMm: landmarkDistance(a, b, aspect) * mmPerUnit
     })
   }
   return points

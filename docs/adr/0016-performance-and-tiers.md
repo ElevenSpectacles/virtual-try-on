@@ -19,7 +19,6 @@ New expensive features need a minimum tier. Metrics stay aggregate and opt-in.
 
 - [#147](https://github.com/ElevenSpectacles/virtual-try-on/issues/147): Performance: FRAME_BUDGET_MS is still a placeholder
 - [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
-- [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 
 ## Detailed records
 

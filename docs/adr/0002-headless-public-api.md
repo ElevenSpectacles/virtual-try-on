@@ -18,7 +18,6 @@ Public props and types are contracts. Their documentation lives here and in the 
 ## Known problems in these files
 
 - [#151](https://github.com/ElevenSpectacles/virtual-try-on/issues/151): Refactor: remove implicit setup, watcher and light ordering
-- [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 
 ## Detailed records
 

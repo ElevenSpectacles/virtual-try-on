@@ -1,13 +1,11 @@
 import { computed, onBeforeUnmount, ref, watch, watchEffect, type Ref } from 'vue'
 import { useTryOnPlacement } from '../useTryOnPlacement'
-import { guideHintFor } from '../../../utils/tryon-guide'
+import { FRAME_FADE_MS, guideHintFor } from '../../../utils/tryon-guide'
 import type { NormalizedLandmark, ObjectCoverWindow } from '../../../utils/tryon'
 import type { CardCalibrationState } from '../../../utils/tryon-card'
 import type { FacePose } from '../../../utils/tryon-pose'
 import type { TryOnFrameCalibration } from '../../../types/tryon-calibration'
 import type { TryOnGuideHint } from '../../../types/tryon-experience'
-
-const FRAME_FADE_MS = 150
 
 export interface UseTryOnFrameOptions {
   props: { frameScale: number; trueToSize: boolean }

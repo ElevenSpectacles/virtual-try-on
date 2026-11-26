@@ -161,6 +161,7 @@ Source files carry no comments, so the reasons for non-obvious code live here. B
 | `tests/unit/support/landmark-stream.ts` | [0020](0020-verification.md) |
 | `tests/unit/utils/pose-metrics.test.ts` | [0020](0020-verification.md) |
 | `tests/unit/utils/tryon-occluder.test.ts` | [0020](0020-verification.md) |
+| `tests/unit/workers/worker-contract.test.ts` | [0003](0003-classic-workers.md) |
 | `tests/unit/utils/tryon-shader.test.ts` | [0020](0020-verification.md) |
 
 ## Audit

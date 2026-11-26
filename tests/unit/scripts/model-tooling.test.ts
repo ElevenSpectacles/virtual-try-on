@@ -5,7 +5,8 @@ import {
   compressOnce,
   markPrepared,
   preparedSteps,
-  trimTempleTips
+  trimTempleTips,
+  TEMPLE_NODE_NAME
 } from '../../../scripts/lib/model-prep'
 import { lintModel } from '../../../scripts/lib/model-lint'
 
@@ -95,7 +96,7 @@ function frame({
       .setIndices(accessor('SCALAR', new Uint32Array(indices)))
     scene.addChild(
       doc
-        .createNode('pt2')
+        .createNode(TEMPLE_NODE_NAME)
         .setRotation([0, Math.SQRT1_2, 0, Math.SQRT1_2])
         .setMesh(doc.createMesh().addPrimitive(arm))
     )
@@ -116,10 +117,10 @@ function strip(xs: number[]) {
 }
 
 const templePrim = (doc: Document) =>
-  doc.getRoot().listNodes().find((n) => n.getName() === 'pt2')!.getMesh()!.listPrimitives()[0]!
+  doc.getRoot().listNodes().find((n) => n.getName() === TEMPLE_NODE_NAME)!.getMesh()!.listPrimitives()[0]!
 
 const templeX = (doc: Document) => {
-  const prim = doc.getRoot().listNodes().find((n) => n.getName() === 'pt2')!.getMesh()!.listPrimitives()[0]!
+  const prim = doc.getRoot().listNodes().find((n) => n.getName() === TEMPLE_NODE_NAME)!.getMesh()!.listPrimitives()[0]!
   return Array.from(prim.getAttribute('POSITION')!.getArray()!)
 }
 

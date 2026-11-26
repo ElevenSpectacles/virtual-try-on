@@ -24,7 +24,7 @@ import {
 import { lensTransmission, shadowCasterFilter } from '../../../utils/tryon-lens-shadow'
 import type { TryOnLens } from '../../../utils/tryon-lens'
 import { aimLight, type LightDirection } from '../../../utils/tryon-room'
-import { LENS_MATERIAL_NAME } from './useLensMaterials'
+import { LENS_MATERIAL_NAME } from '../../../utils/tryon-lens'
 
 export interface MeshOccluderSphere extends OccluderSphere {
   mesh: Mesh

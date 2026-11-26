@@ -17,7 +17,6 @@ Worker message types are duplicated. The WASM version must equal the pinned pack
 
 ## Known problems in these files
 
-- [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 
 ## Detailed records
 
@@ -66,10 +65,10 @@ Grey bytes (luma), `width * height`, row-major from the top.
 Message types shared between the main thread and
 `workers/hair-segmenter.worker.ts`. Kept out of the worker for the same
 reason as `face-landmarker-worker.ts`: the worker is a classic worker
-and must not contain any `export`. Keep the inline copy in the worker in
-sync.
+and must not contain any `export`. The worker keeps an inline copy;
+`tests/unit/workers/worker-contract.test.ts` compiles both and fails
+unless they are mutually assignable (#152).
 
-> Known problem: [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152). This records why the code is as it is; it does not endorse it.
 
 #### `confidence`
 
@@ -169,7 +168,8 @@ switches hair occlusion off.
 
 Same constraints as face-landmarker.worker.ts: a classic worker with zero
 static `import`/`export` (MediaPipe's loader needs `importScripts`), message
-types duplicated from `../types/hair-segmenter-worker` (keep in sync).
+types duplicated from `../types/hair-segmenter-worker`, checked by the
+worker contract test.
 
 #### `DEFAULT_WASM_BASE_PATH`
 
@@ -192,3 +192,19 @@ cost; failing here just switches hair occlusion off.
 Callback form: the masks belong to the task and are freed when the
 callback returns, so the confidence is copied out inside it (it may
 be a view on Wasm memory, which must never be transferred).
+
+### `tests/unit/workers/worker-contract.test.ts`
+
+#### `classic worker contracts`
+
+A classic worker cannot import, so its message types and the card crop
+size are copies. The test pulls the worker's type declarations out with
+the TypeScript compiler, compiles them next to `types/` and requires each
+pair to be mutually assignable; it reads `CARD_CROP_WIDTH` and
+`CARD_CROP_HEIGHT` from the worker's AST and compares them with
+`utils/tryon-card`. Every other shared value is imported: `FRAME_FADE_MS`
+(`utils/tryon-guide`) drives the CSS fade through `--vto-frame-fade`, the
+scripts import `LENS_MATERIAL_NAME` and `TEMPLE_NODE_NAME` from the
+runtime, the playground's light gains are `LIGHT_GAIN_RANGE`, and the seat
+math measures with `landmarkDistance`.
+

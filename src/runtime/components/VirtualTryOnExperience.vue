@@ -21,6 +21,7 @@ import {
 import type { TryOnSessionMetrics } from '../utils/tryon-metrics'
 import { FIT_DEFAULT_TOLERANCE } from '../utils/tryon-fit'
 import { CAMERA_BLUR_PX } from '../utils/tryon-camera-match'
+import { FRAME_FADE_MS } from '../utils/tryon-guide'
 import type { VirtualTryOnExperienceSlotProps } from '../types/tryon-experience'
 import type { VirtualTryOnExperienceProps } from '../types/tryon-experience-props'
 
@@ -238,7 +239,10 @@ watch(model, (value) => {
           'vto-frame--hidden': !frameVisible,
           'vto-layer--camera-match': cameraMatchEnabled
         }"
-        :style="cameraMatchEnabled ? { '--vto-camera-blur': `${CAMERA_BLUR_PX}px` } : undefined"
+        :style="{
+          '--vto-frame-fade': `${FRAME_FADE_MS}ms`,
+          ...(cameraMatchEnabled ? { '--vto-camera-blur': `${CAMERA_BLUR_PX}px` } : {})
+        }"
       >
         <TresCanvas
           :alpha="true"
@@ -346,7 +350,7 @@ watch(model, (value) => {
 }
 
 .vto-frame {
-  transition: opacity 150ms ease-out;
+  transition: opacity var(--vto-frame-fade) ease-out;
 }
 
 .vto-frame--hidden {

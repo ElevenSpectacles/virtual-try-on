@@ -19,7 +19,6 @@ Anchor or offset changes require the fit checks on the face fixtures.
 
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST
 - [#146](https://github.com/ElevenSpectacles/virtual-try-on/issues/146): Sizing: REFERENCE_NOSE_PROFILE rests on two photos at 25° yaw
-- [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 
 ## Detailed records
 
