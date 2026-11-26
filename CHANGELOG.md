@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.1.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.1.0...v5.1.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* compensate face widths for the real head rotation ([dd36764](https://github.com/ElevenSpectacles/virtual-try-on/commit/dd36764f331a9def859146704988ff753ef3f0e3)), closes [#143](https://github.com/ElevenSpectacles/virtual-try-on/issues/143)
+* keep the head rotation in YXZ order end to end ([edc3af2](https://github.com/ElevenSpectacles/virtual-try-on/commit/edc3af224c32b954ddd84c493b0c95800ffe6af8)), closes [#142](https://github.com/ElevenSpectacles/virtual-try-on/issues/142)
+
 ## [5.1.0](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.0.4...v5.1.0) (2026-11-25)
 
 
