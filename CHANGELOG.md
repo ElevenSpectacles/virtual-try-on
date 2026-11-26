@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.1.2](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.1.1...v5.1.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* scale landmark depth with the object-fit cover window ([12231de](https://github.com/ElevenSpectacles/virtual-try-on/commit/12231de5398f45843be854bafa73f16fd06434e3)), closes [#144](https://github.com/ElevenSpectacles/virtual-try-on/issues/144)
+
 ## [5.1.1](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.1.0...v5.1.1) (2026-11-26)
 
 
