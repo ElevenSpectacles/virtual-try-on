@@ -7,8 +7,8 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import draco3d from 'draco3dgltf'
 import { parseCalibrationFile } from './lib/calibration'
 import { PANTOSCOPIC_RANGE_DEG, auditTilt } from './lib/tilt'
+import { LENS_MATERIAL_NAME } from '../src/runtime/utils/tryon-lens'
 
-const LENS_MATERIAL_NAME = /glass|lens/i
 
 async function main() {
   const { values } = parseArgs({

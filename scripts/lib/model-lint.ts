@@ -1,5 +1,6 @@
 import { getBounds, type Document } from '@gltf-transform/core'
 import { TEMPLE_NODE_NAME, isDracoCompressed, preparedSteps } from './model-prep'
+import { LENS_MATERIAL_NAME } from '../../src/runtime/utils/tryon-lens'
 
 export interface LintFinding {
   rule: string
@@ -7,7 +8,6 @@ export interface LintFinding {
   message: string
 }
 
-export const LENS_MATERIAL_NAME = /glass|lens/i
 
 export const PLACEHOLDER_LENS_COLOURS: ReadonlyArray<readonly [number, number, number]> = [
   [1, 0.78, 0.82]

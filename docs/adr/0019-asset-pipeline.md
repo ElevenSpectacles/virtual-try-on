@@ -17,7 +17,6 @@ Run the single preparation command on the final catalog and review lint and tilt
 
 ## Known problems in these files
 
-- [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 
 ## Detailed records
 

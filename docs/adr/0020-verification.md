@@ -17,7 +17,6 @@ These checks are not in CI. Intended visual changes require reviewing re-recorde
 
 ## Known problems in these files
 
-- [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
 - [#155](https://github.com/ElevenSpectacles/virtual-try-on/issues/155): Testing: UPNA pose spec cannot catch mirrored axes or scale errors
 
 ## Detailed records

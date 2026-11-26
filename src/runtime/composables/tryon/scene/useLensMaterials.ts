@@ -14,6 +14,7 @@ import {
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import {
   LENS_HEIGHT_ATTRIBUTE,
+  LENS_MATERIAL_NAME,
   lensGradientLogTransmittance,
   patchLensFresnelShader,
   patchLensGradientShader,
@@ -53,7 +54,6 @@ function applyLensGradient(material: Material, gradient: { top: number; bottom: 
   material.customProgramCacheKey = () => `${previousKey()}|tryon-lens-gradient`
 }
 
-export const LENS_MATERIAL_NAME = /glass|lens/i
 
 function applyLensFresnel(material: MeshPhysicalMaterial) {
   material.premultipliedAlpha = true

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { NeutralToneMapping, VSMShadowMap } from 'three'
 import TryOnScene from '../../src/runtime/components/TryOnScene.vue'
 import { useFrameCalibration } from '../../src/runtime/composables/tryon/useFrameCalibration'
+import { LIGHT_GAIN_RANGE } from '../../src/runtime/utils/tryon-lighting'
 
 const poses = import.meta.glob<PoseFixture>('../../tests/fixtures/tryon-pose/*.json', { eager: true, import: 'default' })
 
@@ -43,7 +44,7 @@ const props = withDefaults(
   }
 )
 
-const LIGHT_GAIN = { neutral: 1, dim: 0.5, bright: 1.5 } as const
+const LIGHT_GAIN = { neutral: 1, dim: LIGHT_GAIN_RANGE.min, bright: LIGHT_GAIN_RANGE.max } as const
 const BACKDROP = { mid: '#c9c9c9', light: '#f2f2f2', dark: '#1e1e1e' } as const
 const lightGain = computed(() => LIGHT_GAIN[props.light])
 
