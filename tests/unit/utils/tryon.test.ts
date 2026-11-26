@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Vector3 } from 'three'
-import { headEuler } from '../../../src/runtime/utils/tryon-pose'
+import { faceEulerToThree, headEuler } from '../../../src/runtime/utils/tryon-pose'
 import {
   mirrorNormalizedX,
   landmarkToNdc,
@@ -8,6 +8,9 @@ import {
   landmarkToWorld,
   landmarkDistance,
   getFaceWidth,
+  getEarWidth,
+  EAR_LEVEL_RIGHT,
+  EAR_LEVEL_LEFT,
   estimateDistanceScale,
   worldPlaneWidth,
   headForwardOffset,
@@ -253,6 +256,29 @@ describe('try-on compositing helpers', () => {
     it('clamps the divisor near profile so scale cannot explode', () => {
       const compensated = compensateMeasureForPose(0.1, (80 * Math.PI) / 180)
       expect(compensated).toBeCloseTo(0.2)
+    })
+
+    const deg = Math.PI / 180
+    function projectedEarWidth(pose: { yaw: number; pitch: number; roll: number }, aspect: number) {
+      const axis = new Vector3(1, 0, 0).applyEuler(faceEulerToThree(pose))
+      const half = 0.15
+      const points: NormalizedLandmark[] = []
+      points[EAR_LEVEL_RIGHT] = { x: 0.5 - half * axis.x, y: 0.5 - half * axis.y * aspect }
+      points[EAR_LEVEL_LEFT] = { x: 0.5 + half * axis.x, y: 0.5 + half * axis.y * aspect }
+      return getEarWidth(points, aspect)
+    }
+
+    it.each([
+      ['pitch 20°', { yaw: 0, pitch: 20 * deg, roll: 0 }],
+      ['pitch 30°', { yaw: 0, pitch: 30 * deg, roll: 0 }],
+      ['roll 30°', { yaw: 0, pitch: 0, roll: 30 * deg }],
+      ['yaw 30°, pitch 15°, roll 10°', { yaw: 30 * deg, pitch: 15 * deg, roll: 10 * deg }],
+      ['yaw -40°, pitch -20°, roll 20°', { yaw: -40 * deg, pitch: -20 * deg, roll: 20 * deg }]
+    ])('recovers a rigid width at %s, portrait and landscape', (_, pose) => {
+      for (const aspect of [0.75, 16 / 9]) {
+        const measured = projectedEarWidth(pose, aspect)
+        expect(compensateMeasureForPose(measured, pose.yaw, pose.pitch, pose.roll)).toBeCloseTo(0.3, 9)
+      }
     })
   })
 

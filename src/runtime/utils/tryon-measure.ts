@@ -3,7 +3,8 @@ import {
   EAR_LEVEL_LEFT,
   EAR_LEVEL_RIGHT,
   IRIS_CENTER_LEFT,
-  IRIS_CENTER_RIGHT
+  IRIS_CENTER_RIGHT,
+  landmarkDistance
 } from './tryon'
 import type { NormalizedLandmark } from './tryon'
 
@@ -31,9 +32,7 @@ export function widthUnitDistance(
   b: NormalizedLandmark,
   aspect: number
 ): number {
-  const dx = a.x - b.x
-  const dy = (a.y - b.y) / (aspect > 0 ? aspect : 1)
-  return Math.sqrt(dx * dx + dy * dy)
+  return landmarkDistance(a, b, aspect)
 }
 
 export function irisDiameter(landmarks: NormalizedLandmark[], aspect: number = 1): number {

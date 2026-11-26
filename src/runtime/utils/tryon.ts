@@ -106,16 +106,17 @@ export function computeHeadOccluderGeometry(
 
 export function landmarkDistance(
   a: NormalizedLandmark,
-  b: NormalizedLandmark
+  b: NormalizedLandmark,
+  aspect: number = 1
 ): number {
-  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
+  return Math.hypot(a.x - b.x, (a.y - b.y) / (aspect > 0 ? aspect : 1))
 }
 
-export function getFaceWidth(landmarks: NormalizedLandmark[]): number {
+export function getFaceWidth(landmarks: NormalizedLandmark[], aspect: number = 1): number {
   const left = landmarks[127]
   const right = landmarks[356]
   if (!left || !right) return 0
-  return landmarkDistance(left, right)
+  return landmarkDistance(left, right, aspect)
 }
 
 export const EAR_LEVEL_RIGHT = 234
@@ -123,11 +124,11 @@ export const EAR_LEVEL_LEFT = 454
 
 export const ASSUMED_EAR_WIDTH_METERS = 0.148
 
-export function getEarWidth(landmarks: NormalizedLandmark[]): number {
+export function getEarWidth(landmarks: NormalizedLandmark[], aspect: number = 1): number {
   const right = landmarks[EAR_LEVEL_RIGHT]
   const left = landmarks[EAR_LEVEL_LEFT]
   if (!right || !left) return 0
-  return landmarkDistance(right, left)
+  return landmarkDistance(right, left, aspect)
 }
 
 export const ASSUMED_IPD_METERS = 0.063
@@ -174,12 +175,13 @@ export function headForwardOffset(
 }
 
 export function getInterPupillaryDistance(
-  landmarks: NormalizedLandmark[]
+  landmarks: NormalizedLandmark[],
+  aspect: number = 1
 ): number {
   const right = landmarks[IRIS_CENTER_RIGHT]
   const left = landmarks[IRIS_CENTER_LEFT]
   if (!right || !left) return 0
-  return landmarkDistance(right, left)
+  return landmarkDistance(right, left, aspect)
 }
 
 export const EYE_RIGHT_TOP = 159
@@ -239,10 +241,12 @@ export function compensateMeasureForPose(
   measure: number,
   yaw: number,
   pitch: number = 0,
+  roll: number = 0,
   minFactor: number = 0.5
 ): number {
-  const factor = Math.max(Math.abs(Math.cos(yaw) * Math.cos(pitch)), minFactor)
-  return measure / factor
+  const x = Math.cos(yaw) * Math.cos(roll) + Math.sin(yaw) * Math.sin(pitch) * Math.sin(roll)
+  const y = Math.cos(pitch) * Math.sin(roll)
+  return measure / Math.max(Math.hypot(x, y), minFactor)
 }
 
 export function computeMetricScaleFromMeasure(

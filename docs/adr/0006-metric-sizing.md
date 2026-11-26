@@ -17,7 +17,6 @@ Accuracy is bounded by the iris assumption and pose gates. A change here moves b
 
 ## Known problems in these files
 
-- [#143](https://github.com/ElevenSpectacles/virtual-try-on/issues/143): Bug: face-width compensation is wrong for pitch and roll (up to 24% scale error)
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST
 
 ## Detailed records
@@ -46,6 +45,16 @@ when face width isn't trackable.
 Normalized ear-to-ear width (face-oval points at temple height) — the
 measure a real frame is sized from: the temple arms must span it. Drives
 the metric scale when trackable.
+
+#### `poseCompensated`
+
+Widths are measured in stage width units (`options.aspect`) and divided by
+`compensateMeasureForPose`: the on-screen length of the head's own x axis
+under the tracked yaw, pitch and roll (`|R·x̂|` projected, YXZ as ADR 0005).
+Pitch alone leaves a horizontal segment's length unchanged and roll only
+turns it; the old `cos(yaw)·cos(pitch)` divisor grew the frame 6% at a 20°
+nod (#143). The divisor is clamped at 0.5 so a noisy near-profile pose
+cannot blow up the scale. `fit.spec.ts` measures the same way.
 
 #### `pdEstimate`
 

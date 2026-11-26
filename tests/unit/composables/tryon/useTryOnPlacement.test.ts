@@ -151,6 +151,15 @@ describe('useTryOnPlacement', () => {
     expect(out.framePosition.z).toBeCloseTo(standoff.z, 6)
   })
 
+  it('keeps the frame size when the head only nods', () => {
+    const frontal = settled(inputs())
+    const nodded = settled({
+      ...inputs(),
+      pose: ref({ ...POSE, euler: { yaw: 0, pitch: (20 * Math.PI) / 180, roll: 0 } })
+    })
+    expect(nodded.scale).toBeCloseTo(frontal.scale, 6)
+  })
+
   it('renders a turned, tilted head with the tracker orientation', () => {
     const euler = { yaw: (44 * Math.PI) / 180, pitch: (15 * Math.PI) / 180, roll: (5 * Math.PI) / 180 }
     const out = settled({ ...inputs(), pose: ref({ ...POSE, euler }) })

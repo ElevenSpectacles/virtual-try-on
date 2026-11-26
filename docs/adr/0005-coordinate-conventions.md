@@ -17,7 +17,6 @@ Every new spatial input must state its coordinate space and cross the mirror exa
 
 ## Known problems in these files
 
-- [#143](https://github.com/ElevenSpectacles/virtual-try-on/issues/143): Bug: face-width compensation is wrong for pitch and roll (up to 24% scale error)
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST
 
 ## Detailed records
@@ -200,8 +199,11 @@ transformation matrix assumes (and real phone front cameras approximate).
 
 #### `landmarkDistance`
 
-Euclidean distance between two normalized landmarks. Useful for estimating
-face size / distance from the camera.
+Distance between two normalized landmarks in width units: y is a fraction
+of the height, so it is divided by `aspect` (width / height of the space the
+landmarks are normalized to). Without it a rolled head reads up to 24%
+wider on a 16:9 stage and narrower on a 3:4 one (#143).
+`widthUnitDistance` (ADR 0006) is the same measure.
 
 #### `getEarWidth`
 

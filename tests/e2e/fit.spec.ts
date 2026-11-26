@@ -21,6 +21,8 @@ const FRAME_WIDTH_MM: Record<string, number> = {
   'kairos-amber': 135.0
 }
 
+const CLIP_ASPECT = 480 / 640
+
 const skipReason = missingPrerequisite()
 
 function median(values: number[]): number {
@@ -31,13 +33,14 @@ function median(values: number[]): number {
 function faceWidthMm(result: HarnessResult): number {
   const lm = result.landmarks
   const dist = (a: number, b: number) =>
-    Math.hypot(lm[a]![0] - lm[b]![0], lm[a]![1] - lm[b]![1])
+    Math.hypot(lm[a]![0] - lm[b]![0], (lm[a]![1] - lm[b]![1]) / CLIP_ASPECT)
   if (lm.length <= IRIS_CENTER_LEFT) return 0
   const yaw = ((result.pose?.yaw ?? 0) * Math.PI) / 180
   const pitch = ((result.pose?.pitch ?? 0) * Math.PI) / 180
+  const roll = ((result.pose?.roll ?? 0) * Math.PI) / 180
   return estimateFaceWidthMm(
-    compensateMeasureForPose(dist(EAR_LEVEL_RIGHT, EAR_LEVEL_LEFT), yaw, pitch),
-    compensateMeasureForPose(dist(IRIS_CENTER_RIGHT, IRIS_CENTER_LEFT), yaw, pitch)
+    compensateMeasureForPose(dist(EAR_LEVEL_RIGHT, EAR_LEVEL_LEFT), yaw, pitch, roll),
+    compensateMeasureForPose(dist(IRIS_CENTER_RIGHT, IRIS_CENTER_LEFT), yaw, pitch, roll)
   )
 }
 

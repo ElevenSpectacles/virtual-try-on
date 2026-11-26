@@ -117,14 +117,16 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
       ? mapLandmarkToObjectCover(options.anchor.value, options.coverWindow.value)
       : null
   )
-  const faceWidth = computed(() => getFaceWidth(correctedLandmarks.value))
-  const ipd = computed(() => getInterPupillaryDistance(correctedLandmarks.value))
-  const earWidth = computed(() => getEarWidth(correctedLandmarks.value))
+  const faceWidth = computed(() => getFaceWidth(correctedLandmarks.value, options.aspect.value))
+  const ipd = computed(() =>
+    getInterPupillaryDistance(correctedLandmarks.value, options.aspect.value)
+  )
+  const earWidth = computed(() => getEarWidth(correctedLandmarks.value, options.aspect.value))
 
   function poseCompensated(measure: number): number {
     const pose = options.pose.value
     if (!pose) return measure
-    return compensateMeasureForPose(measure, pose.euler.yaw, pose.euler.pitch)
+    return compensateMeasureForPose(measure, pose.euler.yaw, pose.euler.pitch, pose.euler.roll)
   }
 
   const pdEstimate = shallowRef<PdEstimate | null>(null)
