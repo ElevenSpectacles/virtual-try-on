@@ -6,7 +6,7 @@ import { NodeIO, getBounds } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import draco3d from 'draco3dgltf'
 import { buildCalibration, parseCalibrationFile, type MeasuredModel } from './lib/calibration'
-import { compressOnce, preparedSteps, trimTempleTips } from './lib/model-prep'
+import { backfillPrepared, compressOnce, preparedSteps, trimTempleTips } from './lib/model-prep'
 import { lintModel } from './lib/model-lint'
 
 async function main() {
@@ -45,6 +45,8 @@ async function main() {
   for (const source of inputs) {
     const target = join(output, basename(source))
     const document = await io.read(source)
+    const backfilled = backfillPrepared(document, { threshold: Number(values.threshold) })
+    if (backfilled.length) console.log(`${basename(source)}: found already ${backfilled.join(' and ')}`)
     const done = preparedSteps(document)
     if (done.includes('trimmed') && done.includes('compressed')) {
       if (resolve(source) !== resolve(target)) copyFileSync(source, target)
@@ -58,7 +60,9 @@ async function main() {
       await io.write(target, document)
       console.log(
         `${basename(source)}: ${
-          trim.skipped ? `trim ${trim.skipped}` : `trimmed ${trim.before} -> ${trim.after} triangles`
+          trim.skipped
+            ? `trim ${trim.skipped}`
+            : `trimmed ${trim.before} -> ${trim.after} triangles, ${trim.capped} cut(s) capped${trim.open ? `, ${trim.open} left open` : ''}`
         }, ${compressed ? 'compressed' : 'already compressed'}`
       )
     }

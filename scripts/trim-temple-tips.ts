@@ -62,9 +62,9 @@ async function main() {
     } else if (result.skipped === 'no-temple-node') {
       console.warn(`${file}: no "${TEMPLE_NODE_NAME}" mesh found, skipping trim`)
     } else {
-      const { before, after } = result
+      const { before, after, capped, open } = result
       console.log(
-        `${file}: ${TEMPLE_NODE_NAME} triangles ${before} -> ${after} (${(((before - after) / before) * 100).toFixed(1)}% trimmed), tilted ${tiltDegrees}deg`
+        `${file}: ${TEMPLE_NODE_NAME} triangles ${before} -> ${after} (${(((before - after) / before) * 100).toFixed(1)}% trimmed), ${capped} cut(s) capped${open ? `, ${open} left open` : ''}, tilted ${tiltDegrees}deg`
       )
     }
   }

@@ -1,5 +1,5 @@
 import { getBounds, type Document } from '@gltf-transform/core'
-import { TEMPLE_NODE_NAME, preparedSteps } from './model-prep'
+import { TEMPLE_NODE_NAME, isDracoCompressed, preparedSteps } from './model-prep'
 
 export interface LintFinding {
   rule: string
@@ -85,8 +85,8 @@ export function lintModel(document: Document, { fileSize = 0 }: { fileSize?: num
     add('texture-share', 'warning', `textures are ${Math.round((textureBytes / fileSize) * 100)} % of the file; KTX2 would shrink it`)
   }
 
-  if (!preparedSteps(document).includes('compressed')) {
-    add('compressed', 'warning', 'not Draco-compressed by prepare-model')
+  if (!preparedSteps(document).includes('compressed') && !isDracoCompressed(document)) {
+    add('compressed', 'warning', 'not Draco-compressed')
   }
   return findings
 }
