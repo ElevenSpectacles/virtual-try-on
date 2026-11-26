@@ -108,6 +108,9 @@
   },
   "overrides": {
     "esbuild": "^0.28.2",
+    "readdir-glob": {
+      "minimatch": "^11.0.1"
+    },
     "@nuxt/module-builder": {
       "typescript": "$typescript"
     }
