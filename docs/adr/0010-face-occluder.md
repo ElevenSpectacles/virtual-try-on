@@ -17,7 +17,6 @@ Setback, inflation and collar tuning trade z-fighting against leaking temples.
 
 ## Known problems in these files
 
-- [#142](https://github.com/ElevenSpectacles/virtual-try-on/issues/142): Bug: frame rotation drops YXZ order (up to 11° off on a turned, tilted head)
 - [#143](https://github.com/ElevenSpectacles/virtual-try-on/issues/143): Bug: face-width compensation is wrong for pitch and roll (up to 24% scale error)
 - [#144](https://github.com/ElevenSpectacles/virtual-try-on/issues/144): Bug: occluder depth is flattened by object-fit cover (42% depth on 16:9 webcams)
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST

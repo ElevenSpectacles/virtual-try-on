@@ -165,11 +165,11 @@ export function headForwardOffset(
   euler: { x: number; y: number; z: number },
   distance: number
 ): { x: number; y: number; z: number } {
-  const cosY = Math.cos(euler.y)
+  const cosX = Math.cos(euler.x)
   return {
-    x: distance * Math.sin(euler.y),
-    y: -distance * Math.sin(euler.x) * cosY,
-    z: distance * Math.cos(euler.x) * cosY
+    x: distance * Math.sin(euler.y) * cosX,
+    y: -distance * Math.sin(euler.x),
+    z: distance * Math.cos(euler.y) * cosX
   }
 }
 

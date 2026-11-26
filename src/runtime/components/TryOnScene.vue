@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Vector3, Euler, Color, DoubleSide } from 'three'
 import { TRYON_CAMERA, type EnvPreset } from '../utils/tryon'
+import { headEuler } from '../utils/tryon-pose'
 import { lightingColor } from '../utils/tryon-lighting'
 import { aimLight } from '../utils/tryon-room'
 import { NO_LENS_OVERRIDE } from '../utils/tryon-lens'
@@ -113,7 +114,7 @@ const groupScale = computed(
 )
 const groupRotation = computed(() => {
   if (props.rotation) {
-    return new Euler(props.rotation.x, props.rotation.y, props.rotation.z)
+    return headEuler(props.rotation)
   }
   return new Euler(0, props.rotationY, 0)
 })
@@ -159,14 +160,7 @@ const occluderScaleVec = computed(
       props.occluderRadius.radiusZ
     )
 )
-const occluderRotationVec = computed(
-  () =>
-    new Euler(
-      props.occluderRotation.x,
-      props.occluderRotation.y,
-      props.occluderRotation.z
-    )
-)
+const occluderRotationVec = computed(() => headEuler(props.occluderRotation))
 </script>
 
 <template>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { Euler, Vector3 } from 'three'
+import { Vector3 } from 'three'
+import { headEuler } from '../../../src/runtime/utils/tryon-pose'
 import {
   mirrorNormalizedX,
   landmarkToNdc,
@@ -531,13 +532,13 @@ describe('try-on compositing helpers', () => {
       expect(offset.z).toBeCloseTo(0.5)
     })
 
-    it('matches three.js XYZ Euler rotation of the forward axis', () => {
+    it('matches the head rotation of the forward axis on a turned, tilted head', () => {
       for (const euler of [
         { x: 0.2, y: 0.45, z: -0.1 },
         { x: -0.3, y: -0.6, z: 0.25 }
       ]) {
         const expected = new Vector3(0, 0, 0.7).applyEuler(
-          new Euler(euler.x, euler.y, euler.z)
+          headEuler(euler)
         )
         const offset = headForwardOffset(euler, 0.7)
         expect(offset.x).toBeCloseTo(expected.x)

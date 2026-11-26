@@ -17,7 +17,12 @@ import {
   type NormalizedLandmark,
   type ObjectCoverWindow
 } from '../../../../src/runtime/utils/tryon'
-import type { FacePose } from '../../../../src/runtime/utils/tryon-pose'
+import { Quaternion, Vector3 } from 'three'
+import {
+  faceEulerToThree,
+  headEuler,
+  type FacePose
+} from '../../../../src/runtime/utils/tryon-pose'
 import type { TryOnFrameCalibration } from '../../../../src/runtime/types/tryon-calibration'
 import { stubRaf } from '../../support/raf'
 import {
@@ -144,6 +149,21 @@ describe('useTryOnPlacement', () => {
     expect(out.framePosition.x).toBeCloseTo(world.x + standoff.x, 6)
     expect(out.framePosition.y).toBeCloseTo(world.y + standoff.y, 6)
     expect(out.framePosition.z).toBeCloseTo(standoff.z, 6)
+  })
+
+  it('renders a turned, tilted head with the tracker orientation', () => {
+    const euler = { yaw: (44 * Math.PI) / 180, pitch: (15 * Math.PI) / 180, roll: (5 * Math.PI) / 180 }
+    const out = settled({ ...inputs(), pose: ref({ ...POSE, euler }) })
+    const tracked = new Quaternion().setFromEuler(faceEulerToThree(euler))
+    expect(new Quaternion().setFromEuler(headEuler(out.rotation)).angleTo(tracked)).toBeLessThan(1e-3)
+    const world = landmarkToWorld(ANCHOR, 1, { mirror: true })
+    const standoff = new Vector3(
+      out.framePosition.x - world.x,
+      out.framePosition.y - world.y,
+      out.framePosition.z
+    )
+    const forward = new Vector3(0, 0, FRAME_BRIDGE_STANDOFF_METERS * out.scale).applyQuaternion(tracked)
+    expect(standoff.distanceTo(forward)).toBeLessThan(1e-5)
   })
 
   it('builds the face-mesh occluder from a tracked face, and none without one', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Euler, Matrix4, Vector3 } from 'three'
+import { Matrix4, Vector3 } from 'three'
+import { headEuler } from '../../../src/runtime/utils/tryon-pose'
 import {
   MAX_SEAT_OFFSET_MM,
   NOSE_SIDE_PAIRS,
@@ -72,10 +73,10 @@ describe('noseProfile', () => {
 })
 
 describe('headUpOffset', () => {
-  it('matches three.js rotating (0, d, 0) by an XYZ Euler', () => {
+  it('matches the head rotation of (0, d, 0)', () => {
     const euler = { x: 0.2, y: -0.4, z: 0.3 }
     const expected = new Vector3(0, 0.05, 0).applyMatrix4(
-      new Matrix4().makeRotationFromEuler(new Euler(euler.x, euler.y, euler.z, 'XYZ'))
+      new Matrix4().makeRotationFromEuler(headEuler(euler))
     )
     const got = headUpOffset(euler, 0.05)
     expect(got.x).toBeCloseTo(expected.x, 9)
