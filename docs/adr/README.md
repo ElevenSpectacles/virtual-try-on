@@ -129,6 +129,7 @@ Source files carry no comments, so the reasons for non-obvious code live here. B
 | `src/runtime/utils/tryon-preconnect.ts` | [0016](0016-performance-and-tiers.md) |
 | `src/runtime/utils/tryon-room.ts` | [0015](0015-room-lighting.md) |
 | `src/runtime/utils/tryon-seat.ts` | [0009](0009-frame-placement.md) |
+| `src/runtime/utils/tryon-shader.ts` | [0020](0020-verification.md) |
 | `src/runtime/utils/tryon-temples.ts` | [0011](0011-temple-fit.md) |
 | `src/runtime/utils/tryon.ts` | [0005](0005-coordinate-conventions.md), [0006](0006-metric-sizing.md), [0008](0008-pose-smoothing.md), [0009](0009-frame-placement.md), [0010](0010-face-occluder.md) |
 | `src/runtime/workers/face-landmarker.worker.ts` | [0003](0003-classic-workers.md) |
@@ -160,6 +161,7 @@ Source files carry no comments, so the reasons for non-obvious code live here. B
 | `tests/unit/support/landmark-stream.ts` | [0020](0020-verification.md) |
 | `tests/unit/utils/pose-metrics.test.ts` | [0020](0020-verification.md) |
 | `tests/unit/utils/tryon-occluder.test.ts` | [0020](0020-verification.md) |
+| `tests/unit/utils/tryon-shader.test.ts` | [0020](0020-verification.md) |
 
 ## Audit
 

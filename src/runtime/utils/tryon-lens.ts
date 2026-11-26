@@ -1,3 +1,5 @@
+import { patchShader } from './tryon-shader'
+
 export type TryOnLensCategory = 0 | 1 | 2 | 3 | 4
 
 export const LENS_CATEGORY_TRANSMITTANCE: Record<TryOnLensCategory, number> = {
@@ -89,18 +91,39 @@ export function lensOpacityAt(opacity: number, cosTheta: number): number {
 export const LENS_HEIGHT_ATTRIBUTE = 'tryOnLensHeight'
 
 export function patchLensGradientShader(shader: { vertexShader: string; fragmentShader: string }) {
-  shader.vertexShader = shader.vertexShader
-    .replace(
+  shader.vertexShader = patchShader(
+    patchShader(
+      shader.vertexShader,
       '#include <common>',
       `#include <common>\nattribute float ${LENS_HEIGHT_ATTRIBUTE};\nvarying float vLensHeight;`
-    )
-    .replace('#include <begin_vertex>', `#include <begin_vertex>\nvLensHeight = ${LENS_HEIGHT_ATTRIBUTE};`)
-  shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform float uLensGradient[2];\nvarying float vLensHeight;')
-    .replace(
-      '#include <alphamap_fragment>',
-      `#include <alphamap_fragment>
+    ),
+    '#include <begin_vertex>',
+    `#include <begin_vertex>\nvLensHeight = ${LENS_HEIGHT_ATTRIBUTE};`
+  )
+  shader.fragmentShader = patchShader(
+    patchShader(
+      shader.fragmentShader,
+      '#include <common>',
+      '#include <common>\nuniform float uLensGradient[2];\nvarying float vLensHeight;'
+    ),
+    '#include <alphamap_fragment>',
+    `#include <alphamap_fragment>
       float lensT = smoothstep( 0.0, 1.0, clamp( vLensHeight, 0.0, 1.0 ) );
       diffuseColor.a = 1.0 - exp( mix( uLensGradient[ 0 ], uLensGradient[ 1 ], lensT ) );`
-    )
+  )
+}
+
+export function patchLensFresnelShader(fragmentShader: string): string {
+  return patchShader(
+    patchShader(
+      fragmentShader,
+      '#include <opaque_fragment>',
+      `float lensGrazing = pow( 1.0 - saturate( abs( dot( normal, geometryViewDir ) ) ), 5.0 );
+        diffuseColor.a = diffuseColor.a + ( 1.0 - diffuseColor.a ) * lensGrazing;
+        vec3 lensReflected = max( outgoingLight - totalDiffuse, vec3( 0.0 ) );
+        gl_FragColor = vec4( totalDiffuse * diffuseColor.a + lensReflected, diffuseColor.a );`
+    ),
+    '#include <premultiplied_alpha_fragment>',
+    ''
+  )
 }

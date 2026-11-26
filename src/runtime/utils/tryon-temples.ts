@@ -1,4 +1,5 @@
 import { BufferAttribute, BufferGeometry, Group, Matrix4, Mesh, Vector3, type Object3D } from 'three'
+import { patchShader } from './tryon-shader'
 
 export const TEMPLE_NODE_NAME = 'pt2'
 
@@ -237,10 +238,10 @@ vec3 tryOnEarBend(vec3 p, out float theta) {
 `
 
 export function patchEarBendShader(vertexShader: string): string {
-  return `${EAR_BEND_UNIFORMS}\n${vertexShader}`
-    .replace(
-      '#include <beginnormal_vertex>',
-      `#include <beginnormal_vertex>
+  const withNormal = patchShader(
+    `${EAR_BEND_UNIFORMS}\n${vertexShader}`,
+    '#include <beginnormal_vertex>',
+    `#include <beginnormal_vertex>
       float earBendTheta;
       tryOnEarBend(position, earBendTheta);
       objectNormal = vec3(
@@ -248,11 +249,12 @@ export function patchEarBendShader(vertexShader: string): string {
         objectNormal.y,
         -objectNormal.x * sin(earBendTheta) + objectNormal.z * cos(earBendTheta)
       );`
-    )
-    .replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
+  )
+  return patchShader(
+    withNormal,
+    '#include <begin_vertex>',
+    `#include <begin_vertex>
       float earBendThetaPosition;
       transformed = tryOnEarBend(transformed, earBendThetaPosition);`
-    )
+  )
 }
