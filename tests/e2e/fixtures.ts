@@ -16,6 +16,7 @@ export type ClipKind =
   | 'backlit'
   | 'occluded'
   | 'dropout'
+  | 'landscape'
 
 const FACES_DIR = fileURLToPath(new URL('../fixtures/faces', import.meta.url))
 const CLIPS_DIR = join(tmpdir(), 'virtual-try-on-face-clips')
@@ -42,7 +43,8 @@ const FILTERS: Record<ClipKind, string> = {
     "scale=480:640,format=yuv420p,geq=lum='clip(lum(X\\,Y)*0.5+255*pow(hypot(X-W/2\\,(Y-H*0.42)*0.8)/(W*0.62)\\,3)\\,0\\,255)':cb='cb(X\\,Y)':cr='cr(X\\,Y)'",
   occluded:
     "scale=480:640,drawbox=x=40:y=330:w=200:h=280:color=0xb5836a@1:t=fill:enable='between(t,2,4)'",
-  dropout: "scale=480:640,drawbox=x=0:y=0:w=iw:h=ih:color=black@1:t=fill:enable='between(t,3,3.2)'"
+  dropout: "scale=480:640,drawbox=x=0:y=0:w=iw:h=ih:color=black@1:t=fill:enable='between(t,3,3.2)'",
+  landscape: 'scale=480:640,pad=1138:640:(ow-iw)/2:0:color=0xe8e4de'
 }
 const DURATION_S: Record<ClipKind, number> = {
   still: 4,
@@ -52,7 +54,8 @@ const DURATION_S: Record<ClipKind, number> = {
   dark: 6,
   backlit: 6,
   occluded: 6,
-  dropout: 6
+  dropout: 6,
+  landscape: 4
 }
 
 export function missingPrerequisite(): string | null {

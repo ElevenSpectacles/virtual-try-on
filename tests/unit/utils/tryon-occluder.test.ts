@@ -10,6 +10,8 @@ import {
 import { FACE_MESH_VERTEX_COUNT } from '../../../src/runtime/utils/face-mesh-triangles'
 import {
   landmarkToWorld,
+  mapLandmarkToObjectCover,
+  objectCoverWindow,
   worldPlaneWidth,
   type NormalizedLandmark
 } from '../../../src/runtime/utils/tryon'
@@ -165,6 +167,23 @@ describe('face-mesh occluder', () => {
     const dxInflated = vertexAt(inflated, 1).x - anchorWorld.x
     expect(dxInflated).toBeCloseTo(dx * 1.1)
     expect(vertexAt(inflated, 1).z).toBeCloseTo(vertexAt(base, 1).z)
+  })
+
+  it.each([
+    ['3:4', 3 / 4],
+    ['4:3', 4 / 3],
+    ['16:9', 16 / 9]
+  ])('keeps depth equal to lateral offset for a %s camera in a 3:4 stage', (_, cameraAspect) => {
+    const window = objectCoverWindow(cameraAspect, ASPECT)
+    const raw = makeLandmarks(anchor, { 1: { x: 0.55, z: 0.05 } })
+    const landmarks = raw.map((lm) => mapLandmarkToObjectCover(lm, window))
+    const mappedAnchor = mapLandmarkToObjectCover(anchor, window)
+    const positions = buildFaceMeshOccluderPositions(
+      baseOptions({ landmarks, rawAnchor: mappedAnchor, smoothedAnchor: mappedAnchor, inflate: 1, skinSetbackMeters: 0 })
+    )!
+    const anchorWorld = landmarkToWorld(mappedAnchor, ASPECT)
+    const vertex = vertexAt(positions, 1)
+    expect(Math.abs(vertex.z) / Math.abs(vertex.x - anchorWorld.x)).toBeCloseTo(1, 6)
   })
 
   it('extrudes the collar behind the matching face-oval boundary point', () => {

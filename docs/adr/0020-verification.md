@@ -297,6 +297,9 @@ unchanged:
   face from 2 s to 4 s, a hand passing (#99).
 - `dropout` — 200 ms of black frames at 3 s: the tracker loses the face
   for less than the hold, and the frame must not vanish or pop (#99).
+- `landscape` — the portrait padded to 16:9, as a laptop webcam. Chromium
+  crops it to the component's ideal width, so the page gets 720×640, still
+  wider than the 3:4 stage: the cover window crops the sides.
 A yaw sweep can't be made from one photo; it runs on real footage
 (`TRYON_VIDEO_CLIP`, see `npm run fetch-footage`).
 
@@ -466,7 +469,11 @@ tracker output, so the GL backend does not change the fixture.
 Golden screenshots of the shipped component (`?view=experience`) fitting
 each fixture's own frame onto a still portrait: real MediaPipe landmarks,
 SwiftShader rendering. Catches fit, occlusion and material regressions
-that unit tests can't see. Update after an intended visual change with
+that unit tests can't see. Each face also runs on the `landscape` clip
+(`<face>-landscape.png`), the only case where the cover window crops the
+camera. Rescaling landmark z with that crop (#144) changed no pixel on the
+three fixtures: the deeper mesh keeps its silhouette, and every frame part
+is clearly in front of or behind it. Update after an intended visual change with
 `npm run verify:e2e -- --update-snapshots` and review the new PNGs.
 
 ### `tests/e2e/rendering-goldens.spec.ts`

@@ -249,3 +249,8 @@ screen. Face trackers run on the raw frame, but every downstream consumer
 without this remap, any mismatch between the media's native aspect ratio
 and the container's aspect ratio throws position and scale off by however
 much `cover` cropped away.
+
+`z` is divided by the window width like `x`: MediaPipe's z is in raw-frame
+width units, and the occluder converts it with the visible plane width.
+Left raw, a 16:9 camera in a 3:4 stage kept only 42% of the face's depth
+(#144).

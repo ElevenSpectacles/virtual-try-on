@@ -548,6 +548,21 @@ describe('try-on compositing helpers', () => {
       expect(mapped.z).toBe(0.1)
       expect(mapped.visibility).toBe(0.9)
     })
+
+    it.each([
+      ['4:3', 4 / 3],
+      ['16:9', 16 / 9]
+    ])('scales depth like x for a %s camera in a 3:4 stage', (_, cameraAspect) => {
+      const window = objectCoverWindow(cameraAspect, 3 / 4)
+      const centre = mapLandmarkToObjectCover({ x: 0.5, y: 0.5, z: 0 }, window)
+      const offset = mapLandmarkToObjectCover({ x: 0.55, y: 0.5, z: 0.05 }, window)
+      expect(offset.z! - centre.z!).toBeCloseTo(offset.x - centre.x, 9)
+    })
+
+    it('leaves a landmark without z without one', () => {
+      const window = objectCoverWindow(16 / 9, 3 / 4)
+      expect(mapLandmarkToObjectCover({ x: 0.5, y: 0.5 }, window)).not.toHaveProperty('z')
+    })
   })
 
   describe('headForwardOffset', () => {
