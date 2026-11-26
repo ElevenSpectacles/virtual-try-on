@@ -17,7 +17,6 @@ Tuning must be checked for jitter, lag and overshoot together.
 
 ## Known problems in these files
 
-- [#143](https://github.com/ElevenSpectacles/virtual-try-on/issues/143): Bug: face-width compensation is wrong for pitch and roll (up to 24% scale error)
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST
 
 ## Detailed records

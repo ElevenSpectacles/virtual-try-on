@@ -17,7 +17,6 @@ Anchor or offset changes require the fit checks on the face fixtures.
 
 ## Known problems in these files
 
-- [#143](https://github.com/ElevenSpectacles/virtual-try-on/issues/143): Bug: face-width compensation is wrong for pitch and roll (up to 24% scale error)
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST
 - [#146](https://github.com/ElevenSpectacles/virtual-try-on/issues/146): Sizing: REFERENCE_NOSE_PROFILE rests on two photos at 25° yaw
 - [#152](https://github.com/ElevenSpectacles/virtual-try-on/issues/152): Refactor: enforce values duplicated with "keep in sync" comments
