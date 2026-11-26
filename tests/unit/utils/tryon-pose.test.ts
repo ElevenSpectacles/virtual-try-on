@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest'
+import { Euler, Quaternion, Vector3 } from 'three'
 import {
   matrixToFacePose,
-  faceEulerToThree
+  faceEulerToThree,
+  composeHeadRotation,
+  headEuler
 } from '../../../src/runtime/utils/tryon-pose'
 
 describe('try-on pose helpers', () => {
@@ -79,6 +82,34 @@ describe('try-on pose helpers', () => {
       expect(three.y).toBeCloseTo(-euler.yaw)
       expect(three.z).toBeCloseTo(-euler.roll)
       expect(three.order).toBe('YXZ')
+    })
+  })
+
+  describe('composeHeadRotation', () => {
+    const head = faceEulerToThree({ yaw: Math.PI / 6, pitch: Math.PI / 9, roll: 0.1 })
+
+    it('returns the head rotation unchanged without an offset', () => {
+      const out = new Quaternion().setFromEuler(headEuler(composeHeadRotation(head, { x: 0, y: 0, z: 0 })))
+      expect(out.angleTo(new Quaternion().setFromEuler(head))).toBeLessThan(1e-6)
+    })
+
+    it('tilts about the frame own x axis on a turned head', () => {
+      const tilt = 0.15
+      const out = headEuler(composeHeadRotation(head, { x: tilt, y: 0, z: 0 }))
+      const ownX = new Vector3(1, 0, 0).applyEuler(head)
+      expect(new Vector3(1, 0, 0).applyEuler(out).distanceTo(ownX)).toBeLessThan(1e-6)
+      const forward = new Vector3(0, 0, 1).applyEuler(head)
+      const tilted = new Vector3(0, 0, 1).applyEuler(out)
+      expect(tilted.angleTo(forward)).toBeCloseTo(tilt, 9)
+    })
+
+    it('differs from adding Euler components once the head is turned and tilted', () => {
+      const offset = { x: 0.15, y: 0, z: 0 }
+      const composed = new Quaternion().setFromEuler(headEuler(composeHeadRotation(head, offset)))
+      const added = new Quaternion().setFromEuler(
+        new Euler(head.x + offset.x, head.y, head.z, 'YXZ')
+      )
+      expect(composed.angleTo(added)).toBeGreaterThan(0.01)
     })
   })
 })

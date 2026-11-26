@@ -17,7 +17,6 @@ Every new spatial input must state its coordinate space and cross the mirror exa
 
 ## Known problems in these files
 
-- [#142](https://github.com/ElevenSpectacles/virtual-try-on/issues/142): Bug: frame rotation drops YXZ order (up to 11° off on a turned, tilted head)
 - [#143](https://github.com/ElevenSpectacles/virtual-try-on/issues/143): Bug: face-width compensation is wrong for pitch and roll (up to 24% scale error)
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST
 
@@ -119,6 +118,21 @@ Head tilt toward the shoulders (radians).
 #### `euler`
 
 YXZ order gives intuitive yaw/pitch/roll for a head looking at a camera.
+
+#### `HEAD_EULER_ORDER`
+
+Every head rotation in Three.js space is a `YXZ` Euler: the tracked pose,
+the smoothed rotation, the frame group, the occluder and the
+`headForwardOffset` / `headUpOffset` closed forms. Build one with
+`headEuler()`; never pass `{x, y, z}` to `new Euler()`, whose default `XYZ`
+turns the frame up to 11° off on a turned, tilted head (#142).
+
+#### `composeHeadRotation`
+
+The calibration `rotation` is a rotation in the frame's own axes, applied
+after the head rotation (quaternion product), not added to the head's Euler
+components: added, a pantoscopic tilt leans the frame about the camera's
+axis once the head turns.
 
 ### `src/runtime/utils/tryon.ts`
 

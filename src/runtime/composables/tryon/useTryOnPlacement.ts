@@ -1,5 +1,5 @@
 import { computed, shallowRef, watch, type Ref } from 'vue'
-import { Euler, Vector3 } from 'three'
+import { Vector3 } from 'three'
 import {
   ASSUMED_EAR_WIDTH_METERS,
   ASSUMED_FACE_WIDTH_METERS,
@@ -21,7 +21,12 @@ import {
   type NormalizedLandmark,
   type ObjectCoverWindow
 } from '../../utils/tryon'
-import { faceEulerToThree, type FacePose } from '../../utils/tryon-pose'
+import {
+  composeHeadRotation,
+  faceEulerToThree,
+  headEuler,
+  type FacePose
+} from '../../utils/tryon-pose'
 import { buildFaceMeshOccluderPositions } from '../../utils/tryon-occluder'
 import {
   SEAT_MIN_SAMPLES,
@@ -252,9 +257,10 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
 
   const faceRotation = computed<Rotation | null>(() => {
     if (!options.faceTracking() || !options.pose.value) return null
-    const euler = faceEulerToThree(options.pose.value.euler)
-    const offset = options.calibration.value.rotation
-    return { x: euler.x + offset.x, y: euler.y + offset.y, z: euler.z + offset.z }
+    return composeHeadRotation(
+      faceEulerToThree(options.pose.value.euler),
+      options.calibration.value.rotation
+    )
   })
 
   const fallbackRotation =
@@ -307,9 +313,8 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
       mirror: MIRROR_LANDMARKS
     })
     const setback = EYE_PLANE_SETBACK_METERS * smoothedScale.value
-    const rot = smoothedEuler.value
     const back = new Vector3(0, 0, -(occluderGeometry.value.radiusZ + setback)).applyEuler(
-      new Euler(rot.x, rot.y, rot.z)
+      headEuler(smoothedEuler.value)
     )
     return {
       x: position.x + back.x,

@@ -43,6 +43,26 @@ export function matrixToFacePose(matrixData: number[]): FacePose {
   }
 }
 
+export const HEAD_EULER_ORDER = 'YXZ'
+
+export interface HeadRotation {
+  x: number
+  y: number
+  z: number
+}
+
+export function headEuler(rotation: HeadRotation): Euler {
+  return new Euler(rotation.x, rotation.y, rotation.z, HEAD_EULER_ORDER)
+}
+
 export function faceEulerToThree(euler: FacePose['euler']): Euler {
-  return new Euler(euler.pitch, -euler.yaw, -euler.roll, 'YXZ')
+  return headEuler({ x: euler.pitch, y: -euler.yaw, z: -euler.roll })
+}
+
+export function composeHeadRotation(head: Euler, offset: HeadRotation): HeadRotation {
+  const rotation = new Quaternion()
+    .setFromEuler(head)
+    .multiply(new Quaternion().setFromEuler(headEuler(offset)))
+  const { x, y, z } = new Euler().setFromQuaternion(rotation, HEAD_EULER_ORDER)
+  return { x, y, z }
 }

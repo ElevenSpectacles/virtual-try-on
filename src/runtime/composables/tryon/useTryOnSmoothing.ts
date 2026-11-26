@@ -9,6 +9,7 @@ import {
   type NormalizedLandmark,
   type OneEuroState
 } from '../../utils/tryon'
+import { HEAD_EULER_ORDER } from '../../utils/tryon-pose'
 import { useTryOnFrameLoop } from './useTryOnFrameLoop'
 
 const POSE_FILTER = { minCutoff: 1.2, beta: 2.4 }
@@ -42,10 +43,10 @@ export function useTryOnSmoothing(options: {
   let angularSpeedState = 0
   let smoothedSpeedState = 0
   const previousQuat = new Quaternion()
-  const targetEulerObj = new Euler()
+  const targetEulerObj = new Euler(0, 0, 0, HEAD_EULER_ORDER)
   const targetQuat = new Quaternion()
   const displayQuat = new Quaternion()
-  const outEulerObj = new Euler()
+  const outEulerObj = new Euler(0, 0, 0, HEAD_EULER_ORDER)
 
   useTryOnFrameLoop((delta) => {
     const targetAnchor = options.targetAnchor.value
@@ -84,7 +85,7 @@ export function useTryOnSmoothing(options: {
       )
     }
 
-    targetEulerObj.set(targetEuler.x, targetEuler.y, targetEuler.z)
+    targetEulerObj.set(targetEuler.x, targetEuler.y, targetEuler.z, HEAD_EULER_ORDER)
     targetQuat.setFromEuler(targetEulerObj)
 
     if (!smoothedQuaternion) {
@@ -142,7 +143,7 @@ export function useTryOnSmoothing(options: {
         displayQuat.slerp(targetQuat, advance / remaining)
       }
     }
-    const outEuler = outEulerObj.setFromQuaternion(displayQuat)
+    const outEuler = outEulerObj.setFromQuaternion(displayQuat, HEAD_EULER_ORDER)
     smoothedEuler.value = { x: outEuler.x, y: outEuler.y, z: outEuler.z }
     if (scaleState) {
       smoothedScale.value = predictOneEuro(

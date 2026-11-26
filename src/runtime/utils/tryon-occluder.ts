@@ -1,4 +1,5 @@
-import { Euler, Quaternion, Vector3 } from 'three'
+import { Quaternion, Vector3 } from 'three'
+import { headEuler } from './tryon-pose'
 import {
   landmarkToWorld,
   worldPlaneWidth,
@@ -120,13 +121,9 @@ export function buildFaceMeshOccluderPositions(
 
   if (scale <= 0 || landmarks.length < FACE_MESH_VERTEX_COUNT) return null
 
-  const qRaw = new Quaternion().setFromEuler(
-    new Euler(rawEuler.x, rawEuler.y, rawEuler.z, 'YXZ')
-  )
+  const qRaw = new Quaternion().setFromEuler(headEuler(rawEuler))
   const qRawInv = qRaw.clone().invert()
-  const qSmooth = new Quaternion().setFromEuler(
-    new Euler(smoothedEuler.x, smoothedEuler.y, smoothedEuler.z, 'YXZ')
-  )
+  const qSmooth = new Quaternion().setFromEuler(headEuler(smoothedEuler))
   const rawAnchorWorld = landmarkToWorld(rawAnchor, aspect, { mirror })
   const smoothedAnchorWorld = landmarkToWorld(smoothedAnchor, aspect, {
     mirror

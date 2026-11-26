@@ -106,8 +106,8 @@ export function headUpOffset(
   const cz = Math.cos(euler.z)
   const sz = Math.sin(euler.z)
   return {
-    x: distance * (-cy * sz),
-    y: distance * (cx * cz - sx * sy * sz),
-    z: distance * (sx * cz + cx * sy * sz)
+    x: distance * (sy * sx * cz - cy * sz),
+    y: distance * cx * cz,
+    z: distance * (sy * sz + cy * sx * cz)
   }
 }

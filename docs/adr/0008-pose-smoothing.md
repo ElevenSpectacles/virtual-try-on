@@ -17,7 +17,6 @@ Tuning must be checked for jitter, lag and overshoot together.
 
 ## Known problems in these files
 
-- [#142](https://github.com/ElevenSpectacles/virtual-try-on/issues/142): Bug: frame rotation drops YXZ order (up to 11° off on a turned, tilted head)
 - [#143](https://github.com/ElevenSpectacles/virtual-try-on/issues/143): Bug: face-width compensation is wrong for pitch and roll (up to 24% scale error)
 - [#145](https://github.com/ElevenSpectacles/virtual-try-on/issues/145): Sizing: replace the hand-tuned FRAME_FIT_SCALE_BOOST
 
@@ -94,7 +93,9 @@ Kept separate so the prediction never feeds back into the slerp state.
 
 #### `outEulerObj`
 
-Reused per-frame instead of allocating in the rAF loop (60-120Hz).
+Reused per-frame instead of allocating in the rAF loop (60-120Hz). In and
+out in `HEAD_EULER_ORDER` (`YXZ`), so the smoothed rotation is the tracked
+one (ADR 0005).
 
 #### `if (options.isTracking.value && !wasTracking) {`
 
