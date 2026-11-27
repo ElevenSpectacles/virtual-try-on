@@ -278,7 +278,9 @@ Key facts:
   kinds) through the shipped component's ref (`?view=experience&lighting=true`).
   Real-footage specs (not run by
   default; set the env var, footage stays out of git): `video-clip.spec.ts`
-  (`TRYON_VIDEO_CLIP`, a Y4M), `upna-pose.spec.ts` (`TRYON_VIDEO_CLIP` +
+  (`TRYON_VIDEO_CLIP`, a Y4M), `frame-budget.spec.ts`
+  (`RECORD_FRAME_BUDGET=1`: p95 frame time per forced tier, GL backend and
+  CPU throttle, the data behind `FRAME_BUDGET_MS`), `upna-pose.spec.ts` (`TRYON_VIDEO_CLIP` +
   `TRYON_UPNA_GT`: head pose vs UPNA ground truth, via `pose-metrics.ts`;
   UPNA is non-commercial, so keep its clips local), and `metrics.spec.ts`
   (the `metrics` event end to end, on `TRYON_VIDEO_CLIP`).

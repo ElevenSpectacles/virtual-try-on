@@ -17,6 +17,7 @@ import {
 } from '../../../src/runtime/utils/tryon-capability'
 
 const FAST_MS = 16
+const VSYNC_60_MS = 1000 / 60
 const SLOW_MS = 50
 
 const signals = (overrides: Partial<TierSignals> = {}): TierSignals => ({
@@ -197,9 +198,32 @@ describe('advanceTierSampler', () => {
   })
 
   it('judges the frame budget against FRAME_BUDGET_MS', () => {
-    expect(FRAME_BUDGET_MS).toBe(33)
     const sampler = warmed('high')
     expect(feed(sampler, FRAME_BUDGET_MS, 2000)).toBeNull()
     expect(sampler.tier).toBe('high')
+  })
+
+  it('holds a steady 30 fps on a 60 Hz display, the mid tier target, despite rAF jitter', () => {
+    const sampler = warmed('mid')
+    for (let i = 0; i < 2000; i++) {
+      expect(advanceTierSampler(sampler, VSYNC_60_MS * 2 + (i % 2 ? 1.5 : -1.5))).toBeNull()
+    }
+    expect(sampler.tier).toBe('mid')
+  })
+
+  it('holds 60 fps with a tenth of the frames one refresh late', () => {
+    const sampler = warmed('high')
+    for (let i = 0; i < 2000; i++) {
+      expect(advanceTierSampler(sampler, i % 10 ? VSYNC_60_MS : VSYNC_60_MS * 2)).toBeNull()
+    }
+  })
+
+  it('steps down once a twentieth of the frames take three refreshes', () => {
+    const sampler = warmed('high')
+    let step = null
+    for (let i = 0; i < 2000 && !step; i++) {
+      step = advanceTierSampler(sampler, i % 10 < 8 ? VSYNC_60_MS : VSYNC_60_MS * 3)
+    }
+    expect(step).toMatchObject({ from: 'high', to: 'mid' })
   })
 })
