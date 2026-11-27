@@ -36,46 +36,20 @@ function latestWorker(): FakeWorker {
 const mockBitmap = { close: vi.fn() } as unknown as ImageBitmap
 
 describe('useFaceLandmarker', () => {
-  let originalWebAssembly: typeof window.WebAssembly | undefined
-  let originalWorker: typeof window.Worker | undefined
-  let originalCreateImageBitmap: typeof window.createImageBitmap | undefined
-
   beforeEach(() => {
     instances = []
     lastRequest = null
-
-    originalWebAssembly = window.WebAssembly
-    ;(window as unknown as { WebAssembly: unknown }).WebAssembly = {
-      instantiate: vi.fn()
-    }
-
-    originalWorker = window.Worker
-    ;(window as unknown as { Worker: unknown }).Worker = FakeWorker
-
-    originalCreateImageBitmap = window.createImageBitmap
-    ;(window as unknown as { createImageBitmap: unknown }).createImageBitmap =
-      vi.fn().mockResolvedValue(mockBitmap)
+    vi.stubGlobal('window', globalThis)
+    vi.stubGlobal('WebAssembly', { instantiate: vi.fn() })
+    vi.stubGlobal('Worker', FakeWorker)
+    vi.stubGlobal('OffscreenCanvas', class {})
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(mockBitmap))
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
   })
 
   afterEach(() => {
-    if (originalWebAssembly === undefined) {
-      delete (window as unknown as { WebAssembly?: unknown }).WebAssembly
-    } else {
-      window.WebAssembly = originalWebAssembly
-    }
-
-    if (originalWorker === undefined) {
-      delete (window as unknown as { Worker?: unknown }).Worker
-    } else {
-      window.Worker = originalWorker
-    }
-
-    if (originalCreateImageBitmap === undefined) {
-      delete (window as unknown as { createImageBitmap?: unknown })
-        .createImageBitmap
-    } else {
-      window.createImageBitmap = originalCreateImageBitmap
-    }
+    vi.unstubAllGlobals()
   })
 
   async function initReady(videoRef: Ref<HTMLVideoElement | null>) {
@@ -150,7 +124,7 @@ describe('useFaceLandmarker', () => {
   })
 
   it('reports unsupported when WebAssembly is missing', async () => {
-    delete (window as unknown as { WebAssembly?: unknown }).WebAssembly
+    vi.stubGlobal('WebAssembly', undefined)
 
     const videoRef = ref<HTMLVideoElement | null>(null)
     const { init, error, isReady } = useFaceLandmarker(videoRef)

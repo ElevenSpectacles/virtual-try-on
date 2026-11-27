@@ -249,8 +249,7 @@ Key facts:
 - `scripts/lib/colour.ts` — sRGB → CIELAB and CIEDE2000 for the colour QA
   spec (`tests/e2e/colour.spec.ts`, swatches in
   `tests/fixtures/colour-swatches.json`; skips until swatches are filled).
-- `tests/unit/` — Vitest unit tests (run from this repo). `tests/nuxt/` —
-  FakeWorker tests for `useFaceLandmarker`; no config runs them yet (#193).
+- `tests/unit/` — Vitest unit tests (run from this repo, node environment).
 - `tests/glsl/` — GLSL parity (`npm run verify:glsl`, its own Playwright
   config, also in CI): every GLSL twin (`*_GLSL` beside its TS function in
   `utils/`, the string the shader patch inserts) runs on raw WebGL2 and must
@@ -322,11 +321,10 @@ hand-edit the version, the manifest or `CHANGELOG.md`; keep commit messages conv
 (`feat:` / `fix:` / `chore(deps):` …) since they *are* the changelog.
 
 Testing strategy: unit tests target the pure functions in `utils/` and
-worker-independent composable logic — no camera, GPU, or real MediaPipe.
-`tests/nuxt/**/*.nuxt.test.ts` needs the Nuxt test environment and runs from
-the host, faking the worker with a `FakeWorker` class. New pure logic goes in
-`utils/` and gets a unit test; worker-dependent composables get a
-`FakeWorker`-style nuxt test.
+composable logic — no camera, GPU, or real MediaPipe. New pure logic goes in
+`utils/` and gets a unit test; a worker-dependent composable gets a unit test
+that stubs `Worker` and the other browser globals with `vi.stubGlobal`
+(`useFaceLandmarker.test.ts`).
 
 ## Agent skills
 
