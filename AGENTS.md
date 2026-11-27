@@ -55,9 +55,9 @@ Key facts:
     overrides; `v-model:model`; emits `track`). **Headless**: renders only
     the mirrored video + tracked frame, filling its container, with
     structural scoped CSS. Consent, errors, guide hints and controls are the
-    host's, built from the default scoped slot (`status`, `error`,
-    `faceError`, `hasFace`, `guideHint`, `fit`, `start`, `stop`, `capture`, `frozen`, `freeze`, `unfreeze`; also exposed on
-    the ref). Never add UI copy, icons, a UI library or utility classes.
+    host's, built from the default scoped slot
+    (`VirtualTryOnExperienceSlotProps`; also exposed on the ref). Never add
+    UI copy, icons, a UI library or utility classes.
   - `TryOnScene.vue` — the TresJS scene (GLB mounting through the model cache, occluder, environment).
     Uses three's own `GLTFLoader`/`DRACOLoader`/`HDRLoader`, not
     `@tresjs/cientos` — cientos does not tree-shake, so keep it out.
@@ -138,7 +138,7 @@ Key facts:
 - `workers/` — the two **classic** Web Workers (see constraints). Their
   message types live in `types/` (`face-landmarker-worker.ts`,
   `hair-segmenter-worker.ts`), since a worker file can't `export` and a repo
-  hook rejects `export` in any `workers/*.ts`:
+  hook rejects `import` and `export` in any `workers/*.ts`:
   - `face-landmarker.worker.ts` — MediaPipe `FaceLandmarker`. On request
     (`wantFrameSample`) it also returns a 16×16 RGBA downsample of the frame
     for the room-lighting estimate, after the landmark result, so the GPU
@@ -250,7 +250,7 @@ Key facts:
   spec (`tests/e2e/colour.spec.ts`, swatches in
   `tests/fixtures/colour-swatches.json`; skips until swatches are filled).
 - `tests/unit/` — Vitest unit tests (run from this repo). `tests/nuxt/` —
-  Nuxt-environment tests, run from the host project.
+  FakeWorker tests for `useFaceLandmarker`; no config runs them yet (#193).
 - `tests/glsl/` — GLSL parity (`npm run verify:glsl`, its own Playwright
   config, also in CI): every GLSL twin (`*_GLSL` beside its TS function in
   `utils/`, the string the shader patch inserts) runs on raw WebGL2 and must
@@ -276,8 +276,8 @@ Key facts:
   `lighting.spec.ts` checks the
   room-lighting estimate on dim/bright/still clips (`fixtures.ts` clip
   kinds) through the shipped component's ref (`?view=experience&lighting=true`).
-  Real-footage specs (not run by
-  default; set the env var, footage stays out of git): `video-clip.spec.ts`
+  Opt-in specs (not run by default; set the env var, footage stays out
+  of git): `video-clip.spec.ts`
   (`TRYON_VIDEO_CLIP`, a Y4M), `frame-budget.spec.ts`
   (`RECORD_FRAME_BUDGET=1`: p95 frame time per forced tier, GL backend and
   CPU throttle, the data behind `FRAME_BUDGET_MS`), `upna-pose.spec.ts` (`TRYON_VIDEO_CLIP` +
@@ -286,17 +286,15 @@ Key facts:
   (the `metrics` event end to end, on `TRYON_VIDEO_CLIP`).
 - Rendering goldens (`rendering-goldens.spec.ts`, `tryon-pose-scene.spec.ts`)
   render recorded frozen frames through `?view=scene`, one flag per golden
-  (`occluder`, `light`, `background`, `shadow`, `face`, `lens`, `model`, `hair`). Local-only, real or
-  SwiftShader GL. After an intended visual change, re-record with
-  `npx playwright test <spec> --update-snapshots` and review the PNGs; the
-  strict threshold (0.02) is set per assertion, since the default hides faint
-  changes like a shadow. New poses come from `RECORD_TRYON_POSE=1
+  (`occluder`, `light`, `background`, `shadow`, `face`, `lens`, `model`,
+  `hair`, `match`). Tracking runs on the real GPU (MediaPipe's GPU delegate
+  is unusably slow on SwiftShader); goldens run on SwiftShader so pixels
+  match across machines. Local-only like `verify:playground`: skips when the
+  models dir or ffmpeg is missing. After an intended visual change, re-record
+  with `npx playwright test <spec> --update-snapshots` and review the PNGs;
+  the strict threshold (0.02) is set per assertion, since the default hides
+  faint changes like a shadow. New poses come from `RECORD_TRYON_POSE=1
   RECORD_FACE=<face> npx playwright test tests/e2e/record-tryon-pose.spec.ts`.
-  Tracking runs on the real GPU (MediaPipe's GPU delegate is unusably slow on
-  SwiftShader); goldens run on SwiftShader so pixels match across machines.
-  Local-only like `verify:playground`: skips when the models dir or ffmpeg
-  is missing. After an intended visual change, run
-  `npm run verify:e2e -- --update-snapshots` and review the PNG diffs.
 
 ## Build and test commands
 
@@ -311,7 +309,7 @@ npm run playground     # dev playground on :4000
 npm run typecheck      # vue-tsc against the playground's generated tsconfig
 npm run verify:glsl    # GLSL twins vs their TS functions (WebGL2, ~1 s)
 npm run verify:e2e     # face-fixture tracking + golden screenshots (needs ffmpeg)
-npm run verify         # vitest + playground smoke test + face-fixture e2e
+npm run verify         # comment ratchet + vitest + GLSL parity + playground smoke test + face-fixture e2e
 npm run build          # dist/ via nuxt-module-build
 npm pack --dry-run     # tarball must hold only dist/, CHANGELOG.md, LICENSE, README.md, package.json
 ```
@@ -372,11 +370,8 @@ Use the nuxt-virtual-try-on skill as the Nuxt router/entrypoint for tasks in thi
   instance (`occluder` — default `true` — is the only one so far). Optional
   boolean props that fall back to a module option need an explicit
   `undefined` default, or Vue casts an omitted prop to `false`.
-- Host provides only `nuxt` and `vue` (TresJS and three ship with the module) and
-  builds all UI around the component from its slot — the module depends on
-  no UI library. `@nuxt/ui` is a playground-only devDependency.
-- Host logs failures from its `track` handler (`TRY_ON_ERROR` events); the
-  module has no logger.
+- The module depends on no UI library; `@nuxt/ui` is a playground-only
+  devDependency.
 - Host supplies GLB assets and a generated `calibration.json` at a
   host-controlled URL, passes `models` + `calibration-url`, and consumes the
   `track` event (all analytics stay in the host).
@@ -409,12 +404,13 @@ Use the nuxt-virtual-try-on skill as the Nuxt router/entrypoint for tasks in thi
   loader relies on synchronous `importScripts`, which module workers don't
   support. Worker message types are duplicated inline; the main-thread source
   of truth is `types/face-landmarker-worker.ts` (`types/hair-segmenter-worker.ts`
-  for the hair worker) — keep both in sync.
+  for the hair worker); `tests/unit/workers/worker-contract.test.ts` fails
+  when the copies drift.
 - **Works from both layouts**: `src/module.ts` must resolve everything via
   `createResolver` against `./runtime/…` and never assume `.ts` files exist —
   from npm it runs as `dist/module.mjs` next to transpiled `.js` runtime.
-  Verify publish-affecting changes by installing the `npm pack` tarball into
-  the playground (`modules: ['@eleven.spectacles/virtual-try-on']`).
+  Verify publish-affecting changes with the `release-smoke` skill (tarball
+  into a bare Nuxt host).
 - **Mirror-once convention**: the camera preview is mirrored via
   `scaleX(-1)` on the `<video>` only; landmark `x` is flipped in
   `landmarkToNdc` to match. Never mirror the canvas/scene too.
