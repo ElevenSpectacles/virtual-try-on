@@ -26,6 +26,15 @@ export interface MediaWindow {
   yMax: number
 }
 
+export const SCREEN_TO_MEDIA_GLSL = /* glsl */ `
+vec2 tryOnScreenToMedia(vec2 screen, vec4 window) {
+  return vec2(
+    window.x + (1.0 - screen.x) * (window.y - window.x),
+    window.z + screen.y * (window.w - window.z)
+  );
+}
+`
+
 export function screenToMedia(
   sx: number,
   sy: number,

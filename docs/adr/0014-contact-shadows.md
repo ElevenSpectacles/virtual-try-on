@@ -15,10 +15,6 @@ Black alpha provides the neutral multiply, fitted spheres the contact darkening.
 
 The receiver works in display space. The coloured path costs GPU time and runs on the high tier only.
 
-## Known problems in these files
-
-- [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
-
 ## Detailed records
 
 ### `src/runtime/composables/tryon/scene/useContactOcclusion.ts`
@@ -205,7 +201,9 @@ follow the mesh it came from (the temple arms turn at their hinges).
 Share of the light a sphere hides from a skin point `p` with unit normal
 `n`: the cosine-weighted solid angle `cos · r²/|d|²` (`d` from `p` to the
 centre), faded by `(1 − (|d| − r)/range)²` to zero at `range` past the
-surface, capped at `MAX_SPHERE_OCCLUSION`.
+surface, capped at `MAX_SPHERE_OCCLUSION`. Its GLSL twin is
+`tryOnSphereOcclusion` in `CONTACT_OCCLUSION_GLSL` (with `tryOnSilhouetteFade`
+for `silhouetteFade`); `tests/glsl/shader-parity.spec.ts` checks they agree.
 
 `cos = (n·d + r)/(|d| + r)` instead of `n·d̂`: it counts the part of a
 sphere that sticks up through the skin's horizon, and it is continuous
@@ -308,7 +306,5 @@ material's writes off for the other light's draw and back on after it.
 Fragment GLSL for the tinted path, placed where the receiver writes
 `gl_FragColor`; expects `occluded` (contact occlusion's remaining light)
 in scope. Directional shadow 0 is the frame's light, 1 the lens light
-(the order the two shadow lights are in the scene). Mirrors
-`tintedShadowMultiply` and `tintedShadowComposite`.
-
-> Known problem: [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153). This records why the code is as it is; it does not endorse it.
+(see `lensShadowLight`). Its maths is `TINTED_SHADOW_GLSL`, the twin of
+`tintedShadowMultiply` and `tintedShadowComposite`; `tests/glsl/shader-parity.spec.ts` checks they agree.

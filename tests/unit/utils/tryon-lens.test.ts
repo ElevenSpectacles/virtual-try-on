@@ -133,7 +133,7 @@ describe('physical lens darkness', () => {
   it('patches the shader to the same log-transmittance blend', () => {
     const shader = { vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <alphamap_fragment>' }
     patchLensGradientShader(shader)
-    expect(shader.fragmentShader).toContain('diffuseColor.a = 1.0 - exp( mix( uLensGradient[ 0 ], uLensGradient[ 1 ], lensT ) );')
+    expect(shader.fragmentShader).toContain('diffuseColor.a = tryOnGradientAlpha( vLensHeight, vec2( uLensGradient[ 0 ], uLensGradient[ 1 ] ) );')
     expect(shader.vertexShader).toContain(`attribute float ${LENS_HEIGHT_ATTRIBUTE};`)
   })
 })

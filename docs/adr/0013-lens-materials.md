@@ -15,10 +15,6 @@ Named lens materials are rebuilt with calibrated tint and transmittance, density
 
 Material names are part of the asset contract. Lens changes require golden and colour review.
 
-## Known problems in these files
-
-- [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
-
 ## Detailed records
 
 ### `src/runtime/composables/tryon/scene/useFrameMaterials.ts`
@@ -170,9 +166,8 @@ lens is dyed with a concentration that falls from top to bottom, so its
 optical density (−log τ) follows that fall, not its opacity: it stays dark
 further down than a linear fade, as on the real lenses (measured on the
 catalog's product photos, docs/research/model-asset-audit.md). The fall is
-a smoothstep, for the soft ends of a dyed gradient. Mirrors the lens shader.
-
-> Known problem: [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153). This records why the code is as it is; it does not endorse it.
+a smoothstep, for the soft ends of a dyed gradient. Its GLSL twin is
+`tryOnGradientAlpha` in `LENS_GLSL`; `tests/glsl/shader-parity.spec.ts` checks they agree.
 
 #### `LENS_F0`
 
@@ -182,9 +177,8 @@ Reflectance of uncoated crown glass / polycarbonate at normal incidence (IOR ≈
 
 Lens opacity at an angle: the authored opacity at normal incidence, rising
 toward 1 at grazing angles as more light is reflected than transmitted.
-Mirrors the shader chunk in TryOnScene.vue.
-
-> Known problem: [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153). This records why the code is as it is; it does not endorse it.
+Takes |cos θ|: the lens is double-sided, and its back faces show the same
+rim. Its GLSL twin is `tryOnLensOpacity` in `LENS_GLSL`; `tests/glsl/shader-parity.spec.ts` checks they agree.
 
 #### `reflected`
 

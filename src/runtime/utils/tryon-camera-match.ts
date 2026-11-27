@@ -29,6 +29,15 @@ export function grainHash(x: number, y: number, seed: number): number {
   return v - Math.floor(v)
 }
 
+export const CAMERA_MATCH_GLSL = /* glsl */ `
+float tryOnGrainHash( vec2 p, float seed ) {
+  return fract( sin( dot( p, vec2( ${GRAIN_HASH.x}, ${GRAIN_HASH.y} ) ) + seed ) * ${GRAIN_HASH.scale} );
+}
+float tryOnLightWrapRim( float cosTheta ) {
+  return pow( 1.0 - saturate( abs( cosTheta ) ), ${LIGHT_WRAP_POWER.toFixed(1)} );
+}
+`
+
 export interface CameraMatchUniforms {
   uCameraGrain: { value: number }
   uCameraGrainSeed: { value: number }
@@ -44,18 +53,15 @@ export function patchCameraMatchShader(fragmentShader: string): string {
 uniform float uCameraGrainSeed;
 uniform float uCameraWrap;
 uniform vec3 uCameraWrapColor;
-float cameraGrainHash( vec2 p ) {
-  return fract( sin( dot( p, vec2( ${GRAIN_HASH.x}, ${GRAIN_HASH.y} ) ) + uCameraGrainSeed ) * ${GRAIN_HASH.scale} );
-}
+${CAMERA_MATCH_GLSL}
 void main() {`
   )
   return patchShader(
     withUniforms,
     '#include <dithering_fragment>',
-    `float cameraFacing = abs( dot( normalize( normal ), normalize( vViewPosition ) ) );
-  float cameraRim = pow( 1.0 - saturate( cameraFacing ), ${LIGHT_WRAP_POWER.toFixed(1)} );
+    `float cameraRim = tryOnLightWrapRim( dot( normalize( normal ), normalize( vViewPosition ) ) );
   gl_FragColor.rgb = mix( gl_FragColor.rgb, uCameraWrapColor * gl_FragColor.a, uCameraWrap * cameraRim );
-  gl_FragColor.rgb += ( cameraGrainHash( gl_FragCoord.xy ) - 0.5 ) * 2.0 * uCameraGrain * gl_FragColor.a;
+  gl_FragColor.rgb += ( tryOnGrainHash( gl_FragCoord.xy, uCameraGrainSeed ) - 0.5 ) * 2.0 * uCameraGrain * gl_FragColor.a;
   #include <dithering_fragment>`
   )
 }

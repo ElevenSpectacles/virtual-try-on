@@ -15,9 +15,6 @@ Preparation records each step in GLB extras, compresses before measuring, and ke
 
 Run the single preparation command on the final catalog and review lint and tilt reports.
 
-## Known problems in these files
-
-
 ## Detailed records
 
 ### `scripts/audit-tilt.ts`

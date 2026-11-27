@@ -77,15 +77,21 @@ export const TINTED_SHADOW_FRAGMENT = /* glsl */ `
   float lensMask = getShadow( directionalShadowMap[ 1 ], lensShadowLight.shadowMapSize, lensShadowLight.shadowIntensity, lensShadowLight.shadowBias, lensShadowLight.shadowRadius, vDirectionalShadowCoord[ 1 ] );
   float frameLit = 1.0 - opacity * ( 1.0 - frameMask );
   float lensBlock = opacity * uLensShadowDensity * ( 1.0 - lensMask );
-  vec3 shadowMultiply = frameLit * occluded * ( 1.0 - lensBlock * ( 1.0 - uLensTransmission ) );
-  float lowest = min( shadowMultiply.r, min( shadowMultiply.g, shadowMultiply.b ) );
-  float shadowAlpha = 1.0 - lowest;
+  vec3 shadowMultiply = tryOnTintedMultiply( frameLit, occluded, lensBlock, uLensTransmission );
   vec2 ndc = vTintClip.xy / vTintClip.w;
   vec2 screen = vec2( ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5 );
-  vec2 media = vec2(
-    uWindow.x + ( 1.0 - screen.x ) * ( uWindow.y - uWindow.x ),
-    uWindow.z + screen.y * ( uWindow.w - uWindow.z )
-  );
+  vec2 media = tryOnScreenToMedia( screen, uWindow );
   vec3 cameraPixel = texture2D( uVideo, vec2( media.x, 1.0 - media.y ) ).rgb;
-  gl_FragColor = vec4( shadowAlpha > 0.001 ? cameraPixel * ( shadowMultiply - lowest ) / shadowAlpha : vec3( 0.0 ), shadowAlpha );
+  gl_FragColor = tryOnTintedComposite( cameraPixel, shadowMultiply );
+`
+
+export const TINTED_SHADOW_GLSL = /* glsl */ `
+vec3 tryOnTintedMultiply( float frameLit, float occluded, float lensBlock, vec3 transmission ) {
+  return frameLit * occluded * ( 1.0 - lensBlock * ( 1.0 - transmission ) );
+}
+vec4 tryOnTintedComposite( vec3 video, vec3 multiply ) {
+  float lowest = min( multiply.r, min( multiply.g, multiply.b ) );
+  float alpha = 1.0 - lowest;
+  return vec4( alpha > 0.001 ? video * ( multiply - lowest ) / alpha : vec3( 0.0 ), alpha );
+}
 `

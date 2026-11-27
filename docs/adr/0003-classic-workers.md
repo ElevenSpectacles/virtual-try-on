@@ -15,9 +15,6 @@ Tracking and hair segmentation each run in a classic worker with no static impor
 
 Worker message types are duplicated. The WASM version must equal the pinned package version.
 
-## Known problems in these files
-
-
 ## Detailed records
 
 ### `src/runtime/composables/tryon/useFaceLandmarker.ts`
@@ -68,7 +65,6 @@ reason as `face-landmarker-worker.ts`: the worker is a classic worker
 and must not contain any `export`. The worker keeps an inline copy;
 `tests/unit/workers/worker-contract.test.ts` compiles both and fails
 unless they are mutually assignable (#152).
-
 
 #### `confidence`
 

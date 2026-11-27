@@ -15,10 +15,6 @@ A separate GPU segmenter drives a depth-only plane behind the frame front, only 
 
 The frame front is never hidden by hair. Slow or failed segmentation disables only this feature.
 
-## Known problems in these files
-
-- [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
-
 ## Detailed records
 
 ### `src/runtime/composables/tryon/scene/useHairOccluder.ts`
@@ -144,10 +140,9 @@ Visible `object-fit: cover` window of the camera frame, raw-media normalized (se
 Raw camera-frame coordinates (0…1, top-left origin, unmirrored) of a
 screen point (0…1, top-left origin) on the mirrored, cover-cropped preview.
 The leftmost screen column shows the rightmost visible camera column (the
-`<video>` is mirrored), so x runs backwards. Mirrors the hair-layer shader
-in TryOnScene.vue.
-
-> Known problem: [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153). This records why the code is as it is; it does not endorse it.
+`<video>` is mirrored), so x runs backwards. Its GLSL twin is
+`SCREEN_TO_MEDIA_GLSL`, used by the hair layer and the tinted lens shadow;
+`tests/glsl/shader-parity.spec.ts` checks they agree.
 
 #### `downsampleConfidence`
 

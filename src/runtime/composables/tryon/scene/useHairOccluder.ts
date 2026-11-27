@@ -13,6 +13,7 @@ import {
 import {
   HAIR_PLANE_SETBACK_METERS,
   HAIR_PLANE_SIZE_METERS,
+  SCREEN_TO_MEDIA_GLSL,
   type MediaWindow
 } from '../../../utils/tryon-hair'
 import type { HairMask } from '../useHairSegmenter'
@@ -28,13 +29,11 @@ const HAIR_FRAGMENT = /* glsl */ `
 uniform sampler2D uMask;
 uniform vec4 uWindow;
 varying vec4 vClip;
+${SCREEN_TO_MEDIA_GLSL}
 void main() {
   vec2 ndc = vClip.xy / vClip.w;
   vec2 screen = vec2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
-  vec2 media = vec2(
-    uWindow.x + (1.0 - screen.x) * (uWindow.y - uWindow.x),
-    uWindow.z + screen.y * (uWindow.w - uWindow.z)
-  );
+  vec2 media = tryOnScreenToMedia(screen, uWindow);
   if (texture2D(uMask, media).r < 0.5) discard;
   gl_FragColor = vec4(0.0);
 }

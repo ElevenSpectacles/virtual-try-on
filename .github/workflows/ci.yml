@@ -31,6 +31,23 @@ jobs:
 
       - run: npm run build
 
+  glsl:
+    name: GLSL parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run verify:glsl
+
   doctor:
     name: Vite Doctor
     runs-on: ubuntu-latest
