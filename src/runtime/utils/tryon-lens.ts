@@ -86,9 +86,23 @@ export function schlickFresnel(cosTheta: number, f0: number = LENS_F0): number {
 }
 
 export function lensOpacityAt(opacity: number, cosTheta: number): number {
-  const reflected = (schlickFresnel(cosTheta) - LENS_F0) / (1 - LENS_F0)
+  const reflected = (schlickFresnel(Math.abs(cosTheta)) - LENS_F0) / (1 - LENS_F0)
   return opacity + (1 - opacity) * reflected
 }
+
+export const LENS_GLSL = /* glsl */ `
+#ifndef TRY_ON_LENS_GLSL
+#define TRY_ON_LENS_GLSL
+float tryOnGradientAlpha( float height, vec2 logTransmittance ) {
+  float t = smoothstep( 0.0, 1.0, clamp( height, 0.0, 1.0 ) );
+  return 1.0 - exp( mix( logTransmittance.x, logTransmittance.y, t ) );
+}
+float tryOnLensOpacity( float opacity, float cosTheta ) {
+  float grazing = pow( 1.0 - saturate( abs( cosTheta ) ), 5.0 );
+  return opacity + ( 1.0 - opacity ) * grazing;
+}
+#endif
+`
 
 export const LENS_HEIGHT_ATTRIBUTE = 'tryOnLensHeight'
 
@@ -106,22 +120,20 @@ export function patchLensGradientShader(shader: { vertexShader: string; fragment
     patchShader(
       shader.fragmentShader,
       '#include <common>',
-      '#include <common>\nuniform float uLensGradient[2];\nvarying float vLensHeight;'
+      `#include <common>\nuniform float uLensGradient[2];\nvarying float vLensHeight;\n${LENS_GLSL}`
     ),
     '#include <alphamap_fragment>',
     `#include <alphamap_fragment>
-      float lensT = smoothstep( 0.0, 1.0, clamp( vLensHeight, 0.0, 1.0 ) );
-      diffuseColor.a = 1.0 - exp( mix( uLensGradient[ 0 ], uLensGradient[ 1 ], lensT ) );`
+      diffuseColor.a = tryOnGradientAlpha( vLensHeight, vec2( uLensGradient[ 0 ], uLensGradient[ 1 ] ) );`
   )
 }
 
 export function patchLensFresnelShader(fragmentShader: string): string {
   return patchShader(
     patchShader(
-      fragmentShader,
+      patchShader(fragmentShader, '#include <common>', `#include <common>\n${LENS_GLSL}`),
       '#include <opaque_fragment>',
-      `float lensGrazing = pow( 1.0 - saturate( abs( dot( normal, geometryViewDir ) ) ), 5.0 );
-        diffuseColor.a = diffuseColor.a + ( 1.0 - diffuseColor.a ) * lensGrazing;
+      `diffuseColor.a = tryOnLensOpacity( diffuseColor.a, dot( normal, geometryViewDir ) );
         vec3 lensReflected = max( outgoingLight - totalDiffuse, vec3( 0.0 ) );
         gl_FragColor = vec4( totalDiffuse * diffuseColor.a + lensReflected, diffuseColor.a );`
     ),

@@ -693,8 +693,18 @@ replacement is inserted literally, so `$` in GLSL is never a replace pattern.
 Runs each patch on the `ShaderLib` source of the material it patches at
 runtime (standard and physical for frame and lens, shadow for the contact
 receiver), so a three.js upgrade that moves a target fails here, not on a
-shopper's screen. The GLSL math the TS helpers mirror (lens gradient,
-Fresnel, tinted shadow, ear bend, hair mapping, light wrap) is still
-checked only through the rendering goldens; the grain hash shares its
-constants (`GRAIN_HASH`) instead (#153).
+shopper's screen. The GLSL maths the TS helpers mirror is checked by
+`tests/glsl/shader-parity.spec.ts`.
+
+### `tests/glsl/shader-parity.spec.ts`
+
+#### `GLSL mirrors match their TypeScript twins`
+
+Each GLSL twin (`*_GLSL` next to its TS function, the same string the
+shader patch inserts) runs on raw WebGL2 over 256 seeded inputs, written to
+a float render target and read back (`glsl-harness.ts`), and is compared
+with the TS function to 1e-5. No playground build and no fixtures, so it
+runs in about a second and in CI (`npm run verify:glsl`, its own
+Playwright config), and a three.js or driver change that alters the maths
+fails before the goldens are re-recorded.
 

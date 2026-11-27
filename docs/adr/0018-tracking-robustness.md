@@ -15,9 +15,6 @@ The last face is held briefly. Pose and luma produce guide hints with hysteresis
 
 Consumers read the held face. Session metrics read the raw tracker.
 
-## Known problems in these files
-
-
 ## Detailed records
 
 ### `src/runtime/composables/tryon/experience/useTryOnFrame.ts`

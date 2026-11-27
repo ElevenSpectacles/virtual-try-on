@@ -15,10 +15,6 @@ A smoothed 16×16 room sample drives light, reflections and direction. Grain, sl
 
 All effects must degrade to neutral studio lighting without a sample.
 
-## Known problems in these files
-
-- [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
-
 ## Detailed records
 
 ### `src/runtime/components/TryOnScene.vue`
@@ -181,9 +177,11 @@ CSS blur of the canvas layer, in CSS pixels: a webcam is a touch soft.
 
 Light wrap weight at a view angle (`cosTheta` between the view direction
 and the normal): zero face-on, `LIGHT_WRAP_STRENGTH` at the silhouette.
-Mirrors the shader.
-
-> Known problem: [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153). This records why the code is as it is; it does not endorse it.
+Its GLSL twin is `tryOnLightWrapRim` in `CAMERA_MATCH_GLSL`, which the
+shader scales by the strength; `tests/glsl/shader-parity.spec.ts` checks they agree. The grain hash has no value
+twin: `fract(sin(x) · 43758)` amplifies float32 `sin` error past 0.04 on
+any GPU, so the spec checks only that the GPU's hash is uniform noise in
+[0, 1) that changes with the seed.
 
 #### `patchCameraMatchShader`
 

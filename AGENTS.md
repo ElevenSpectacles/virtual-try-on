@@ -181,7 +181,7 @@ Key facts:
   the scale from the assumed sizes), `tryon-face-shape.ts` (coarse face-shape
   class from landmark proportions, with hysteresis; a styling hint), `tryon-shader.ts`
   (`patchShader`: every material shader patch, throws when its three.js chunk
-  is missing), `tryon-capture.ts`
+  is missing; `glslFloat` for constants in GLSL), `tryon-capture.ts`
   (`capture()` layout: the cover-cropped camera window and output size), `tryon-capability.ts`
   (device tiers, the feature → minimum-tier table `FEATURE_MIN_TIER`, and the
   pure step-down sampler), `tryon-model-cache.ts` (the LRU, neighbour prefetch order, cache capacity
@@ -251,6 +251,11 @@ Key facts:
   `tests/fixtures/colour-swatches.json`; skips until swatches are filled).
 - `tests/unit/` — Vitest unit tests (run from this repo). `tests/nuxt/` —
   Nuxt-environment tests, run from the host project.
+- `tests/glsl/` — GLSL parity (`npm run verify:glsl`, its own Playwright
+  config, also in CI): every GLSL twin (`*_GLSL` beside its TS function in
+  `utils/`, the string the shader patch inserts) runs on raw WebGL2 and must
+  match the TS function. A GLSL function with a TS twin goes in a `*_GLSL`
+  constant and gets a case there.
 - `tests/e2e/` — Playwright face-fixture harness (`npm run verify:e2e`,
   `playwright.config.ts`). `tests/fixtures/faces/<model>.jpg` are portraits
   of a person wearing that catalog frame; `fixtures.ts` renders them with
@@ -302,6 +307,7 @@ npm run lint:comments  # comment ban (ratchet)
 npx vitest run         # unit tests (tests/unit only, per vitest.config.ts)
 npm run playground     # dev playground on :4000
 npm run typecheck      # vue-tsc against the playground's generated tsconfig
+npm run verify:glsl    # GLSL twins vs their TS functions (WebGL2, ~1 s)
 npm run verify:e2e     # face-fixture tracking + golden screenshots (needs ffmpeg)
 npm run verify         # vitest + playground smoke test + face-fixture e2e
 npm run build          # dist/ via nuxt-module-build

@@ -15,10 +15,6 @@ The shared temple mesh is split at load onto hinge pivots. Both arms open equall
 
 The fit depends on the catalog node layout. Other GLBs keep their authored temples.
 
-## Known problems in these files
-
-- [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153): Testing: GLSL mirrors and shader string patches are unverified
-
 ## Detailed records
 
 ### `src/runtime/composables/tryon/scene/useTempleFit.ts`
@@ -35,7 +31,7 @@ head width does not change while someone wears a frame, so it is slow.
 #### `earBendMaterials`
 
 Ear bend (opt-in): each arm gets its own material with a vertex-shader
-bend past the ear (`EAR_BEND_UNIFORMS`), since the arms share their
+bend past the ear (`EAR_BEND_GLSL`), since the arms share their
 material with the frame front. `useFrameMaterials` builds it (with every
 other active patch) and hands back the per-arm uniform; this composable
 only sets it. The bend line follows the head's oval point at temple
@@ -148,13 +144,12 @@ Full bend angle, radians (0: no bend).
 #### `earBendPoint`
 
 A temple-node point bent down by `bend` (identity in front of the ear).
-Mirrors `earBendShaderChunk`.
+Its GLSL twin is `tryOnEarBend` in `EAR_BEND_GLSL`; `tests/glsl/shader-parity.spec.ts` checks they agree (to
+0.1 mm: GPU `sin`/`cos` are float32).
 
-> Known problem: [#153](https://github.com/ElevenSpectacles/virtual-try-on/issues/153). This records why the code is as it is; it does not endorse it.
-
-#### `EAR_BEND_UNIFORMS`
+#### `EAR_BEND_GLSL`
 
 GLSL for the bend, applied to `transformed` (and `objectNormal`) in the
 mesh's own frame. A rigged arm's geometry is in the temple node's frame
-(the mesh is only offset by `-pivot`), so `uEarBend` = (start, z, angle,
-ramp) is in temple-node units.
+(the mesh is only offset by `-pivot`), so `bend` (the `uEarBend` uniform) =
+(start, z, angle, ramp) is in temple-node units.

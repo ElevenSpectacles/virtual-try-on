@@ -224,26 +224,25 @@ export function earBendPoint(
   return { x: bend.start + dx * c + dz * s, y: point.y, z: bend.z - dx * s + dz * c }
 }
 
-export const EAR_BEND_UNIFORMS = /* glsl */ `
-uniform vec4 uEarBend;
-vec3 tryOnEarBend(vec3 p, out float theta) {
-  float dx = p.x - uEarBend.x;
-  theta = dx > 0.0 ? uEarBend.z * smoothstep(0.0, uEarBend.w, dx) : 0.0;
+export const EAR_BEND_GLSL = /* glsl */ `
+vec3 tryOnEarBend(vec3 p, vec4 bend, out float theta) {
+  float dx = p.x - bend.x;
+  theta = dx > 0.0 ? bend.z * smoothstep(0.0, bend.w, dx) : 0.0;
   if (theta == 0.0) return p;
-  float dz = p.z - uEarBend.y;
+  float dz = p.z - bend.y;
   float c = cos(theta);
   float s = sin(theta);
-  return vec3(uEarBend.x + dx * c + dz * s, p.y, uEarBend.y - dx * s + dz * c);
+  return vec3(bend.x + dx * c + dz * s, p.y, bend.y - dx * s + dz * c);
 }
 `
 
 export function patchEarBendShader(vertexShader: string): string {
   const withNormal = patchShader(
-    `${EAR_BEND_UNIFORMS}\n${vertexShader}`,
+    `uniform vec4 uEarBend;\n${EAR_BEND_GLSL}\n${vertexShader}`,
     '#include <beginnormal_vertex>',
     `#include <beginnormal_vertex>
       float earBendTheta;
-      tryOnEarBend(position, earBendTheta);
+      tryOnEarBend(position, uEarBend, earBendTheta);
       objectNormal = vec3(
         objectNormal.x * cos(earBendTheta) + objectNormal.z * sin(earBendTheta),
         objectNormal.y,
@@ -255,6 +254,6 @@ export function patchEarBendShader(vertexShader: string): string {
     '#include <begin_vertex>',
     `#include <begin_vertex>
       float earBendThetaPosition;
-      transformed = tryOnEarBend(transformed, earBendThetaPosition);`
+      transformed = tryOnEarBend(transformed, uEarBend, earBendThetaPosition);`
   )
 }

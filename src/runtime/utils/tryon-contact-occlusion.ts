@@ -1,5 +1,6 @@
-import { TINTED_SHADOW_FRAGMENT } from './tryon-lens-shadow'
-import { patchShader } from './tryon-shader'
+import { SCREEN_TO_MEDIA_GLSL } from './tryon-hair'
+import { TINTED_SHADOW_FRAGMENT, TINTED_SHADOW_GLSL } from './tryon-lens-shadow'
+import { glslFloat, patchShader } from './tryon-shader'
 
 export interface OccluderSphere {
   x: number
@@ -138,6 +139,21 @@ export function contactShadowAlpha(
   return 1 - shadowed * occluded
 }
 
+export const CONTACT_OCCLUSION_GLSL = /* glsl */ `
+float tryOnSphereOcclusion(vec3 p, vec3 n, vec4 sphere, float range) {
+  vec3 d = sphere.xyz - p;
+  float r = sphere.w;
+  float d2 = max(dot(d, d), r * r);
+  float dist = sqrt(d2);
+  float fade = max(1.0 - (dist - r) / range, 0.0);
+  float cosine = clamp((dot(n, d) + r) / (dist + r), 0.0, 1.0);
+  return min(cosine * r * r / d2 * fade * fade, ${glslFloat(MAX_SPHERE_OCCLUSION)});
+}
+float tryOnSilhouetteFade(float cosView) {
+  return smoothstep(${glslFloat(SILHOUETTE_FADE_START)}, ${glslFloat(SILHOUETTE_FADE_END)}, cosView);
+}
+`
+
 const AO_VARYINGS = 'varying vec3 vAoPosition;\nvarying vec3 vAoNormal;'
 
 export function patchContactReceiverShader(shader: { vertexShader: string; fragmentShader: string }) {
@@ -167,18 +183,14 @@ uniform sampler2D uVideo;
 uniform vec4 uWindow;
 varying vec4 vTintClip;
 
+${CONTACT_OCCLUSION_GLSL}
+${SCREEN_TO_MEDIA_GLSL}
+${TINTED_SHADOW_GLSL}
 float contactOcclusion(vec3 p, vec3 n) {
   float visible = 1.0;
   for (int i = 0; i < ${MAX_OCCLUDER_SPHERES}; i++) {
     if (i >= uSphereCount) break;
-    vec3 d = uSpheres[i].xyz - p;
-    float r = uSpheres[i].w;
-    float d2 = max(dot(d, d), r * r);
-    float dist = sqrt(d2);
-    float fade = max(1.0 - (dist - r) / uOcclusionRange, 0.0);
-    float cosine = clamp((dot(n, d) + r) / (dist + r), 0.0, 1.0);
-    float occlusion = min(cosine * r * r / d2 * fade * fade, ${MAX_SPHERE_OCCLUSION.toFixed(2)});
-    visible *= 1.0 - occlusion;
+    visible *= 1.0 - tryOnSphereOcclusion(p, n, uSpheres[i], uOcclusionRange);
   }
   return 1.0 - visible;
 }`
@@ -189,7 +201,7 @@ float contactOcclusion(vec3 p, vec3 n) {
     `vec3 aoNormal = dot(vAoNormal, vAoNormal) > 0.0 ? normalize(vAoNormal) : vec3(0.0, 0.0, 1.0);
   vec3 aoView = normalize(cameraPosition - vAoPosition);
   if (dot(aoNormal, aoView) < 0.0) aoNormal = -aoNormal;
-  float aoFacing = smoothstep(${SILHOUETTE_FADE_START.toFixed(2)}, ${SILHOUETTE_FADE_END.toFixed(2)}, dot(aoNormal, aoView));
+  float aoFacing = tryOnSilhouetteFade(dot(aoNormal, aoView));
   float occluded = 1.0 - uOcclusionStrength * aoFacing * contactOcclusion(vAoPosition, aoNormal);
 #if defined( TINTED_LENS_SHADOW ) && NUM_DIR_LIGHT_SHADOWS > 1
 ${TINTED_SHADOW_FRAGMENT}

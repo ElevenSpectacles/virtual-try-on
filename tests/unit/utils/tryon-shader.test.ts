@@ -43,7 +43,7 @@ describe('shader patches against the installed three.js', () => {
 
   it('lens Fresnel patches the physical fragment shader', () => {
     const out = patchLensFresnelShader(shader('physical').fragmentShader)
-    expect(out).toContain('lensGrazing')
+    expect(out).toContain('tryOnLensOpacity( diffuseColor.a')
     expect(out).not.toContain('#include <premultiplied_alpha_fragment>')
   })
 

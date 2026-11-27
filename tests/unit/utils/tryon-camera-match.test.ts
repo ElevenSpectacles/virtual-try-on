@@ -57,6 +57,6 @@ describe('patchCameraMatchShader', () => {
   it('declares the uniforms and applies wrap then grain before dithering', () => {
     const patched = patchCameraMatchShader('void main() {\n  #include <dithering_fragment>\n}')
     expect(patched).toMatch(/uniform float uCameraGrain;[\s\S]*void main\(\)/)
-    expect(patched).toMatch(/cameraRim[\s\S]*cameraGrainHash\( gl_FragCoord.xy \)[\s\S]*#include <dithering_fragment>/)
+    expect(patched).toMatch(/cameraRim[\s\S]*tryOnGrainHash\( gl_FragCoord.xy, uCameraGrainSeed \)[\s\S]*#include <dithering_fragment>/)
   })
 })

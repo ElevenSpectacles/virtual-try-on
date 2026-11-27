@@ -69,9 +69,10 @@
     "lint:comments": "tsx scripts/lint-comments.ts",
     "verify:unit": "npx vitest run",
     "verify:playground": "node scripts/verify-playground.mjs",
-    "verify": "npm run lint:comments && npm run verify:unit && npm run verify:playground && npm run verify:e2e",
+    "verify": "npm run lint:comments && npm run verify:unit && npm run verify:glsl && npm run verify:playground && npm run verify:e2e",
     "prepare": "husky",
-    "verify:e2e": "playwright test --pass-with-no-tests"
+    "verify:e2e": "playwright test --pass-with-no-tests",
+    "verify:glsl": "playwright test --config tests/glsl/playwright.config.ts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.2.3",
