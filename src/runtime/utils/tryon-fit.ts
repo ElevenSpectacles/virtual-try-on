@@ -8,7 +8,7 @@ export interface TryOnFit {
   frameWidthMm: number
 }
 
-export const FIT_IDEAL_RATIO = 1
+export const FIT_IDEAL_RATIO = 1.01
 
 export const FIT_DEFAULT_TOLERANCE = 0.06
 

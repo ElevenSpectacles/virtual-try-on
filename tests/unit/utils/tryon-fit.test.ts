@@ -116,7 +116,7 @@ describe('updateFaceWidthEstimate', () => {
 })
 
 describe('catalog ranking', () => {
-  const face = 140
+  const face = 140 / FIT_IDEAL_RATIO
   const catalog = [
     { file: 'wide', frameWidthMm: 152 },
     { file: 'ideal', frameWidthMm: 140 },
@@ -135,7 +135,8 @@ describe('catalog ranking', () => {
   it('ranks best first and leaves out frames of unknown width', () => {
     const ranked = rankByFit(catalog, face)
     expect(ranked.map((r) => r.file)).toEqual(['ideal', 'near', 'wide', 'narrow'])
-    expect(ranked[0]).toEqual({ file: 'ideal', verdict: 'good', frameWidthMm: 140, deviation: 0 })
+    expect(ranked[0]).toMatchObject({ file: 'ideal', verdict: 'good', frameWidthMm: 140 })
+    expect(ranked[0]!.deviation).toBeCloseTo(0, 9)
     expect(ranked[1]!.deviation).toBeCloseTo(3 / 140, 6)
   })
 
