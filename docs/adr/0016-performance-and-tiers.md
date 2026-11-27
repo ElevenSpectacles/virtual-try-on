@@ -15,10 +15,6 @@ Unknown devices start at mid and only step down. The tracker loads beside the ca
 
 New expensive features need a minimum tier. Metrics stay aggregate and opt-in.
 
-## Known problems in these files
-
-- [#147](https://github.com/ElevenSpectacles/virtual-try-on/issues/147): Performance: FRAME_BUDGET_MS is still a placeholder
-
 ## Detailed records
 
 ### `src/runtime/components/VirtualTryOnExperience.vue`
@@ -313,10 +309,24 @@ Grain and light wrap in the frame's shaders, a CSS blur of the canvas.
 
 #### `FRAME_BUDGET_MS`
 
-Frame budget: 33 ms is 30 fps, the target on the mid tier. Placeholder
-until the baseline measurement in umbrella #4 fills in agreed thresholds.
+Frame budget: the p95 frame time above which a tier steps down. rAF
+deltas come in whole display refreshes (16.7 ms steps at 60 Hz), so a
+device holding 30 fps, the mid tier's target, reports 33.3 ms frames plus
+±1–2 ms of jitter. The first value, 33 ms, sat under that step: a steady
+30 fps device, or a 60 fps one with 5% of frames one refresh late, stepped
+down and lost features it could run. 40 ms sits between two refreshes
+(33.3) and three (50) at 60 Hz: a tier holds while it makes 30 fps and
+steps down once a twentieth of its frames take three refreshes. Unit tests
+pin those three cases.
 
-> Known problem: [#147](https://github.com/ElevenSpectacles/virtual-try-on/issues/147). This records why the code is as it is; it does not endorse it.
+Measured on 2026-11-27 with `tests/e2e/frame-budget.spec.ts` (forced tier,
+iris-moss still clip, 8 s after a 6 s settle): on an Apple-silicon Mac the
+p95 is 16.7 ms on every tier, even with the main thread throttled 4× and
+6× (rendering is GPU-light and tracking runs in a worker); on SwiftShader
+it is 233 ms (low), 317 ms (high) and up to 383 ms throttled, so a
+software-GL device is over any budget and the step-down only saves about a
+third. No phone was measured: re-run the spec on a mid-range Android and an
+older iPhone (USB remote debugging) before tuning the tier edges further.
 
 #### `FRAME_WINDOW_SIZE`
 
@@ -489,3 +499,13 @@ path. An origin a host self-hosts (its path option is set) is left out.
 
 The defaults live in the workers, the model cache and the scene; a unit
 test keeps these origins in step with them.
+
+### `tests/e2e/frame-budget.spec.ts`
+
+#### `frame budget`
+
+Opt-in measurement, not a check (`RECORD_FRAME_BUDGET=1`): p50/p95 rAF
+deltas and the share of frames over 33, 34 and 40 ms for each forced tier
+(high with the hair occluder on), on hardware GL and SwiftShader, with the
+main thread throttled 1×, 4× and 6× through CDP. Forced tiers never step
+down, so a slow run is measured instead of escaping to a lower tier.

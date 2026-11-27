@@ -21,7 +21,7 @@ export const FEATURE_MIN_TIER: Record<TryOnFeature, TryOnTier> = {
   cameraMatch: 'mid'
 }
 
-export const FRAME_BUDGET_MS = 33
+export const FRAME_BUDGET_MS = 40
 export const FRAME_WINDOW_SIZE = 120
 export const MIN_WINDOW_SAMPLES = 30
 export const SUSTAIN_MS = 5000
