@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.1.4](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.1.3...v5.1.4) (2026-11-27)
+
+
+### Bug Fixes
+
+* measure the ideal fit ratio against calibrated frame widths ([d7f2680](https://github.com/ElevenSpectacles/virtual-try-on/commit/d7f2680428663a3f615a2bab2bbc3841317ee932)), closes [#156](https://github.com/ElevenSpectacles/virtual-try-on/issues/156)
+* stop stepping down tiers that hold 30 fps ([fbf75c1](https://github.com/ElevenSpectacles/virtual-try-on/commit/fbf75c10e81dde9db799f770a102bb100f9a45b9)), closes [#147](https://github.com/ElevenSpectacles/virtual-try-on/issues/147)
+
 ## [5.1.3](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.1.2...v5.1.3) (2026-11-26)
 
 
