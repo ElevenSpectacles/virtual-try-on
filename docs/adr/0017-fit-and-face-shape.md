@@ -15,10 +15,6 @@ Fit compares physical frame and face width with a tolerance and hysteresis. Shap
 
 Neither result filters the catalog. Only coarse results are reported.
 
-## Known problems in these files
-
-- [#156](https://github.com/ElevenSpectacles/virtual-try-on/issues/156): Testing: fit spec and FIT_IDEAL_RATIO use uncalibrated frame widths
-
 ## Detailed records
 
 ### `src/runtime/composables/tryon/experience/useTryOnFrameFit.ts`
@@ -168,10 +164,12 @@ default tolerance band is wider than an optician's.
 
 Frame width / ear-level face width of a good fit: a frame front about as
 wide as the face at the temples. Measured on the face fixtures (people
-wearing catalog frames that fit them, tests/e2e/fit.spec.ts, 2026-10-12):
-1.045, 0.970 and 0.979, mean 1.00.
-
-> Known problem: [#156](https://github.com/ElevenSpectacles/virtual-try-on/issues/156). This records why the code is as it is; it does not endorse it.
+wearing catalog frames that fit them, tests/e2e/fit.spec.ts, 2026-11-27):
+iris-moss 1.050, pteron-azure 0.982, kairos-amber 1.007, mean 1.013. The
+spec takes each frame's width the way the component does: the calibration's
+`frameWidthMm`, else the GLB's bounding-box width × the calibration
+`scale` (1.0265 for kairos-amber, 1.012 for pteron-azure). The first
+measurement (2026-10-12) used raw GLB widths and gave a mean of 1.00.
 
 #### `FIT_HYSTERESIS`
 
@@ -211,3 +209,11 @@ width, +0.05 is 5 % too wide.
 Rank frames by how well their width suits a face, best first (smallest
 |deviation|). Frames with an unknown width (0) are left out. Ties keep
 the catalog order.
+
+### `tests/e2e/fit.spec.ts`
+
+#### `calibratedFrameWidthMm`
+
+Reads `calibration.json` and the GLB from the models directory, so the spec
+measures against the width the shopper's verdict uses, and a recalibrated
+catalog changes both together.

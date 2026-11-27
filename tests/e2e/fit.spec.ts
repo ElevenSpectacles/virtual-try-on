@@ -1,5 +1,10 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { NodeIO, getBounds } from '@gltf-transform/core'
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
+import draco3d from 'draco3dgltf'
 import { expect, test } from './camera-test'
-import { FACE_FIXTURES, faceClip, missingPrerequisite } from './fixtures'
+import { FACE_FIXTURES, MODELS_DIR, faceClip, missingPrerequisite } from './fixtures'
 import { runTracking, type HarnessResult } from './tracking-harness'
 import {
   compensateMeasureForPose,
@@ -8,6 +13,7 @@ import {
   IRIS_CENTER_LEFT,
   IRIS_CENTER_RIGHT
 } from '../../src/runtime/utils/tryon'
+import { parseCalibrationFile } from '../../scripts/lib/calibration'
 import {
   FIT_DEFAULT_TOLERANCE,
   FIT_IDEAL_RATIO,
@@ -15,10 +21,18 @@ import {
   faceWidthVerdict
 } from '../../src/runtime/utils/tryon-fit'
 
-const FRAME_WIDTH_MM: Record<string, number> = {
-  'iris-moss': 139.7,
-  'pteron-azure': 139.7,
-  'kairos-amber': 135.0
+async function calibratedFrameWidthMm(model: string): Promise<number> {
+  const calibrationPath = join(MODELS_DIR, 'calibration.json')
+  const entry = existsSync(calibrationPath)
+    ? parseCalibrationFile(JSON.parse(readFileSync(calibrationPath, 'utf8')) as unknown).models[model]
+    : undefined
+  if (entry?.frameWidthMm) return entry.frameWidthMm
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'draco3d.decoder': await draco3d.createDecoderModule() })
+  const root = (await io.read(join(MODELS_DIR, `${model}.glb`))).getRoot()
+  const { min, max } = getBounds(root.getDefaultScene() ?? root.listScenes()[0]!)
+  return (max[0] - min[0]) * (entry?.scale ?? 1) * 1000
 }
 
 const CLIP_ASPECT = 480 / 640
@@ -55,12 +69,12 @@ for (const face of FACE_FIXTURES) {
       expect(widths.length, 'tracked results with iris landmarks').toBeGreaterThan(10)
 
       const faceMm = median(widths)
-      const frameMm = FRAME_WIDTH_MM[face]!
+      const frameMm = await calibratedFrameWidthMm(face)
       const ratio = frameMm / faceMm
       const verdict = faceWidthVerdict(faceMm, frameMm)
       testInfo.annotations.push({
         type: 'metrics',
-        description: `face ${faceMm.toFixed(1)} mm · frame ${frameMm} mm · frame/face ${ratio.toFixed(3)} · ${verdict}`
+        description: `face ${faceMm.toFixed(1)} mm · frame ${frameMm.toFixed(1)} mm · frame/face ${ratio.toFixed(3)} · ${verdict}`
       })
       console.log(`  ${face}: ${testInfo.annotations.at(-1)!.description}`)
 
