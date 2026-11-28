@@ -33,10 +33,10 @@ export function useContactOcclusion(
   },
   earBendMaterials: EarBendMaterials
 ) {
-  const { shadowColor: SHADOW_COLOR, receiverUniforms, tinted } = shadow
+  const { shadowColor, receiverUniforms, tinted } = shadow
 
   const shadowReceiverMaterial = new ShadowMaterial({
-    color: SHADOW_COLOR,
+    color: shadowColor,
     transparent: true,
     depthWrite: false,
     side: DoubleSide
@@ -80,7 +80,7 @@ export function useContactOcclusion(
   const sphereCentre = new Vector3()
   shadowReceiverMaterial.onBeforeRender = () => {
     const root = model.value?.scene
-      const spheres = root ? shadow.occluderSpheres() : []
+    const spheres = root ? shadow.occluderSpheres() : []
     const scale = root ? root.matrixWorld.getMaxScaleOnAxis() : 0
     spheres.forEach((sphere, i) => {
       const bend = earBendMaterials.get(sphere.mesh)?.uniform.value

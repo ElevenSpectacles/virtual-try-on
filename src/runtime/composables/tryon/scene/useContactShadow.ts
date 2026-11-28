@@ -31,6 +31,17 @@ export interface MeshOccluderSphere extends OccluderSphere {
 
 export type ContactReceiverUniforms = ReturnType<typeof useContactShadow>['receiverUniforms']
 
+const LENS_SHADOW_DENSITY = 0.6
+
+function lensMaterialOf(mesh: Mesh): Material | undefined {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+  return materials.find((m: Material) => LENS_MATERIAL_NAME.test(m.name))
+}
+
+function lensShadowWeight(lens: Material): number {
+  return Math.min(lens.opacity * LENS_SHADOW_DENSITY, 1)
+}
+
 export function useContactShadow(
   model: ShallowRef<GLTF | null>,
   props: {
@@ -46,7 +57,6 @@ export function useContactShadow(
   const SHADOW_COLOR = new Color(0, 0, 0)
   const SHADOW_MAP_SIZE = 512
   const SHADOW_RADIUS = 8
-  const LENS_SHADOW_DENSITY = 0.6
 
   const receiverUniforms = {
     uSpheres: {
@@ -116,8 +126,7 @@ export function useContactShadow(
       let lensColor: [number, number, number] | null = null
       gltf?.scene.traverse((obj) => {
         if (!(obj instanceof Mesh)) return
-        const current = Array.isArray(obj.material) ? obj.material : [obj.material]
-        const lens = current.find((m: Material) => LENS_MATERIAL_NAME.test(m.name))
+        const lens = lensMaterialOf(obj)
         obj.castShadow = enabled && (!lens || tint)
         const filter = tint
           ? shadowCasterFilter(!!lens, () => lensShadowLight.shadow.camera)
@@ -125,7 +134,7 @@ export function useContactShadow(
         obj.onBeforeShadow = filter?.onBeforeShadow ?? Object3D.prototype.onBeforeShadow
         obj.onAfterShadow = filter?.onAfterShadow ?? Object3D.prototype.onAfterShadow
         if (lens) {
-          lensDensity = Math.max(lensDensity, Math.min(lens.opacity * LENS_SHADOW_DENSITY, 1))
+          lensDensity = Math.max(lensDensity, lensShadowWeight(lens))
           const color = (lens as MeshStandardMaterial).color
           if (color) lensColor = [color.r, color.g, color.b]
         }
@@ -159,15 +168,10 @@ export function useContactShadow(
         point.fromBufferAttribute(position, i).applyMatrix4(relative)
         points.set([point.x, point.y, point.z], i * 3)
       }
-      const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
-      const lens = materials.find((m: Material) => LENS_MATERIAL_NAME.test(m.name))
+      const lens = lensMaterialOf(obj)
       parts.push(
         lens
-          ? {
-              points,
-              cellSize: LENS_SPHERE_CELL_METERS,
-              weight: Math.min(lens.opacity * LENS_SHADOW_DENSITY, 1)
-            }
+          ? { points, cellSize: LENS_SPHERE_CELL_METERS, weight: lensShadowWeight(lens) }
           : { points, cellSize: FRAME_SPHERE_CELL_METERS, weight: 1 }
       )
     })
