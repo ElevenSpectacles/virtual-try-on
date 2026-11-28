@@ -52,6 +52,7 @@ Source files carry no comments, so the reasons for non-obvious code live here. B
 | `scripts/generate-calibration.ts` | [0019](0019-asset-pipeline.md) |
 | `scripts/lib/calibration.ts` | [0019](0019-asset-pipeline.md) |
 | `scripts/lib/colour.ts` | [0019](0019-asset-pipeline.md) |
+| `scripts/lib/gltf-io.ts` | [0019](0019-asset-pipeline.md) |
 | `scripts/lib/model-lint.ts` | [0019](0019-asset-pipeline.md) |
 | `scripts/lib/model-prep.ts` | [0019](0019-asset-pipeline.md) |
 | `scripts/lib/tilt.ts` | [0019](0019-asset-pipeline.md) |

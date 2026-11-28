@@ -90,3 +90,11 @@ export function lintModel(document: Document, { fileSize = 0 }: { fileSize?: num
   }
   return findings
 }
+
+export function formatFinding(finding: LintFinding): string {
+  return `  ${finding.severity === 'error' ? '✗' : '!'} [${finding.rule}] ${finding.message}`
+}
+
+export function countErrors(findings: LintFinding[]): number {
+  return findings.filter((finding) => finding.severity === 'error').length
+}
