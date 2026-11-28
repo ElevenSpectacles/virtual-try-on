@@ -1,6 +1,13 @@
 {
   "enabledPlugins": {
-    "claude-code-setup@claude-plugins-official": true
+    "claude-code-setup@claude-plugins-official": true,
+    "claude-code-setup@anthropic-plugin-directory": false,
+    "cloudflare@cloudflare": false,
+    "cloudflare@anthropic-plugin-directory": false,
+    "stripe@claude-plugins-official": false,
+    "posthog@claude-plugins-official": false,
+    "a1-gallery@anthropic-plugin-directory": false,
+    "nuxt-skills@nuxt-skills": false
   },
   "hooks": {
     "PreToolUse": [
@@ -10,6 +17,24 @@
           {
             "type": "command",
             "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *CHANGELOG.md|*.release-please-manifest.json) echo 'Release-managed file: change it through release-please, not by hand.' >&2; exit 2;; esac"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "i=$(cat); f=$(printf '%s' \"$i\" | jq -r '.tool_input.file_path // empty'); [ \"$f\" = \"$CLAUDE_PROJECT_DIR/package.json\" ] || exit 0; printf '%s' \"$i\" | jq -e --arg v \"$(jq -r .version \"$f\")\" 'def ver: (capture(\"\\\"version\\\"\\\\s*:\\\\s*\\\"(?<v>[^\\\"]*)\\\"\") | .v) // null; if .tool_input.content then ((.tool_input.content | fromjson? | .version) // $v) != $v else ((.tool_input.old_string // \"\") | ver) != ((.tool_input.new_string // \"\") | ver) end' >/dev/null && { echo 'The version is release-please managed: never hand-edit it.' >&2; exit 2; }; true"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "c=$(jq -r '.tool_input.command // empty'); printf '%s\\n' \"$c\" | grep -qE -- '--no-verify|(^|[;&|(])[[:space:]]*(rm|pnpm)([[:space:]]|$)' && { echo 'Blocked: no --no-verify, no rm (mv into a mktemp -d dir), no pnpm (npm only).' >&2; exit 2; }; true"
           }
         ]
       }

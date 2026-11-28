@@ -337,7 +337,15 @@ claude-code -a opencode`, which keeps `skills-lock.json` pinned by hash.
   `delete-comment` (audit and delete comments, tighten the ratchet),
   `fit-check` (measure frame fit on the face fixtures before tuning),
   `release-smoke` (tarball → bare Nuxt host → build + SSR check, required
-  for publish-affecting changes), `add-face-fixture`.
+  for publish-affecting changes), `add-face-fixture`, `ship-issue` (issue →
+  branch → checks → PR → CI; never merges).
+- Project agent: `.claude/agents/adr-check.md` (read-only diff review against
+  `docs/adr`). `.mcp.json` adds context7 for MediaPipe, TresJS and three docs.
+- `.claude/settings.json` turns off plugins this repo does not use. Its hooks
+  block release-managed edits (`CHANGELOG.md`, the manifest, the `version`
+  field) and Bash commands that skip git hooks, delete files or use pnpm. The
+  Bash check reads the whole command text, so a heredoc quoting those words
+  is blocked too: write such files with the editor tools.
 - Third-party, locked: `nuxt-modules` (onmax/nuxt-skills), `playwright-cli`.
   `nuxt-modules` suggests changelogen/manual release workflows — ignore
   them; releases here go only through release-please.
