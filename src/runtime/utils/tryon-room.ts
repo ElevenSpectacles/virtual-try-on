@@ -1,3 +1,5 @@
+import { tryOnSmoothstep } from './tryon-shader'
+
 export interface FrameRegion {
   xMin: number
   xMax: number
@@ -61,37 +63,33 @@ export function estimateLightDirection(
   return { x: x / length, y: y / length, z: 1 / length, strength: Math.min(magnitude, 1) }
 }
 
+type Direction = { x: number; y: number; z: number }
+
+function lerpDirection(from: Direction, to: Direction, weight: number): Direction {
+  const x = from.x + weight * (to.x - from.x)
+  const y = from.y + weight * (to.y - from.y)
+  const z = from.z + weight * (to.z - from.z)
+  const length = Math.hypot(x, y, z) || 1
+  return { x: x / length, y: y / length, z: z / length }
+}
+
 export function smoothLightDirection(
   previous: LightDirection | null,
   next: LightDirection,
   alpha: number
 ): LightDirection {
   if (!previous) return next
-  const x = previous.x + alpha * (next.x - previous.x)
-  const y = previous.y + alpha * (next.y - previous.y)
-  const z = previous.z + alpha * (next.z - previous.z)
-  const length = Math.hypot(x, y, z) || 1
   return {
-    x: x / length,
-    y: y / length,
-    z: z / length,
+    ...lerpDirection(previous, next, alpha),
     strength: previous.strength + alpha * (next.strength - previous.strength)
   }
 }
 
-export function aimLight(
-  fallback: { x: number; y: number; z: number },
-  estimate: LightDirection | null
-): { x: number; y: number; z: number } {
+export function aimLight(fallback: Direction, estimate: LightDirection | null): Direction {
   const f = Math.hypot(fallback.x, fallback.y, fallback.z) || 1
   const base = { x: fallback.x / f, y: fallback.y / f, z: fallback.z / f }
   if (!estimate || estimate.strength <= 0) return base
-  const w = Math.min(estimate.strength * 2, 1)
-  const x = base.x + w * (estimate.x - base.x)
-  const y = base.y + w * (estimate.y - base.y)
-  const z = base.z + w * (estimate.z - base.z)
-  const length = Math.hypot(x, y, z) || 1
-  return { x: x / length, y: y / length, z: z / length }
+  return lerpDirection(base, estimate, Math.min(estimate.strength * 2, 1))
 }
 
 export const CAMERA_ENV_WIDTH = 128
@@ -137,8 +135,7 @@ export function cameraEnvironment(
       const d = equirectDirection(column, row, width, height)
       const sx = Math.min(sampleWidth - 1, Math.max(0, Math.floor((0.5 - d.x * 0.5) * sampleWidth)))
       const sy = Math.min(sampleHeight - 1, Math.max(0, Math.floor((0.5 - d.y * 0.5) * sampleHeight)))
-      const front = Math.min(Math.max((d.z + 0.2) / 0.4, 0), 1)
-      const blend = front * front * (3 - 2 * front)
+      const blend = tryOnSmoothstep(-0.2, 0.2, d.z)
       const o = (row * width + column) * 4
       for (let c = 0; c < 3; c++) {
         const pixel = srgbToLinear(rgba[(sy * sampleWidth + sx) * 4 + c] ?? 0)

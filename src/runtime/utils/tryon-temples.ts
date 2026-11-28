@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Group, Matrix4, Mesh, Vector3, type Object3D } from 'three'
-import { patchShader } from './tryon-shader'
+import { patchShader, tryOnSmoothstep } from './tryon-shader'
 
 export const TEMPLE_NODE_NAME = 'pt2'
 
@@ -205,11 +205,6 @@ export function earBendFor(
   return { start: head.x + EAR_REST_OFFSET_METERS, z: profile.pivot.z, angle }
 }
 
-function smoothstep(edge0: number, edge1: number, x: number): number {
-  const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1)
-  return t * t * (3 - 2 * t)
-}
-
 export function earBendPoint(
   point: { x: number; y: number; z: number },
   bend: EarBend,
@@ -217,7 +212,7 @@ export function earBendPoint(
 ): { x: number; y: number; z: number } {
   const dx = point.x - bend.start
   if (dx <= 0 || bend.angle === 0) return { ...point }
-  const theta = bend.angle * smoothstep(0, ramp, dx)
+  const theta = bend.angle * tryOnSmoothstep(0, ramp, dx)
   const dz = point.z - bend.z
   const c = Math.cos(theta)
   const s = Math.sin(theta)

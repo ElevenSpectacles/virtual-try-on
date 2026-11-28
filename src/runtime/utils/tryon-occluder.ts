@@ -6,6 +6,7 @@ import {
   type NormalizedLandmark
 } from './tryon'
 import { FACE_MESH_TRIANGLE_INDEX, FACE_MESH_VERTEX_COUNT } from './face-mesh-triangles'
+import { tryOnSmoothstep } from './tryon-shader'
 
 const FACE_OVAL_INDICES = [
   10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379,
@@ -87,14 +88,9 @@ export function nearSideWeight(
   midlineHalfWidth: number
 ): number {
   const facing = Math.sign(localX) * camLocalX
-  const turn = smoothstep(0.1, 0.35, facing)
-  const lateral = smoothstep(midlineHalfWidth, midlineHalfWidth * 2.5, Math.abs(localX))
+  const turn = tryOnSmoothstep(0.1, 0.35, facing)
+  const lateral = tryOnSmoothstep(midlineHalfWidth, midlineHalfWidth * 2.5, Math.abs(localX))
   return turn * lateral
-}
-
-function smoothstep(edge0: number, edge1: number, x: number): number {
-  const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1)
-  return t * t * (3 - 2 * t)
 }
 
 const tmpVec = new Vector3()
@@ -141,6 +137,16 @@ export function buildFaceMeshOccluderPositions(
 
   const positions = new Float32Array(FACE_MESH_OCCLUDER_VERTEX_COUNT * 3)
 
+  function writeSmoothed(local: Vector3, vertex: number): void {
+    local.applyQuaternion(qSmooth)
+    local.x += smoothedAnchorWorld.x + setback.x
+    local.y += smoothedAnchorWorld.y + setback.y
+    local.z += setback.z
+    positions[vertex * 3] = local.x
+    positions[vertex * 3 + 1] = local.y
+    positions[vertex * 3 + 2] = local.z
+  }
+
   for (let i = 0; i < FACE_MESH_VERTEX_COUNT; i++) {
     const landmark = landmarks[i]!
     const world = landmarkToWorld(landmark, aspect, { mirror })
@@ -164,24 +170,10 @@ export function buildFaceMeshOccluderPositions(
       backVec.y *= collarFlare
       backVec.z -= collarDepthMeters * scale
       backVec.lerp(tmpVec, near)
-      backVec.applyQuaternion(qSmooth)
-      backVec.x += smoothedAnchorWorld.x + setback.x
-      backVec.y += smoothedAnchorWorld.y + setback.y
-      backVec.z += setback.z
-      const backIndex = (FACE_MESH_VERTEX_COUNT + ovalSlot) * 3
-      positions[backIndex] = backVec.x
-      positions[backIndex + 1] = backVec.y
-      positions[backIndex + 2] = backVec.z
+      writeSmoothed(backVec, FACE_MESH_VERTEX_COUNT + ovalSlot)
     }
 
-    tmpVec.applyQuaternion(qSmooth)
-    tmpVec.x += smoothedAnchorWorld.x + setback.x
-    tmpVec.y += smoothedAnchorWorld.y + setback.y
-    tmpVec.z += setback.z
-
-    positions[i * 3] = tmpVec.x
-    positions[i * 3 + 1] = tmpVec.y
-    positions[i * 3 + 2] = tmpVec.z
+    writeSmoothed(tmpVec, i)
   }
 
   return positions

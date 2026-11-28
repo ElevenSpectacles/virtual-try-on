@@ -1,6 +1,6 @@
 import { SCREEN_TO_MEDIA_GLSL } from './tryon-hair'
 import { TINTED_SHADOW_FRAGMENT, TINTED_SHADOW_GLSL } from './tryon-lens-shadow'
-import { glslFloat, patchShader } from './tryon-shader'
+import { glslFloat, patchShader, tryOnSmoothstep } from './tryon-shader'
 
 export interface OccluderSphere {
   x: number
@@ -25,11 +25,7 @@ export const SILHOUETTE_FADE_START = 0.15
 export const SILHOUETTE_FADE_END = 0.45
 
 export function silhouetteFade(cosView: number): number {
-  const t = Math.min(
-    Math.max((cosView - SILHOUETTE_FADE_START) / (SILHOUETTE_FADE_END - SILHOUETTE_FADE_START), 0),
-    1
-  )
-  return t * t * (3 - 2 * t)
+  return tryOnSmoothstep(SILHOUETTE_FADE_START, SILHOUETTE_FADE_END, cosView)
 }
 
 export const CONTACT_OCCLUSION_GAIN = 1.6
