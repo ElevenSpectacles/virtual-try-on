@@ -1,15 +1,12 @@
 #!/usr/bin/env -S npx tsx
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { parseArgs } from 'node:util'
-import { NodeIO, getBounds } from '@gltf-transform/core'
+import { NodeIO } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import draco3d from 'draco3dgltf'
-import {
-  buildCalibration,
-  parseCalibrationFile,
-  type MeasuredModel
-} from './lib/calibration'
+import { buildCalibration, type MeasuredModel } from './lib/calibration'
+import { measureModel, readCalibration } from './lib/gltf-io'
 
 function readArgs() {
   const { values } = parseArgs({
@@ -47,24 +44,12 @@ async function main() {
 
   const models: MeasuredModel[] = []
   for (const file of files) {
-    const document = await io.read(join(input, file))
-    const root = document.getRoot()
-    const scene = root.getDefaultScene() ?? root.listScenes()[0]
-    if (!scene) throw new Error(`${file}: no scene`)
-    const { min, max } = getBounds(scene)
-    models.push({
-      name: file.replace(/\.glb$/i, ''),
-      bounds: {
-        min: { x: min[0], y: min[1], z: min[2] },
-        max: { x: max[0], y: max[1], z: max[2] }
-      }
-    })
+    const model = measureModel(await io.read(join(input, file)), file)
+    if (!model) throw new Error(`${file}: no scene`)
+    models.push(model)
   }
 
-  const previous = existsSync(output)
-    ? parseCalibrationFile(JSON.parse(readFileSync(output, 'utf8')) as unknown)
-    : null
-  const calibration = buildCalibration(models, reference, previous)
+  const calibration = buildCalibration(models, reference, readCalibration(output))
   writeFileSync(output, `${JSON.stringify(calibration, null, 2)}\n`)
 
   console.log(`Calibration written to ${output} (reference ${reference})`)

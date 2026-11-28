@@ -5,7 +5,7 @@ import { parseArgs } from 'node:util'
 import { NodeIO } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import draco3d from 'draco3dgltf'
-import { lintModel } from './lib/model-lint'
+import { countErrors, formatFinding, lintModel } from './lib/model-lint'
 
 async function main() {
   const { values } = parseArgs({ options: { input: { type: 'string' } } })
@@ -20,9 +20,9 @@ async function main() {
   for (const file of readdirSync(values.input).filter((f) => extname(f).toLowerCase() === '.glb').sort()) {
     const path = join(values.input, file)
     const findings = lintModel(await io.read(path), { fileSize: statSync(path).size })
-    errors += findings.filter((f) => f.severity === 'error').length
+    errors += countErrors(findings)
     console.log(`${file}: ${findings.length ? '' : 'ok'}`)
-    for (const f of findings) console.log(`  ${f.severity === 'error' ? '✗' : '!'} [${f.rule}] ${f.message}`)
+    for (const f of findings) console.log(formatFinding(f))
   }
   if (errors) {
     console.error(`${errors} error(s)`)
