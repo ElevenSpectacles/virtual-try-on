@@ -34,6 +34,19 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10
 }
 
+function round1OrNull(value: number | null): number | null {
+  return value === null ? null : round1(value)
+}
+
+function mean(values: readonly number[]): number | null {
+  return values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : null
+}
+
+function pushWindowed(values: number[], value: number): void {
+  values.push(value)
+  if (values.length > LATENCY_WINDOW) values.shift()
+}
+
 export interface MetricsAccumulator {
   onFrame(deltaMs: number, active: boolean, tracking: boolean): boolean
   onLatency(ms: number): void
@@ -92,8 +105,7 @@ export function createMetricsAccumulator(): MetricsAccumulator {
     },
 
     onLatency(ms) {
-      latencies.push(ms)
-      if (latencies.length > LATENCY_WINDOW) latencies.shift()
+      pushWindowed(latencies, ms)
     },
 
     onFirstFrame(ms) {
@@ -109,8 +121,7 @@ export function createMetricsAccumulator(): MetricsAccumulator {
     },
 
     onModelSwitchLatency(ms) {
-      switchLatencies.push(ms)
-      if (switchLatencies.length > LATENCY_WINDOW) switchLatencies.shift()
+      pushWindowed(switchLatencies, ms)
     },
 
     onTierChange(next, isStepDown) {
@@ -120,16 +131,6 @@ export function createMetricsAccumulator(): MetricsAccumulator {
 
     snapshot() {
       const activeMinutes = activeMs / 60_000
-      const latencyMean =
-        latencies.length > 0
-          ? latencies.reduce((sum, v) => sum + v, 0) / latencies.length
-          : null
-      const p95 = percentile(latencies, 0.95)
-      const switchMean =
-        switchLatencies.length > 0
-          ? switchLatencies.reduce((sum, v) => sum + v, 0) / switchLatencies.length
-          : null
-      const switchP95 = percentile(switchLatencies, 0.95)
       return {
         activeMs: Math.round(activeMs),
         timeToFirstTrackMs: firstTrackAtMs === null ? null : Math.round(firstTrackAtMs),
@@ -137,12 +138,12 @@ export function createMetricsAccumulator(): MetricsAccumulator {
         assetTimings: { ...assetTimings },
         trackUptimePct: activeMs > 0 ? round1((trackedMs / activeMs) * 100) : 0,
         trackLossPerMin: activeMinutes > 0 ? round1(losses / activeMinutes) : 0,
-        detectLatencyMeanMs: latencyMean === null ? null : round1(latencyMean),
-        detectLatencyP95Ms: p95 === null ? null : round1(p95),
+        detectLatencyMeanMs: round1OrNull(mean(latencies)),
+        detectLatencyP95Ms: round1OrNull(percentile(latencies, 0.95)),
         renderFpsMean: frames > 0 && activeMs > 0 ? round1(frames / (activeMs / 1000)) : null,
         modelSwitches,
-        modelSwitchMeanMs: switchMean === null ? null : round1(switchMean),
-        modelSwitchP95Ms: switchP95 === null ? null : round1(switchP95),
+        modelSwitchMeanMs: round1OrNull(mean(switchLatencies)),
+        modelSwitchP95Ms: round1OrNull(percentile(switchLatencies, 0.95)),
         tierChanges,
         tier,
         endedWithoutTrack: firstTrackAtMs === null && modelSwitches === 0

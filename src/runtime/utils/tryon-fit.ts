@@ -23,6 +23,10 @@ export function estimateFaceWidthMm(
   return (earWidth / ipd) * assumedIpdMm
 }
 
+function fitDeviation(frameWidthMm: number, faceWidthMm: number): number {
+  return frameWidthMm / (faceWidthMm * FIT_IDEAL_RATIO) - 1
+}
+
 export function faceWidthVerdict(
   faceWidthMm: number,
   frameWidthMm: number,
@@ -37,7 +41,7 @@ export function faceWidthVerdict(
   } = {}
 ): TryOnFitVerdict | null {
   if (faceWidthMm <= 0 || frameWidthMm <= 0) return null
-  const ratio = frameWidthMm / (faceWidthMm * FIT_IDEAL_RATIO) - 1
+  const ratio = fitDeviation(frameWidthMm, faceWidthMm)
   const wideEdge = tolerance + (previous === 'wide' ? -hysteresis : previous ? hysteresis : 0)
   const narrowEdge = -tolerance + (previous === 'narrow' ? hysteresis : previous ? -hysteresis : 0)
   if (ratio > wideEdge) return 'wide'
@@ -90,15 +94,7 @@ export function rankByFit(
   for (const { file, frameWidthMm } of frames) {
     const verdict = fitVerdictFor(frameWidthMm, faceWidthMm, tolerance)
     if (!verdict) continue
-    ranked.push({
-      file,
-      verdict,
-      frameWidthMm,
-      deviation: frameWidthMm / (faceWidthMm * FIT_IDEAL_RATIO) - 1
-    })
+    ranked.push({ file, verdict, frameWidthMm, deviation: fitDeviation(frameWidthMm, faceWidthMm) })
   }
-  return ranked
-    .map((rank, index) => ({ rank, index }))
-    .sort((a, b) => Math.abs(a.rank.deviation) - Math.abs(b.rank.deviation) || a.index - b.index)
-    .map(({ rank }) => rank)
+  return ranked.sort((a, b) => Math.abs(a.deviation) - Math.abs(b.deviation))
 }
