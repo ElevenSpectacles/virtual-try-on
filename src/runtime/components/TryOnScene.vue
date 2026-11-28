@@ -111,12 +111,9 @@ const groupPosition = computed(
 const groupScale = computed(
   () => new Vector3(props.scale, props.scale, props.scale)
 )
-const groupRotation = computed(() => {
-  if (props.rotation) {
-    return headEuler(props.rotation)
-  }
-  return new Euler(0, props.rotationY, 0)
-})
+const groupRotation = computed(() =>
+  props.rotation ? headEuler(props.rotation) : new Euler(0, props.rotationY, 0)
+)
 
 const modelOffsetVec = computed(
   () =>

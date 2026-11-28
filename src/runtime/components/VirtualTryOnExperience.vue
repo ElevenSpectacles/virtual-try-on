@@ -127,9 +127,8 @@ const features = useTryOnFeatures({
   tracking
 })
 const { occluderEnabled, contactShadowEnabled, cameraMatchEnabled, physicalLensEnabled } = features
-const { tintedLensShadowEnabled } = features
+const { tintedLensShadowEnabled, hairSegmenter, hairActive, hair, contactShadowStrength } = features
 const FROZEN_GRAIN_SEED = 0.5
-const { hairSegmenter, hairActive, hair, contactShadowStrength } = features
 
 const frame = useTryOnFrame({
   props,
