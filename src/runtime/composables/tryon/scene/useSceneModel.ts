@@ -62,15 +62,14 @@ export function useSceneModel(
       const startedAt = performance.now()
       try {
         const { gltf, rig } = await modelCache.load(src)
-        if (id === modelLoadId) {
-          emit.timing(performance.now() - startedAt)
-          for (const temple of rig?.temples ?? []) temple.pivot.rotation.z = 0
-          temples.rig = rig
-          temples.filters = []
-          model.value = gltf
-          modelCache.setActive(src)
-          emit.loaded(localBounds(gltf.scene).getSize(new Vector3()).x)
-        }
+        if (id !== modelLoadId) return
+        emit.timing(performance.now() - startedAt)
+        for (const temple of rig?.temples ?? []) temple.pivot.rotation.z = 0
+        temples.rig = rig
+        temples.filters = []
+        model.value = gltf
+        modelCache.setActive(src)
+        emit.loaded(localBounds(gltf.scene).getSize(new Vector3()).x)
       } catch (err) {
         if (id === modelLoadId) emit.error(`${src}: ${errorMessage(err)}`)
       }

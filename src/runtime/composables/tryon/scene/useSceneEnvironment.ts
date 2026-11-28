@@ -120,6 +120,11 @@ export function useSceneEnvironment(
     }
   )
 
+  function showEnvironment(texture: Texture, startedAt: number) {
+    if (!cameraEnvTarget) scene.value.environment = texture
+    options.timing(performance.now() - startedAt)
+  }
+
   watch(
     [
       () => props.useEnvironment,
@@ -134,10 +139,7 @@ export function useSceneEnvironment(
       const startedAt = performance.now()
       if (procedural) {
         envTexture = roomEnvironment()
-        if (envTexture) {
-          if (!cameraEnvTarget) scene.value.environment = envTexture
-          options.timing(performance.now() - startedAt)
-        }
+        if (envTexture) showEnvironment(envTexture, startedAt)
         return
       }
       try {
@@ -158,8 +160,7 @@ export function useSceneEnvironment(
           CAMERA_ENV_HEIGHT,
           texture.type === HalfFloatType ? DataUtils.fromHalfFloat : (v) => v
         )
-        if (!cameraEnvTarget) scene.value.environment = texture
-        options.timing(performance.now() - startedAt)
+        showEnvironment(texture, startedAt)
       } catch (err) {
         if (id === envLoadId) options.error(errorMessage(err))
       }

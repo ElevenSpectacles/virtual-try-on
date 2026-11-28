@@ -57,7 +57,6 @@ function applyLensGradient(material: Material, gradient: { top: number; bottom: 
   material.customProgramCacheKey = () => `${previousKey()}|tryon-lens-gradient`
 }
 
-
 function applyLensFresnel(material: MeshPhysicalMaterial) {
   material.premultipliedAlpha = true
   material.onBeforeCompile = (shader) => {

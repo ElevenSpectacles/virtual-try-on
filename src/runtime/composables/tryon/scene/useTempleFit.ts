@@ -124,5 +124,4 @@ export function useTempleFit(
   )
 
   onUnmounted(clearEarBend)
-
 }
