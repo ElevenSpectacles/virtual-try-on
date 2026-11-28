@@ -1,4 +1,4 @@
-import { patchShader, smoothstep } from './tryon-shader'
+import { patchShader, tryOnSmoothstep } from './tryon-shader'
 
 export const LENS_MATERIAL_NAME = /glass|lens/i
 
@@ -72,7 +72,7 @@ export function lensGradientLogTransmittance(gradient: { top: number; bottom: nu
 }
 
 export function gradientDensityAt(gradient: { top: number; bottom: number }, t: number): number {
-  const s = smoothstep(0, 1, t)
+  const s = tryOnSmoothstep(0, 1, t)
   const [bottom, top] = lensGradientLogTransmittance(gradient)
   return 1 - Math.exp(bottom + (top - bottom) * s)
 }

@@ -1,4 +1,4 @@
-import { smoothstep } from './tryon-shader'
+import { tryOnSmoothstep } from './tryon-shader'
 
 export interface FrameRegion {
   xMin: number
@@ -135,7 +135,7 @@ export function cameraEnvironment(
       const d = equirectDirection(column, row, width, height)
       const sx = Math.min(sampleWidth - 1, Math.max(0, Math.floor((0.5 - d.x * 0.5) * sampleWidth)))
       const sy = Math.min(sampleHeight - 1, Math.max(0, Math.floor((0.5 - d.y * 0.5) * sampleHeight)))
-      const blend = smoothstep(-0.2, 0.2, d.z)
+      const blend = tryOnSmoothstep(-0.2, 0.2, d.z)
       const o = (row * width + column) * 4
       for (let c = 0; c < 3; c++) {
         const pixel = srgbToLinear(rgba[(sy * sampleWidth + sx) * 4 + c] ?? 0)

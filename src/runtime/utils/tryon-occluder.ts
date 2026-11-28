@@ -6,7 +6,7 @@ import {
   type NormalizedLandmark
 } from './tryon'
 import { FACE_MESH_TRIANGLE_INDEX, FACE_MESH_VERTEX_COUNT } from './face-mesh-triangles'
-import { smoothstep } from './tryon-shader'
+import { tryOnSmoothstep } from './tryon-shader'
 
 const FACE_OVAL_INDICES = [
   10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379,
@@ -88,8 +88,8 @@ export function nearSideWeight(
   midlineHalfWidth: number
 ): number {
   const facing = Math.sign(localX) * camLocalX
-  const turn = smoothstep(0.1, 0.35, facing)
-  const lateral = smoothstep(midlineHalfWidth, midlineHalfWidth * 2.5, Math.abs(localX))
+  const turn = tryOnSmoothstep(0.1, 0.35, facing)
+  const lateral = tryOnSmoothstep(midlineHalfWidth, midlineHalfWidth * 2.5, Math.abs(localX))
   return turn * lateral
 }
 
