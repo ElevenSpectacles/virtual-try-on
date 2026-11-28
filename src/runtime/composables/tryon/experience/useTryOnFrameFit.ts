@@ -48,12 +48,15 @@ export interface UseTryOnFrameFitOptions {
 export function useTryOnFrameFit(options: UseTryOnFrameFitOptions) {
   const { props, model, calibration, tracking, placement, track } = options
 
+  function specFrameWidthMm(file: string | undefined): number | null {
+    const spec = getTryOnModel(props.models, file)?.frameWidthMm
+    return spec && spec > 0 ? spec : null
+  }
+
   const glbWidthMeters = ref(0)
-  const frameWidthMm = computed(() => {
-    const spec = getTryOnModel(props.models, model.value)?.frameWidthMm
-    if (spec && spec > 0) return spec
-    return glbWidthMeters.value * calibration.value.scale * 1000
-  })
+  const frameWidthMm = computed(
+    () => specFrameWidthMm(model.value) ?? glbWidthMeters.value * calibration.value.scale * 1000
+  )
   const fitState = useTryOnFit({
     landmarks: tracking.landmarks,
     hasFace: tracking.hasFace,
@@ -117,8 +120,8 @@ export function useTryOnFrameFit(options: UseTryOnFrameFitOptions) {
   )
 
   function frameWidthFor(file: string): number {
-    const spec = getTryOnModel(props.models, file)?.frameWidthMm
-    if (spec && spec > 0) return spec
+    const spec = specFrameWidthMm(file)
+    if (spec !== null) return spec
     if (file === model.value && frameWidthMm.value > 0) return frameWidthMm.value
     return options.getCalibration(file).frameWidthMm
   }

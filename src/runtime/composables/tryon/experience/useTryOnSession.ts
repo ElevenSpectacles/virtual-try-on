@@ -44,8 +44,7 @@ export function useTryOnSession(options: UseTryOnSessionOptions) {
 
   let trackerRequestedAt: number | null = null
   function initTracker() {
-    if (trackerRequestedAt === null) trackerRequestedAt = performance.now()
-    const requestedAt = trackerRequestedAt
+    const requestedAt = (trackerRequestedAt ??= performance.now())
     tracking
       .initFaceLandmarker()
       .then(() => {

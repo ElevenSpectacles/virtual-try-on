@@ -122,13 +122,12 @@ export function useTryOnTrackEvents(options: UseTryOnTrackEventsOptions) {
   })
 
   watch(tracking.faceError, (err) => {
-    if (err) {
-      track('TRY_ON_ERROR', {
-        errorType: err,
-        source: 'face_landmarker',
-        message: tracking.faceErrorDetail.value
-      })
-    }
+    if (!err) return
+    track('TRY_ON_ERROR', {
+      errorType: err,
+      source: 'face_landmarker',
+      message: tracking.faceErrorDetail.value
+    })
   })
 
   watch(options.calibrationLoadError, (message) => {
@@ -167,13 +166,12 @@ export function useTryOnTrackEvents(options: UseTryOnTrackEventsOptions) {
   }
 
   watch(tracking.hasFace, (detected) => {
-    if (detected && !options.hasReportedFaceDetected.value) {
-      options.hasReportedFaceDetected.value = true
-      track('TRY_ON_FACE_DETECTED', {
-        confidence: tracking.confidence.value,
-        tier: options.tier()
-      })
-    }
+    if (!detected || options.hasReportedFaceDetected.value) return
+    options.hasReportedFaceDetected.value = true
+    track('TRY_ON_FACE_DETECTED', {
+      confidence: tracking.confidence.value,
+      tier: options.tier()
+    })
   })
 
   watch(fit.verdict, (verdict) => {
