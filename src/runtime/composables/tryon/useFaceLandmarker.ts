@@ -76,8 +76,7 @@ export function useFaceLandmarker(
   const confidence = computed(() => {
     const history = detectionHistory.value
     if (history.length === 0) return 0
-    const detected = history.filter(Boolean).length
-    return detected / history.length
+    return history.filter(Boolean).length / history.length
   })
 
   const anchor = computed<NormalizedLandmark | null>(() => {
@@ -132,17 +131,13 @@ export function useFaceLandmarker(
     switch (message.type) {
       case 'ready':
         isReady.value = true
-        readyResolve?.()
-        readyResolve = null
-        readyReject = null
+        settleReady()
         break
 
       case 'load_failed':
         errorDetail.value = message.message
         error.value = 'load_failed'
-        readyReject?.(new Error(message.message))
-        readyResolve = null
-        readyReject = null
+        settleReady(new Error(message.message))
         break
 
       case 'result':
@@ -159,37 +154,47 @@ export function useFaceLandmarker(
 
       case 'detect_failed':
         if (message.id !== pendingRequestId) return
-        pendingRequestId = null
-        errorDetail.value = message.message
-        error.value = 'runtime_failed'
-        settleRequest(message.id)
+        failRequest(message.id, message.message)
         break
 
       case 'card':
-        try {
+        notifyObserver('card', () =>
           options.onCardCrop?.(message.gray, message.width, message.height, message.region)
-        } catch (err) {
-          options.onObserverError?.('card', errorMessage(err))
-        }
+        )
         break
 
       case 'sample':
-        try {
-          options.onFrameSample?.(
-            message.pixels,
-            message.width,
-            message.height,
-            message.ms
-          )
-        } catch (err) {
-          options.onObserverError?.('sample', errorMessage(err))
-        }
+        notifyObserver('sample', () =>
+          options.onFrameSample?.(message.pixels, message.width, message.height, message.ms)
+        )
         break
 
       case 'observer_failed':
         options.onObserverError?.(message.observer, message.message)
         break
     }
+  }
+
+  function settleReady(err?: Error) {
+    if (err) readyReject?.(err)
+    else readyResolve?.()
+    readyResolve = null
+    readyReject = null
+  }
+
+  function notifyObserver(observer: TryOnObserver, notify: () => void) {
+    try {
+      notify()
+    } catch (err) {
+      options.onObserverError?.(observer, errorMessage(err))
+    }
+  }
+
+  function failRequest(id: number, message: string) {
+    pendingRequestId = null
+    errorDetail.value = message
+    error.value = 'runtime_failed'
+    settleRequest(id)
   }
 
   function settleRequest(id: number) {
@@ -226,13 +231,11 @@ export function useFaceLandmarker(
       )
       instance.onmessage = handleWorkerMessage
       instance.onerror = (event: ErrorEvent) => {
-        readyReject?.(
+        settleReady(
           new Error(
             `worker error: ${event.message} (${event.filename}:${event.lineno}:${event.colno})`
           )
         )
-        readyResolve = null
-        readyReject = null
       }
       worker.value = instance
 
@@ -328,11 +331,7 @@ export function useFaceLandmarker(
         )
       })
       .catch((err) => {
-        if (pendingRequestId !== id) return
-        pendingRequestId = null
-        errorDetail.value = errorMessage(err)
-        error.value = 'runtime_failed'
-        settleRequest(id)
+        if (pendingRequestId === id) failRequest(id, errorMessage(err))
       })
     return id
   }
