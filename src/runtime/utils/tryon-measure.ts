@@ -1,9 +1,9 @@
 import {
   ASSUMED_IPD_METERS,
-  EAR_LEVEL_LEFT,
-  EAR_LEVEL_RIGHT,
   IRIS_CENTER_LEFT,
   IRIS_CENTER_RIGHT,
+  getEarWidth,
+  getInterPupillaryDistance,
   landmarkDistance
 } from './tryon'
 import type { NormalizedLandmark } from './tryon'
@@ -55,17 +55,11 @@ export function irisDiameter(landmarks: NormalizedLandmark[], aspect: number = 1
 }
 
 export function earLevelWidth(landmarks: NormalizedLandmark[], aspect: number = 1): number {
-  const right = landmarks[EAR_LEVEL_RIGHT]
-  const left = landmarks[EAR_LEVEL_LEFT]
-  if (!right || !left) return 0
-  return widthUnitDistance(right, left, aspect)
+  return getEarWidth(landmarks, aspect)
 }
 
 export function pupillaryWidth(landmarks: NormalizedLandmark[], aspect: number = 1): number {
-  const right = landmarks[IRIS_CENTER_RIGHT]
-  const left = landmarks[IRIS_CENTER_LEFT]
-  if (!right || !left) return 0
-  return widthUnitDistance(right, left, aspect)
+  return getInterPupillaryDistance(landmarks, aspect)
 }
 
 export function pdFromIris(

@@ -37,10 +37,9 @@ export function faceProportions(
   landmarks: NormalizedLandmark[],
   aspect: number = 1
 ): FaceProportions | null {
-  const at = (i: number) => landmarks[i]
   const span = (a: number, b: number) => {
-    const p = at(a)
-    const q = at(b)
+    const p = landmarks[a]
+    const q = landmarks[b]
     return p && q ? widthUnitDistance(p, q, aspect) : 0
   }
   const width = span(FACE_EAR_RIGHT, FACE_EAR_LEFT)

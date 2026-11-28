@@ -112,11 +112,20 @@ export function landmarkDistance(
   return Math.hypot(a.x - b.x, (a.y - b.y) / (aspect > 0 ? aspect : 1))
 }
 
+function landmarkPairDistance(
+  landmarks: NormalizedLandmark[],
+  first: number,
+  second: number,
+  aspect: number
+): number {
+  const a = landmarks[first]
+  const b = landmarks[second]
+  if (!a || !b) return 0
+  return landmarkDistance(a, b, aspect)
+}
+
 export function getFaceWidth(landmarks: NormalizedLandmark[], aspect: number = 1): number {
-  const left = landmarks[127]
-  const right = landmarks[356]
-  if (!left || !right) return 0
-  return landmarkDistance(left, right, aspect)
+  return landmarkPairDistance(landmarks, 127, 356, aspect)
 }
 
 export const EAR_LEVEL_RIGHT = 234
@@ -125,10 +134,7 @@ export const EAR_LEVEL_LEFT = 454
 export const ASSUMED_EAR_WIDTH_METERS = 0.148
 
 export function getEarWidth(landmarks: NormalizedLandmark[], aspect: number = 1): number {
-  const right = landmarks[EAR_LEVEL_RIGHT]
-  const left = landmarks[EAR_LEVEL_LEFT]
-  if (!right || !left) return 0
-  return landmarkDistance(right, left, aspect)
+  return landmarkPairDistance(landmarks, EAR_LEVEL_RIGHT, EAR_LEVEL_LEFT, aspect)
 }
 
 export const ASSUMED_IPD_METERS = 0.063
@@ -178,10 +184,7 @@ export function getInterPupillaryDistance(
   landmarks: NormalizedLandmark[],
   aspect: number = 1
 ): number {
-  const right = landmarks[IRIS_CENTER_RIGHT]
-  const left = landmarks[IRIS_CENTER_LEFT]
-  if (!right || !left) return 0
-  return landmarkDistance(right, left, aspect)
+  return landmarkPairDistance(landmarks, IRIS_CENTER_RIGHT, IRIS_CENTER_LEFT, aspect)
 }
 
 export const EYE_RIGHT_TOP = 159
