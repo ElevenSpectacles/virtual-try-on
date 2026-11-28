@@ -1,5 +1,18 @@
 # Changelog
 
+## [5.1.5](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.1.4...v5.1.5) (2026-11-28)
+
+
+### Documentation
+
+* fix stale and duplicated lines in AGENTS.md ([5407824](https://github.com/ElevenSpectacles/virtual-try-on/commit/540782432545509ef4fd3eca356ac2c4f59f34a5)), closes [#167](https://github.com/ElevenSpectacles/virtual-try-on/issues/167)
+
+
+### Refactoring
+
+* simplify the experience composables ([dc3f5fc](https://github.com/ElevenSpectacles/virtual-try-on/commit/dc3f5fccba7b99253a39bfc4ca9eba1941dea26c))
+* simplify the scene composables ([fbf49ee](https://github.com/ElevenSpectacles/virtual-try-on/commit/fbf49ee9bba7206f58438e33f44274de9cd0ac96))
+
 ## [5.1.4](https://github.com/ElevenSpectacles/virtual-try-on/compare/v5.1.3...v5.1.4) (2026-11-27)
 
 
