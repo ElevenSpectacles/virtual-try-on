@@ -65,16 +65,10 @@ export function useCapabilityTier(options: UseCapabilityTierOptions = {}) {
   })
 
   watch(forcedTier, (value) => {
-    if (value !== undefined) {
-      sampler.forced = true
-      sampler.tier = value
-      tier.value = value
-      return
-    }
-    sampler.forced = false
-    const resume = deviceTier ?? 'mid'
-    sampler.tier = resume
-    tier.value = resume
+    sampler.forced = value !== undefined
+    const next = value ?? deviceTier ?? 'mid'
+    sampler.tier = next
+    tier.value = next
   })
 
   useTryOnFrameLoop((deltaMs) => {

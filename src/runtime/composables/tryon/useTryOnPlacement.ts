@@ -160,12 +160,9 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
     const card = options.calibratedPd?.()
     if (!card) return iris
     const ipdNow = poseCompensated(ipd.value)
-    const earRatio =
-      iris && iris.nearPdMm > 0 && iris.earWidthMm > 0
-        ? iris.earWidthMm / iris.nearPdMm
-        : ipdNow > 0
-          ? poseCompensated(earWidth.value) / ipdNow
-          : 0
+    let earRatio = 0
+    if (iris && iris.nearPdMm > 0 && iris.earWidthMm > 0) earRatio = iris.earWidthMm / iris.nearPdMm
+    else if (ipdNow > 0) earRatio = poseCompensated(earWidth.value) / ipdNow
     return {
       samples: iris?.samples ?? [],
       distances: iris?.distances ?? [],
@@ -294,10 +291,12 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
     )
   })
 
+  function anchorWorldPosition() {
+    return landmarkToWorld(smoothedAnchor.value, options.aspect.value, { mirror: MIRROR_LANDMARKS })
+  }
+
   const framePosition = computed(() => {
-    const position = landmarkToWorld(smoothedAnchor.value, options.aspect.value, {
-      mirror: MIRROR_LANDMARKS
-    })
+    const position = anchorWorldPosition()
     const standoff = headForwardOffset(
       smoothedEuler.value,
       FRAME_BRIDGE_STANDOFF_METERS * smoothedScale.value
@@ -311,9 +310,7 @@ export function useTryOnPlacement(options: UseTryOnPlacementOptions) {
   })
 
   const occluderPosition = computed(() => {
-    const position = landmarkToWorld(smoothedAnchor.value, options.aspect.value, {
-      mirror: MIRROR_LANDMARKS
-    })
+    const position = anchorWorldPosition()
     const setback = EYE_PLANE_SETBACK_METERS * smoothedScale.value
     const back = new Vector3(0, 0, -(occluderGeometry.value.radiusZ + setback)).applyEuler(
       headEuler(smoothedEuler.value)

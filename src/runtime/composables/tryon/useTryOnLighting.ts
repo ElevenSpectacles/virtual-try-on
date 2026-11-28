@@ -68,8 +68,7 @@ export function useTryOnLighting(options: {
     }
     const pixels = Uint8ClampedArray.from(roomAccumulator)
     roomSample.value = { pixels, width, height }
-    const region = options.faceRegion?.() ?? undefined
-    const direction = estimateLightDirection(pixels, width, height, region ?? undefined)
+    const direction = estimateLightDirection(pixels, width, height, options.faceRegion?.() ?? undefined)
     if (direction) {
       lightDirection.value = smoothLightDirection(lightDirection.value, direction, LIGHTING_SMOOTHING)
     }

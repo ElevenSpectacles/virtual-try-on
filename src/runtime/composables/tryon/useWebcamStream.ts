@@ -34,34 +34,26 @@ export function useWebcamStream() {
     error.value = null
     errorDetail.value = null
 
-    if (stream.value) {
-      isStarting.value = true
-      try {
-        if (await play()) isActive.value = true
-      } finally {
-        isStarting.value = false
-      }
-      return
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
+    if (!stream.value && !navigator.mediaDevices?.getUserMedia) {
       error.value = 'unsupported'
       return
     }
 
     isStarting.value = true
     try {
-      const media = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
-          frameRate: { ideal: 60 }
-        },
-        audio: false
-      })
-      stream.value = media
-      if (videoRef.value) videoRef.value.srcObject = media
+      if (!stream.value) {
+        const media = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 720 },
+            height: { ideal: 1280 },
+            frameRate: { ideal: 60 }
+          },
+          audio: false
+        })
+        stream.value = media
+        if (videoRef.value) videoRef.value.srcObject = media
+      }
       if (await play()) isActive.value = true
     } catch (err) {
       const name = err instanceof DOMException ? err.name : ''
